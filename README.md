@@ -1,96 +1,306 @@
-# IsolateUi
+# Isolate UI
 
-<a alt="Nx logo" href="https://nx.dev" target="_blank" rel="noreferrer"><img src="https://raw.githubusercontent.com/nrwl/nx/master/images/nx-logo.png" width="45"></a>
+A modern React component library built with TypeScript, tested with Vitest, and managed with Nx.
 
-✨ Your new, shiny [Nx workspace](https://nx.dev) is ready ✨.
+## Quick Start
 
-[Learn more about this workspace setup and its capabilities](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects) or run `npx nx graph` to visually explore what was created. Now, let's get you up to speed!
+```bash
+# Install dependencies
+pnpm install
 
-## Run tasks
+# Run tests
+pnpm vitest
 
-To run tasks with Nx use:
+# Run all tests via Nx
+nx run-many -t test -- --run
 
-```sh
-npx nx <target> <project-name>
+# Type check
+nx run-many -t typecheck
+
+# Lint
+nx run-many -t lint
 ```
 
-For example:
+## Project Structure
 
-```sh
-npx nx build myproject
+```
+libs/
+├── react/
+│   └── button/          # React Button component
+│       ├── src/
+│       ├── vite.config.mts
+│       ├── AGENTS.md    # Component-specific docs
+│       └── package.json
+└── utils/               # Shared utility functions
+    ├── src/
+    ├── vitest.config.mts
+    ├── AGENTS.md        # Library-specific docs
+    └── package.json
 ```
 
-These targets are either [inferred automatically](https://nx.dev/concepts/inferred-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) or defined in the `project.json` or `package.json` files.
+## Technology Stack
 
-[More about running tasks in the docs &raquo;](https://nx.dev/features/run-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+- **Monorepo**: [Nx](https://nx.dev) 22.5.4
+- **Package Manager**: [pnpm](https://pnpm.io) 10.30.3
+- **Testing**: [Vitest](https://vitest.dev) 3.2.4
+- **UI Framework**: React 19
+- **Build Tool**: [Vite](https://vitejs.dev) 7.x
+- **Language**: TypeScript 5.9
 
-## Add new projects
+## Development
 
-While you could add new projects to your workspace manually, you might want to leverage [Nx plugins](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) and their [code generation](https://nx.dev/features/generate-code?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) feature.
+### Prerequisites
 
-To install a new plugin you can use the `nx add` command. Here's an example of adding the React plugin:
-```sh
-npx nx add @nx/react
+- Node.js 21.7.3 or compatible
+- pnpm 10.30.3+
+
+### Setup
+
+```bash
+# Clone the repository
+git clone <repo-url>
+cd isolate-ui
+
+# Install dependencies
+pnpm install
 ```
 
-Use the plugin's generator to create new projects. For example, to create a new React app or library:
+### Working with Components
 
-```sh
-# Generate an app
-npx nx g @nx/react:app demo
+#### Button Component
 
-# Generate a library
-npx nx g @nx/react:lib some-lib
+```bash
+# Run tests
+nx test button
+
+# Run tests in watch mode
+nx test button --watch
+
+# Type check
+nx typecheck button
+
+# Build
+nx build button
 ```
 
-You can use `npx nx list` to get a list of installed plugins. Then, run `npx nx list <plugin-name>` to learn about more specific capabilities of a particular plugin. Alternatively, [install Nx Console](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) to browse plugins and generators in your IDE.
+See [libs/react/button/AGENTS.md](libs/react/button/AGENTS.md) for detailed documentation.
 
-[Learn more about Nx plugins &raquo;](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) | [Browse the plugin registry &raquo;](https://nx.dev/plugin-registry?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+#### Utils Library
 
-## Set up CI!
+```bash
+# Run tests
+nx test utils
 
-### Step 1
+# Type check
+nx typecheck utils
 
-To connect to Nx Cloud, run the following command:
-
-```sh
-npx nx connect
+# Build
+nx build utils
 ```
 
-Connecting to Nx Cloud ensures a [fast and scalable CI](https://nx.dev/ci/intro/why-nx-cloud?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects) pipeline. It includes features such as:
+See [libs/utils/AGENTS.md](libs/utils/AGENTS.md) for detailed documentation.
 
-- [Remote caching](https://nx.dev/ci/features/remote-cache?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task distribution across multiple machines](https://nx.dev/ci/features/distribute-task-execution?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Automated e2e test splitting](https://nx.dev/ci/features/split-e2e-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Task flakiness detection and rerunning](https://nx.dev/ci/features/flaky-tasks?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+### Creating New Libraries
 
-### Step 2
+#### React Component Library
 
-Use the following command to configure a CI workflow for your workspace:
-
-```sh
-npx nx g ci-workflow
+```bash
+nx generate @nx/react:lib <name> \
+  --directory=libs/react/<name> \
+  --unitTestRunner=vitest
 ```
 
-[Learn more about Nx on CI](https://nx.dev/ci/intro/ci-with-nx#ready-get-started-with-your-provider?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+#### TypeScript Utility Library
 
-## Install Nx Console
+```bash
+nx generate @nx/js:library <name> \
+  --directory=libs/<name> \
+  --unitTestRunner=vitest \
+  --bundler=tsc \
+  --linter=eslint
+```
 
-Nx Console is an editor extension that enriches your developer experience. It lets you run tasks, generate code, and improves code autocompletion in your IDE. It is available for VSCode and IntelliJ.
+### Running Tests
 
-[Install Nx Console &raquo;](https://nx.dev/getting-started/editor-setup?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+```bash
+# All tests (watch mode)
+pnpm vitest
 
-## Useful links
+# All tests (single run)
+pnpm vitest run
 
-Learn more:
+# Specific project via Nx
+nx test button
+nx test utils
 
-- [Learn more about this workspace setup](https://nx.dev/getting-started/intro#learn-nx?utm_source=nx_project&amp;utm_medium=readme&amp;utm_campaign=nx_projects)
-- [Learn about Nx on CI](https://nx.dev/ci/intro/ci-with-nx?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [Releasing Packages with Nx release](https://nx.dev/features/manage-releases?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
-- [What are Nx plugins?](https://nx.dev/concepts/nx-plugins?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+# All projects with caching
+nx run-many -t test -- --run
 
-And join the Nx community:
-- [Discord](https://go.nx.dev/community)
-- [Follow us on X](https://twitter.com/nxdevtools) or [LinkedIn](https://www.linkedin.com/company/nrwl)
-- [Our Youtube channel](https://www.youtube.com/@nxdevtools)
-- [Our blog](https://nx.dev/blog?utm_source=nx_project&utm_medium=readme&utm_campaign=nx_projects)
+# Only affected projects
+nx affected -t test
+```
+
+### Building
+
+```bash
+# Build all libraries
+nx run-many -t build
+
+# Build specific library
+nx build button
+
+# Build with dependencies
+nx build button --with-deps
+
+# Build only affected
+nx affected -t build
+```
+
+### Type Checking
+
+```bash
+# Type check all projects
+nx run-many -t typecheck
+
+# Type check specific project
+nx typecheck button
+
+# Watch mode
+nx typecheck button --watch
+```
+
+### Linting
+
+```bash
+# Lint all projects
+nx run-many -t lint
+
+# Lint specific project
+nx lint button
+
+# Auto-fix
+nx lint button --fix
+```
+
+## Using Components
+
+### Installation
+
+```bash
+# In your project
+pnpm add @isolate-ui/button @isolate-ui/utils
+```
+
+### Usage
+
+```tsx
+import { Button } from '@isolate-ui/button';
+import { utils } from '@isolate-ui/utils';
+
+function App() {
+  return (
+    <Button onClick={() => console.log(utils())}>
+      Click me
+    </Button>
+  );
+}
+```
+
+## Testing
+
+The project uses Vitest with different environments:
+
+- **React components**: `jsdom` environment for DOM APIs
+- **Utility libraries**: `node` environment
+
+Tests use globals (`describe`, `it`, `expect`) - no imports needed.
+
+```typescript
+describe('MyComponent', () => {
+  it('should work', () => {
+    expect(true).toBe(true);
+  });
+});
+```
+
+## CI/CD
+
+### Nx Cloud (Optional)
+
+Connect to Nx Cloud for distributed caching and task execution:
+
+```bash
+nx connect
+```
+
+### CI Commands
+
+```bash
+# Test only changed code
+nx affected -t test --base=origin/main
+
+# Build only changed code
+nx affected -t build --base=origin/main
+
+# Run all checks
+nx run-many -t lint typecheck test build
+```
+
+## Project Configuration
+
+### Key Files
+
+- **[AGENTS.md](AGENTS.md)** - Detailed project setup and troubleshooting
+- **[nx.json](nx.json)** - Nx workspace configuration
+- **[tsconfig.base.json](tsconfig.base.json)** - TypeScript base configuration
+- **[vitest.workspace.ts](vitest.workspace.ts)** - Vitest workspace configuration
+- **[.npmrc](.npmrc)** - pnpm configuration
+
+### Path Mappings
+
+Libraries can be imported using path aliases:
+
+```typescript
+import { Button } from '@isolate-ui/button';
+import { utils } from '@isolate-ui/utils';
+```
+
+Configured in [tsconfig.base.json](tsconfig.base.json).
+
+## Troubleshooting
+
+### Clear Nx Cache
+
+```bash
+nx reset
+```
+
+### Reinstall Dependencies
+
+```bash
+rm -rf node_modules pnpm-lock.yaml
+pnpm install
+```
+
+### View Project Graph
+
+```bash
+nx graph
+```
+
+## Documentation
+
+- **[AGENTS.md](AGENTS.md)** - Comprehensive project documentation
+- **[libs/react/button/AGENTS.md](libs/react/button/AGENTS.md)** - Button component docs
+- **[libs/utils/AGENTS.md](libs/utils/AGENTS.md)** - Utils library docs
+
+## Resources
+
+- [Nx Documentation](https://nx.dev)
+- [Vitest Documentation](https://vitest.dev)
+- [React Documentation](https://react.dev)
+- [pnpm Documentation](https://pnpm.io)
+
+## License
+
+MIT
