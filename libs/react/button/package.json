@@ -8,8 +8,5 @@
       "import": "./index.mjs",
       "require": "./index.js"
     }
-  },
-  "publishConfig": {
-    "registry": "http://localhost:4873"
   }
 }

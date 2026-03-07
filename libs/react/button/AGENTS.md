@@ -67,6 +67,16 @@ nx lint button
 nx lint button --fix
 ```
 
+### Publishing
+
+```bash
+# Publish to local Verdaccio for testing
+nx release publish --registry=http://localhost:4873
+
+# Publish to npm (CI)
+nx release publish
+```
+
 ## Component API
 
 ### ButtonProps
@@ -83,11 +93,7 @@ interface ButtonProps extends HTMLAttributes<HTMLButtonElement> {
 import { Button } from '@isolate-ui/button';
 
 function App() {
-  return (
-    <Button onClick={() => console.log('clicked')}>
-      Click me
-    </Button>
-  );
+  return <Button onClick={() => console.log('clicked')}>Click me</Button>;
 }
 ```
 
@@ -96,6 +102,7 @@ function App() {
 ### Vite Configuration
 
 [vite.config.mts](vite.config.mts) is configured with:
+
 - **React plugin**: JSX transformation and Fast Refresh
 - **TypeScript**: Type declarations generated via `vite-plugin-dts`
 - **Build format**: ESM (ES modules)
@@ -104,6 +111,7 @@ function App() {
 ### Vitest Configuration
 
 Test configuration in [vite.config.mts](vite.config.mts):
+
 - **Environment**: `jsdom` (simulates browser environment)
 - **Globals**: `true` - no need to import `describe`, `it`, `expect`
 - **Test pattern**: `{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}`
@@ -121,6 +129,7 @@ Test configuration in [vite.config.mts](vite.config.mts):
 ### Modifying the Component
 
 1. **Update the component**:
+
    ```tsx
    // src/lib/button.tsx
    export interface ButtonProps extends HTMLAttributes<HTMLButtonElement> {
@@ -137,6 +146,7 @@ Test configuration in [vite.config.mts](vite.config.mts):
    ```
 
 2. **Update tests**:
+
    ```tsx
    // src/lib/button.spec.tsx
    describe('Button', () => {
@@ -204,9 +214,9 @@ describe('Button', () => {
   it('should call onClick when clicked', () => {
     const handleClick = vi.fn();
     const { getByRole } = render(<Button onClick={handleClick}>Click</Button>);
-    
+
     fireEvent.click(getByRole('button'));
-    
+
     expect(handleClick).toHaveBeenCalledTimes(1);
   });
 });
@@ -217,12 +227,14 @@ describe('Button', () => {
 ### Peer Dependencies
 
 The component requires these in consuming applications:
+
 - `react`: ^19.0.0
 - `react-dom`: ^19.0.0
 
 ### Internal Dependencies
 
 Can depend on other workspace libraries:
+
 ```tsx
 import { utils } from '@isolate-ui/utils';
 ```
@@ -230,6 +242,7 @@ import { utils } from '@isolate-ui/utils';
 ## Build Output
 
 The build creates:
+
 - **ESM bundle**: `dist/libs/react/button/index.js`
 - **Type declarations**: `dist/libs/react/button/index.d.ts`
 - **Source maps**: For debugging
@@ -252,6 +265,7 @@ function App() {
 ## CI/CD
 
 Tests and builds are automatically run:
+
 - On every commit (via Nx affected)
 - In pull requests
 - Before releases
@@ -259,15 +273,19 @@ Tests and builds are automatically run:
 ## Troubleshooting
 
 ### Tests failing with "document is not defined"
+
 Make sure `environment: 'jsdom'` is set in the test config
 
 ### React hooks errors
+
 Ensure React version matches across all packages (use pnpm's peer dependency resolution)
 
 ### Import errors
+
 Check that the component is exported from `src/index.ts`
 
 ### Type errors
+
 Run `nx typecheck button` to see all type errors
 
 ## Related Documentation

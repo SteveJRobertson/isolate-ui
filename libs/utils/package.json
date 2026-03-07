@@ -9,8 +9,5 @@
     "tslib": "^2.3.0",
     "vitest": "^3.2.4",
     "@nx/vite": "^22.5.4"
-  },
-  "publishConfig": {
-    "registry": "http://localhost:4873"
   }
 }
