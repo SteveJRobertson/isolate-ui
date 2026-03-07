@@ -70,12 +70,17 @@ nx lint button --fix
 ### Publishing
 
 ```bash
-# Publish to local Verdaccio for testing
-nx release publish --registry=http://localhost:4873
-
 # Publish to npm (CI)
 nx release publish
 ```
+
+To publish to a local Verdaccio instance for testing, add the following to `.npmrc` before running:
+
+```properties
+@isolate-ui:registry=http://localhost:4873
+```
+
+Remove the `.npmrc` entry before committing or publishing to npm.
 
 ## Component API
 
