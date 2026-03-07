@@ -2,7 +2,9 @@
   "name": "@isolate-ui/source",
   "version": "0.0.0",
   "license": "MIT",
-  "scripts": {},
+  "scripts": {
+    "local-registry": "verdaccio --config .verdaccio/config.yml"
+  },
   "private": true,
   "devDependencies": {
     "@babel/core": "^7.14.5",

@@ -14,12 +14,18 @@
   },
   "release": {
     "projectsRelationship": "independent",
+    "projects": ["libs/**"],
     "versionPlans": true,
     "changelog": {
-      "projectChangelogs": true
+      "projectChangelogs": true,
+      "workspaceChangelog": false
     },
     "version": {
-      "preVersionCommand": "npx nx run-many -t build"
+      "preVersionCommand": "pnpm nx run-many -t build"
+    },
+    "git": {
+      "commitMessage": "chore(release): publish {projectName} v{version}",
+      "tagPattern": "{projectName}@{version}"
     }
   },
   "plugins": [
