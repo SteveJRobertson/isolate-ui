@@ -56,7 +56,7 @@ pnpm vitest run
 pnpm vitest
 
 # Run tests for a specific project via Nx
-nx test button
+nx test react-button
 nx test utils
 
 # Run all tests via Nx (with caching)
@@ -224,13 +224,13 @@ nx run-many -t lint
 pnpm vitest
 
 # Run tests for specific project
-nx test button --watch
+nx test react-button --watch
 
 # Type check
-nx typecheck button
+nx typecheck react-button
 
 # Build
-nx build button
+nx build react-button
 
 # Run all tasks for affected projects
 nx affected -t test lint typecheck build

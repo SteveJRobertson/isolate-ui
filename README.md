@@ -73,16 +73,16 @@ pnpm install
 
 ```bash
 # Run tests
-nx test button
+nx test react-button
 
 # Run tests in watch mode
-nx test button --watch
+nx test react-button --watch
 
 # Type check
-nx typecheck button
+nx typecheck react-button
 
 # Build
-nx build button
+nx build react-button
 ```
 
 See [libs/react/button/AGENTS.md](libs/react/button/AGENTS.md) for detailed documentation.
@@ -132,7 +132,7 @@ pnpm vitest
 pnpm vitest run
 
 # Specific project via Nx
-nx test button
+nx test react-button
 nx test utils
 
 # All projects with caching
@@ -149,10 +149,10 @@ nx affected -t test
 nx run-many -t build
 
 # Build specific library
-nx build button
+nx build react-button
 
 # Build with dependencies
-nx build button --with-deps
+nx build react-button --with-deps
 
 # Build only affected
 nx affected -t build
@@ -165,10 +165,10 @@ nx affected -t build
 nx run-many -t typecheck
 
 # Type check specific project
-nx typecheck button
+nx typecheck react-button
 
 # Watch mode
-nx typecheck button --watch
+nx typecheck react-button --watch
 ```
 
 ### Linting
@@ -178,10 +178,10 @@ nx typecheck button --watch
 nx run-many -t lint
 
 # Lint specific project
-nx lint button
+nx lint react-button
 
 # Auto-fix
-nx lint button --fix
+nx lint react-button --fix
 ```
 
 ## Using Components

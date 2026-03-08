@@ -1,0 +1,10 @@
+/*
+  Global Panda CSS layer order declaration.
+  Once `@pandacss/dev` is configured and `panda codegen` is run,
+  import the generated CSS by running:
+
+    @import '../styled-system/styles.css';
+
+  The layer order below must precede any component styles.
+*/
+@layer reset, base, tokens, recipes, utilities;

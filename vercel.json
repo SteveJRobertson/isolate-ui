@@ -1,0 +1,8 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm nx build-storybook react-button",
+  "outputDirectory": "dist/storybook/react-button",
+  "ignoreCommand": "pnpm dlx nx-ignore react-button",
+  "framework": null,
+  "installCommand": "pnpm install --frozen-lockfile"
+}
