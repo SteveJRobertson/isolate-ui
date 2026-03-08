@@ -38,7 +38,7 @@
       "preVersionCommand": "pnpm nx run-many -t build"
     },
     "git": {
-      "commitMessage": "chore(release): publish {projectName} v{version}",
+      "commitMessage": "chore(release): publish {projectName} v{version} [skip ci]",
       "tagPattern": "{projectName}@{version}"
     }
   },
