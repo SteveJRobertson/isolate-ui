@@ -4,6 +4,7 @@
     "outDir": "../../../dist/out-tsc",
     "types": ["vite/client", "node"]
   },
+  "references": [],
   "include": [
     "src/**/*.stories.ts",
     "src/**/*.stories.tsx",
