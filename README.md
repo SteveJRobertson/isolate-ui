@@ -70,6 +70,7 @@ docs: update contributing guide
 **Allowed scopes**: `react-button`, `utils`, `source`
 
 Commits are validated:
+
 - Locally via Git hook (Husky)
 - In CI for all PR commits and PR titles
 
@@ -88,6 +89,7 @@ pnpm nx release plan patch
 This creates a YAML file in `.nx/version-plans/` describing the release. Commit this file with your PR.
 
 **When your PR is merged to `main`:**
+
 1. ✅ The release workflow automatically runs
 2. ✅ Versions are bumped based on version plans
 3. ✅ Changelogs are generated
@@ -283,6 +285,7 @@ nx run-many -t build-storybook
 ```
 
 **Features:**
+
 - Interactive component playground
 - Accessibility testing (a11y addon)
 - Interaction testing
@@ -362,6 +365,7 @@ The release workflow runs automatically when PRs are merged to `main`:
 7. **Pushes release commit** back to `main` with `[skip ci]`
 
 **Authentication:**
+
 - GitHub App token for bypassing branch protection
 - NPM granular access token (90-day rotation required)
 - OIDC for npm provenance attestations
