@@ -1,5 +1,19 @@
 {
   "$schema": "./node_modules/nx/schemas/nx-schema.json",
+  "tasksRunnerOptions": {
+    "default": {
+      "runner": "@vercel/remote-nx",
+      "options": {
+        "cacheableOperations": [
+          "build",
+          "build-storybook",
+          "test",
+          "lint",
+          "typecheck"
+        ]
+      }
+    }
+  },
   "namedInputs": {
     "default": ["{projectRoot}/**/*", "sharedGlobals"],
     "production": [
@@ -65,6 +79,15 @@
     }
   },
   "targetDefaults": {
+    "storybook": {
+      "cache": false,
+      "inputs": ["default", "^production"]
+    },
+    "build-storybook": {
+      "cache": true,
+      "inputs": ["production", "^production"],
+      "outputs": ["{projectRoot}/storybook-static"]
+    },
     "typecheck": {
       "cache": true,
       "inputs": ["default", "^default"],

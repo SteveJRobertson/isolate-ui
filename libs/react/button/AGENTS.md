@@ -27,44 +27,48 @@ libs/react/button/
 
 ```bash
 # Run tests for this component
-nx test button
+nx test react-button
 
 # Run tests in watch mode
-nx test button --watch
+nx test react-button --watch
 
 # Run tests with UI
-nx test button --ui
+nx test react-button --ui
 
 # Run tests with coverage
-nx test button --coverage
+nx test react-button --coverage
 ```
 
 ### Building
 
 ```bash
 # Build the component library
-nx build button
+nx build react-button
 
 # Build outputs to: dist/libs/react/button/
 ```
 
 ### Development Server
 
-To test the component in isolation, create a dev app or use Storybook (if configured):
+Test the component in isolation with Storybook:
 
 ```bash
-# Type check while developing
-nx typecheck button --watch
+# Start Storybook dev server (http://localhost:6006)
+nx storybook react-button
+
+# Build Storybook for static deployment
+nx build-storybook react-button
+# Output: dist/libs/react/button/
 ```
 
 ### Linting
 
 ```bash
 # Lint the component
-nx lint button
+nx lint react-button
 
 # Lint with auto-fix
-nx lint button --fix
+nx lint react-button --fix
 ```
 
 ### Publishing
@@ -164,7 +168,7 @@ Test configuration in [vite.config.mts](vite.config.mts):
 
 3. **Run tests**:
    ```bash
-   nx test button
+   nx test react-button
    ```
 
 ### Adding Styles
@@ -291,7 +295,7 @@ Check that the component is exported from `src/index.ts`
 
 ### Type errors
 
-Run `nx typecheck button` to see all type errors
+Run `nx typecheck react-button` to see all type errors
 
 ## Related Documentation
 
