@@ -61,6 +61,13 @@
     "react-dom": "^19.0.0"
   },
   "packageManager": "pnpm@10.30.3",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@swc/core",
+      "esbuild",
+      "nx"
+    ]
+  },
   "nx": {
     "includedScripts": []
   }
