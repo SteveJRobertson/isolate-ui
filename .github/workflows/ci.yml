@@ -16,13 +16,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Validate PR title and commits
-        uses: wagoid/commitlint-github-action@v6
-        with:
-          configFile: commitlint.config.ts
-          failOnWarnings: false
-          helpURL: https://www.conventionalcommits.org/
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
@@ -34,6 +27,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Validate PR title and commits
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.ts
+          failOnWarnings: false
+          helpURL: https://www.conventionalcommits.org/
 
       - name: Lint affected
         run: pnpm nx affected -t lint --base=origin/main
