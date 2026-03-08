@@ -16,6 +16,9 @@ const config: StorybookConfig = {
   viteFinal: async (config) => {
     return mergeConfig(config, {
       plugins: [nxViteTsPaths()],
+      build: {
+        chunkSizeWarningLimit: 1000,
+      },
     });
   },
 };
