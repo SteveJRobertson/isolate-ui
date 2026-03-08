@@ -10,7 +10,6 @@ const meta: Meta<typeof Button> = {
     layout: 'centered',
   },
   argTypes: {
-    onClick: { action: 'clicked' },
     disabled: { control: 'boolean' },
     className: { control: 'text' },
   },
