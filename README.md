@@ -1,5 +1,7 @@
 # Isolate UI
 
+[![CI](https://github.com/SteveJRobertson/isolate-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/SteveJRobertson/isolate-ui/actions/workflows/ci.yml)
+
 A modern React component library built with TypeScript, tested with Vitest, and managed with Nx.
 
 ## Quick Start
@@ -198,11 +200,7 @@ import { Button } from '@isolate-ui/button';
 import { utils } from '@isolate-ui/utils';
 
 function App() {
-  return (
-    <Button onClick={() => console.log(utils())}>
-      Click me
-    </Button>
-  );
+  return <Button onClick={() => console.log(utils())}>Click me</Button>;
 }
 ```
 
