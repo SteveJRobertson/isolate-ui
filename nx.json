@@ -81,15 +81,11 @@
   "targetDefaults": {
     "storybook": {
       "cache": false,
-      "inputs": ["default", "^production"]
+      "inputs": ["default", "^production", "{workspaceRoot}/.storybook/**"]
     },
     "build-storybook": {
       "cache": true,
-      "inputs": [
-        "production",
-        "^production",
-        "{workspaceRoot}/.storybook/**"
-      ]
+      "inputs": ["production", "^production", "{workspaceRoot}/.storybook/**"]
     },
     "typecheck": {
       "cache": true,
