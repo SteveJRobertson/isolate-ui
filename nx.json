@@ -85,8 +85,7 @@
     },
     "build-storybook": {
       "cache": true,
-      "inputs": ["production", "^production"],
-      "outputs": ["{projectRoot}/storybook-static"]
+      "inputs": ["production", "^production"]
     },
     "typecheck": {
       "cache": true,
