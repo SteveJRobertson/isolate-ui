@@ -262,8 +262,8 @@ This shows all inferred and configured targets for a project.
 - **Nx**: 22.5.4
 - **pnpm**: 10.30.3
 - **Vitest**: 3.2.4
-- **Node.js**: 21.7.3 (or compatible)
+- **Node.js**: 22.x
 
 ---
 
-_Last updated: March 4, 2026_
+_Last updated: March 8, 2026_
