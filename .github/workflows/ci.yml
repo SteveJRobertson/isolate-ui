@@ -16,6 +16,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Validate PR title and commits
+        uses: wagoid/commitlint-github-action@v6
+        with:
+          configFile: commitlint.config.ts
+          failOnWarnings: false
+          helpURL: https://www.conventionalcommits.org/
+
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
 
