@@ -4,5 +4,5 @@
   "outputDirectory": "dist/libs/react/button",
   "ignoreCommand": "pnpm dlx nx-ignore react-button",
   "framework": null,
-  "installCommand": "pnpm install"
+  "installCommand": "pnpm install --frozen-lockfile"
 }
