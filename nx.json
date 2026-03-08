@@ -85,7 +85,11 @@
     },
     "build-storybook": {
       "cache": true,
-      "inputs": ["production", "^production"]
+      "inputs": [
+        "production",
+        "^production",
+        "{workspaceRoot}/.storybook/**"
+      ]
     },
     "typecheck": {
       "cache": true,
