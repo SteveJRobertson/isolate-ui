@@ -58,7 +58,7 @@ nx storybook react-button
 
 # Build Storybook for static deployment
 nx build-storybook react-button
-# Output: dist/libs/react/button/
+# Output: dist/storybook/react-button/
 ```
 
 ### Linting
