@@ -15,10 +15,10 @@
     "build-storybook": {
       "executor": "nx:run-commands",
       "options": {
-        "command": "storybook build --config-dir .storybook --output-dir dist/libs/react/button",
+        "command": "storybook build --config-dir .storybook --output-dir dist/storybook/react-button",
         "cwd": "{workspaceRoot}"
       },
-      "outputs": ["{workspaceRoot}/dist/libs/react/button"]
+      "outputs": ["{workspaceRoot}/dist/storybook/react-button"]
     },
     "nx-release-publish": {
       "options": {
