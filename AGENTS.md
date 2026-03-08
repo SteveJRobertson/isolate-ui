@@ -13,6 +13,7 @@ This project uses **pnpm** instead of npm for faster, more efficient dependency 
 The project was migrated from npm to pnpm with the following configuration:
 
 **Key Files:**
+
 - [.npmrc](.npmrc) - Contains `shamefully-hoist=true` for Nx compatibility
 - [package.json](package.json) - Includes `"packageManager": "pnpm@10.30.3"`
 
@@ -39,6 +40,7 @@ pnpm nx <command>
 The project uses **Vitest v3.2.4** (downgraded from v4 for Nx compatibility) with a workspace pattern:
 
 **Key Files:**
+
 - [vitest.workspace.ts](vitest.workspace.ts) - Discovers all vitest/vite configs via glob patterns
 - Individual project configs:
   - [libs/react/button/vite.config.mts](libs/react/button/vite.config.mts)
@@ -88,6 +90,7 @@ libs/
 ### Nx Configuration
 
 **[nx.json](nx.json)** includes:
+
 - `@nx/eslint/plugin` - For linting
 - `@nx/vite/plugin` - For Vite builds
 - `@nx/vitest` - For test task inference (note: **not** `@nx/vitest/plugin`)
@@ -116,6 +119,7 @@ nx g @nx/vitest:configuration --project=<project-name> --uiFramework=none
 ```
 
 This will:
+
 - Create `vitest.config.mts` in the project
 - Create `tsconfig.spec.json`
 - Update project tsconfig files
@@ -126,6 +130,7 @@ This will:
 ### Issue: `@nx/vitest` plugin errors during generation
 
 **Error:**
+
 ```
 require() of ES Module .../vitest/dist/node.js ... not supported
 ```
@@ -133,7 +138,9 @@ require() of ES Module .../vitest/dist/node.js ... not supported
 **Cause:** `@nx/vitest@22.5.4` has ESM compatibility issues with both vitest v3 and v4 when using pnpm's strict dependency resolution.
 
 **Solutions:**
+
 1. ✅ **Current approach**: Generate libraries without vitest initially, then add it manually:
+
    ```bash
    nx g @nx/js:library mylib --unitTestRunner=none
    nx g @nx/vitest:configuration --project=mylib
@@ -148,7 +155,8 @@ require() of ES Module .../vitest/dist/node.js ... not supported
 
 **Cause:** Having both a root `vitest.config.mts` and project-specific configs can cause conflicts in workspace mode.
 
-**Solution:** 
+**Solution:**
+
 - ✅ Use [vitest.workspace.ts](vitest.workspace.ts) with project-specific configs only
 - ❌ Avoid having a root `vitest.config.mts` when using workspace pattern
 
@@ -169,6 +177,7 @@ nx run-many -t test -- --run
 ### Environment Variables
 
 For Nx Cloud (optional):
+
 ```bash
 # Connect to Nx Cloud for distributed caching
 nx connect
@@ -177,6 +186,7 @@ nx connect
 ## TypeScript Configuration
 
 **[tsconfig.base.json](tsconfig.base.json)** contains path mappings:
+
 ```json
 {
   "paths": {
@@ -187,6 +197,7 @@ nx connect
 ```
 
 Projects can import from each other using these aliases:
+
 ```typescript
 import { Button } from '@isolate-ui/button';
 import { utils } from '@isolate-ui/utils';
@@ -230,6 +241,7 @@ nx affected -t test lint typecheck build
 ### Clear Nx Cache
 
 If you encounter unexpected behavior:
+
 ```bash
 nx reset
 ```
@@ -237,6 +249,7 @@ nx reset
 ### Reinstall Dependencies
 
 If pnpm packages are corrupted:
+
 ```bash
 rm -rf node_modules pnpm-lock.yaml
 pnpm install
@@ -262,8 +275,8 @@ This shows all inferred and configured targets for a project.
 - **Nx**: 22.5.4
 - **pnpm**: 10.30.3
 - **Vitest**: 3.2.4
-- **Node.js**: 21.7.3 (or compatible)
+- **Node.js**: 22.x
 
 ---
 
-_Last updated: March 4, 2026_
+_Last updated: March 8, 2026_
