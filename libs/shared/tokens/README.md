@@ -43,17 +43,17 @@ const baseFontSize = tokens.typography.fontSize.base; // "1rem"
 
 ### CSS Variables
 
-Import the generated CSS file in your application:
+In your CSS files, use the generated CSS variables:
 
 ```css
-@import '@isolate-ui/tokens/gen/css/variables.css';
-
 .my-component {
   color: var(--isolate-color-primary-500);
   padding: var(--isolate-spacing-4);
   font-size: var(--isolate-typography-font-size-base);
 }
 ```
+
+> **Note**: The generated CSS file is at `libs/shared/tokens/gen/css/variables.css` within the monorepo. Configure your bundler to import it, or reference it via a relative path depending on your build setup.
 
 ## Development
 

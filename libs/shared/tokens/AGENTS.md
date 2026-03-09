@@ -111,7 +111,7 @@ Key settings in tsconfig files:
 
 ## Dependencies
 
-- **style-dictionary**: ^4.0.0 (ESM async API)
+- **style-dictionary**: ^4.4.0 (ESM async API)
 - No additional transformers needed - uses built-in DTCG support
 
 ## Integration Points
@@ -128,7 +128,7 @@ This library is designed to integrate with:
 - The `gen/` directory is gitignored but must be generated before building
 - Nx automatically handles the build order via `dependsOn`
 - CSS variables use kebab-case naming (e.g., `--isolate-color-primary-500`)
-- TypeScript tokens use object notation (e.g., `tokens.color.primary[500]`)
+- TypeScript tokens use string keys for numeric names (e.g., `tokens.color.primary['500']`)
 
 ## Linting Configuration
 
