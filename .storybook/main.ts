@@ -1,3 +1,4 @@
+import { join } from 'path';
 import type { StorybookConfig } from '@storybook/react-vite';
 import { nxViteTsPaths } from '@nx/vite/plugins/nx-tsconfig-paths.plugin';
 import { mergeConfig } from 'vite';
@@ -18,6 +19,12 @@ const config: StorybookConfig = {
       plugins: [nxViteTsPaths()],
       build: {
         chunkSizeWarningLimit: 1000,
+      },
+      resolve: {
+        alias: {
+          // Resolve Panda CSS generated styled-system directory for Storybook production builds
+          'styled-system': join(__dirname, '../styled-system'),
+        },
       },
     });
   },
