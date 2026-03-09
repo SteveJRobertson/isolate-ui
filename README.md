@@ -61,13 +61,15 @@ feat(react-button): add new variant
 fix(utils): resolve edge case
 docs: update README
 chore: update dependencies
+chore(release): publish react-button v1.0.0 [skip ci]
+chore(deps): update dependencies
 
 # Scope is optional for global changes:
 ci: update workflow
 docs: update contributing guide
 ```
 
-**Allowed scopes**: `react-button`, `utils`, `source`
+**Allowed scopes**: Nx project names (e.g. `react-button`, `utils`, `tokens`) are auto-discovered, plus `release` and `deps` for cross-cutting concerns.
 
 Commits are validated:
 
