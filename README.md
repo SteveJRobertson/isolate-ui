@@ -69,7 +69,7 @@ ci: update workflow
 docs: update contributing guide
 ```
 
-**Allowed scopes**: Nx project names (e.g. `react-button`, `utils`, `tokens`) are auto-discovered, plus `release` and `deps` for cross-cutting concerns.
+**Allowed scopes**: Nx project names (e.g. `react-button`, `utils`, `tokens`) are auto-discovered, plus `release`, `deps`, and `commitlint` for cross-cutting concerns.
 
 Commits are validated:
 
