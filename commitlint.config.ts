@@ -7,6 +7,8 @@ async function getConfig(): Promise<UserConfig> {
 
   return {
     extends: ['@commitlint/config-conventional'],
+    // Ignore system-generated placeholder commits created by the Copilot coding agent
+    ignores: [(commit) => /^Initial plan(\n|$)/.test(commit)],
     rules: {
       // Allow commits without scope (for global repo changes like "ci: update workflow")
       // Disabled (0) to fully allow scope-less commits without warnings
