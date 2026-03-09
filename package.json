@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "prepare": "husky",
+    "prepare": "husky && node libs/shared/tokens/build.mjs && pnpm exec panda codegen",
     "local-registry": "verdaccio --config .verdaccio/config.yml"
   },
   "private": true,
@@ -22,6 +22,7 @@
     "@nx/vitest": "22.5.4",
     "@nx/web": "22.5.4",
     "@nx/workspace": "22.5.4",
+    "@pandacss/dev": "1.9.0",
     "@storybook/addon-a11y": "^8.6.18",
     "@storybook/addon-essentials": "^8.6.18",
     "@storybook/addon-interactions": "^8.6.18",

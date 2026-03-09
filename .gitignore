@@ -46,3 +46,5 @@ static/
 
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
+# Panda CSS generated files
+styled-system/

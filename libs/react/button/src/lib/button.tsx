@@ -1,14 +1,28 @@
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react';
 import { helloWorld } from '@isolate-ui/utils';
-// import styles from './button.module.css';
+import { css, cx } from 'styled-system/css';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement>;
 
 export function Button({
   children,
+  className,
   ...buttonProps
 }: PropsWithChildren<ButtonProps>) {
-  return <button {...buttonProps}>{children ?? helloWorld()}</button>;
+  const baseStyles = css({
+    backgroundColor: 'primary.500',
+    color: 'neutral.0',
+    padding: '4',
+    borderRadius: '2',
+    fontWeight: 'semibold',
+    fontSize: 'base',
+  });
+
+  return (
+    <button className={cx(baseStyles, className)} {...buttonProps}>
+      {children ?? helloWorld()}
+    </button>
+  );
 }
 
 export default Button;
