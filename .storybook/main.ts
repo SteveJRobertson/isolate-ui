@@ -22,6 +22,7 @@ const config: StorybookConfig = {
       },
       resolve: {
         alias: {
+          // Resolve Panda CSS generated styled-system directory for Storybook production builds
           'styled-system': join(__dirname, '../styled-system'),
         },
       },
