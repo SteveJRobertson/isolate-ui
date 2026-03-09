@@ -15,9 +15,9 @@ const exampleColors = {
 
 // Example 2: Accessing spacing tokens
 const exampleSpacing = {
-  small: tokens.spacing[2],   // 8px
-  medium: tokens.spacing[4],  // 16px
-  large: tokens.spacing[8],   // 32px
+  small: tokens.spacing[2], // 8px
+  medium: tokens.spacing[4], // 16px
+  large: tokens.spacing[8], // 32px
 };
 
 // Example 3: Accessing typography tokens
@@ -39,9 +39,4 @@ const buttonStyles = {
 };
 
 // Export for demonstration purposes
-export {
-  exampleColors,
-  exampleSpacing,
-  exampleTypography,
-  buttonStyles,
-};
+export { exampleColors, exampleSpacing, exampleTypography, buttonStyles };

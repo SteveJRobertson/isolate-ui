@@ -13,13 +13,16 @@ Design tokens library for the Isolate UI design system. This library serves as t
 ## Token Categories
 
 ### Colors
+
 - **Primary**: 9 shades (50-900) for primary brand colors
 - **Neutral**: 11 shades (0-1000) for grays, blacks, and whites
 
 ### Spacing
+
 4px-based spacing scale from 0 to 32 (0px to 128px)
 
 ### Typography
+
 - **Font Families**: Sans, Serif, Mono
 - **Font Sizes**: xs through 6xl
 - **Font Weights**: Thin (100) through Black (900)
@@ -34,7 +37,7 @@ import { tokens } from '@isolate-ui/tokens';
 
 // Full autocomplete and type safety
 const primaryColor = tokens.color.primary[500]; // "#3b82f6"
-const baseSpacing = tokens.spacing[4];          // "1rem"
+const baseSpacing = tokens.spacing[4]; // "1rem"
 const baseFontSize = tokens.typography.fontSize.base; // "1rem"
 ```
 
@@ -89,6 +92,7 @@ libs/shared/tokens/
 ## Integration
 
 This library is designed to be consumed by:
+
 - **Panda CSS Configuration**: Use tokens for theme generation
 - **UI Component Libraries**: Import tokens directly in components
 - **Documentation**: Reference tokens in Storybook stories

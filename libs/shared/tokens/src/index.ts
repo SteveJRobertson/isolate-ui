@@ -1,9 +1,9 @@
 /**
  * Isolate UI Design Tokens
- * 
+ *
  * This library provides the Single Source of Truth for all design tokens
  * in the Isolate UI design system.
- * 
+ *
  * @packageDocumentation
  */
 

@@ -263,6 +263,40 @@ nx show project <project-name>
 
 This shows all inferred and configured targets for a project.
 
+### Dependency Check Lint Errors
+
+If you see ESLint errors about missing dependencies (from `@nx/dependency-checks`):
+
+```
+error  The "project-name" project uses the following packages, but they are missing from "dependencies":
+  - some-package
+```
+
+**Solution options:**
+
+1. **For source code imports**: Add the package to `dependencies` in the library's `package.json`
+
+2. **For build scripts** (e.g., `build.mjs`, `config.mjs`):
+   - Add the package to `devDependencies` in the library's `package.json`
+   - Add the build script to `ignoredFiles` in the library's `eslint.config.mjs`:
+     ```javascript
+     {
+       '@nx/dependency-checks': [
+         'error',
+         {
+           ignoredFiles: [
+             '{projectRoot}/build.mjs',
+             '{projectRoot}/config.mjs',
+           ],
+         },
+       ],
+     }
+     ```
+
+**Why**: Build scripts are executed during the build process but their dependencies aren't needed by library consumers. Ignoring them prevents false positives.
+
+**Example**: See `libs/shared/tokens/eslint.config.mjs` for a working example.
+
 ## Additional Resources
 
 - [Nx Documentation](https://nx.dev)
