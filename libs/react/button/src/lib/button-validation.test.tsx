@@ -23,8 +23,16 @@ describe('Panda CSS Token Validation', () => {
   });
 
   it('should enforce strict token usage at compile time', () => {
-    // ✅ This test validates that TypeScript enforces token usage
-    // The @ts-expect-error directives ensure that non-token values are rejected
+    // ✅ This is a COMPILE-TIME test that validates TypeScript type-checking
+    // The test ensures that strictTokens mode is configured correctly by
+    // verifying that non-token values cause TypeScript errors during build.
+    //
+    // The @ts-expect-error directives below will fail the build if:
+    // 1. Strict mode is disabled (type errors won't occur)
+    // 2. The type system isn't enforcing token usage
+    //
+    // This is intentionally a type-level test, not a runtime test.
+    // For runtime validation, see the integration tests in button.spec.tsx
 
     // These variables are intentionally unused - they're here to validate type errors
     /* eslint-disable @typescript-eslint/no-unused-vars */
@@ -46,6 +54,7 @@ describe('Panda CSS Token Validation', () => {
       backgroundColor: '[red]',
     });
 
+    // This assertion is just to satisfy vitest - the real test is the type-checking above
     expect(validArbitraryStyles).toBeDefined();
   });
 

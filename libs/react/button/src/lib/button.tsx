@@ -1,6 +1,6 @@
 import type { ButtonHTMLAttributes, PropsWithChildren } from 'react';
 import { helloWorld } from '@isolate-ui/utils';
-import { css } from 'styled-system/css';
+import { css, cx } from 'styled-system/css';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement>;
 
@@ -19,10 +19,7 @@ export function Button({
   });
 
   return (
-    <button
-      className={className ? `${baseStyles} ${className}` : baseStyles}
-      {...buttonProps}
-    >
+    <button className={cx(baseStyles, className)} {...buttonProps}>
       {children ?? helloWorld()}
     </button>
   );
