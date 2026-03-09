@@ -23,6 +23,7 @@
         "tsConfig": "libs/shared/tokens/tsconfig.lib.json",
         "assets": [
           "libs/shared/tokens/*.md",
+          "libs/shared/tokens/src/*.json",
           {
             "input": "libs/shared/tokens/gen",
             "glob": "**/*",

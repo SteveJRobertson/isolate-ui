@@ -36,8 +36,8 @@ Design tokens library for the Isolate UI design system. This library serves as t
 import { tokens } from '@isolate-ui/tokens';
 
 // Full autocomplete and type safety
-const primaryColor = tokens.color.primary[500]; // "#3b82f6"
-const baseSpacing = tokens.spacing[4]; // "1rem"
+const primaryColor = tokens.color.primary['500']; // "#3b82f6"
+const baseSpacing = tokens.spacing['4']; // "1rem"
 const baseFontSize = tokens.typography.fontSize.base; // "1rem"
 ```
 
