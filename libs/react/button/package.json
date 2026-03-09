@@ -9,6 +9,11 @@
       "require": "./index.js"
     }
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/SteveJRobertson/isolate-ui.git",
+    "directory": "libs/react/button"
+  },
   "publishConfig": {
     "access": "public"
   }
