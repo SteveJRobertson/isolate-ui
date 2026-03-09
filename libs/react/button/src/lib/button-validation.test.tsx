@@ -22,21 +22,31 @@ describe('Panda CSS Token Validation', () => {
     expect(validStyles).toBeDefined();
   });
 
-  it('should prevent non-token values (demonstrated via type checking)', () => {
-    // ❌ These would trigger TypeScript errors with strictPropertyValues: true
-    // Uncommenting these lines should show TypeScript errors:
+  it('should enforce strict token usage at compile time', () => {
+    // ✅ This test validates that TypeScript enforces token usage
+    // The @ts-expect-error directives ensure that non-token values are rejected
 
-    // const invalidColorStyles = css({
-    //   color: '#ff0000', // TypeScript error: Type '"#ff0000"' is not assignable to type...
-    // });
+    // These variables are intentionally unused - they're here to validate type errors
+    /* eslint-disable @typescript-eslint/no-unused-vars */
 
-    // const invalidBackgroundStyles = css({
-    //   backgroundColor: 'red', // TypeScript error: Type '"red"' is not assignable to type...
-    // });
+    // @ts-expect-error - Invalid: raw hex color not allowed without escape hatch
+    const _invalidColorStyles = css({ color: '#ff0000' });
 
-    // Note: The fact that these are commented out IS the test -
-    // they would fail type checking if uncommented.
-    expect(true).toBe(true);
+    // @ts-expect-error - Invalid: named color not allowed without escape hatch
+    const _invalidBackgroundStyles = css({ backgroundColor: 'red' });
+
+    // @ts-expect-error - Invalid: arbitrary value not allowed without escape hatch
+    const _invalidFontSize = css({ fontSize: '18px' });
+
+    /* eslint-enable @typescript-eslint/no-unused-vars */
+
+    // ✅ Valid: using escape hatch for arbitrary values
+    const validArbitraryStyles = css({
+      color: '[#ff0000]',
+      backgroundColor: '[red]',
+    });
+
+    expect(validArbitraryStyles).toBeDefined();
   });
 
   it('should allow standard CSS for layout properties', () => {

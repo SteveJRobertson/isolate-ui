@@ -10,7 +10,17 @@ export default [
       '@nx/enforce-module-boundaries': [
         'error',
         {
-          allow: ['^styled-system/'],
+          enforceBuildableLibDependency: true,
+          allow: [
+            '^.*/eslint(\\.base)?\\.config\\.[cm]?[jt]s$',
+            '^styled-system/',
+          ],
+          depConstraints: [
+            {
+              sourceTag: '*',
+              onlyDependOnLibsWithTags: ['*'],
+            },
+          ],
         },
       ],
     },
