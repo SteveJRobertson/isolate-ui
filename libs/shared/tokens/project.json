@@ -1,0 +1,37 @@
+{
+  "name": "tokens",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/tokens/src",
+  "projectType": "library",
+  "tags": [],
+  "targets": {
+    "build-tokens": {
+      "executor": "nx:run-commands",
+      "outputs": ["{projectRoot}/gen"],
+      "options": {
+        "command": "node libs/shared/tokens/build.mjs",
+        "cwd": "."
+      },
+      "cache": true
+    },
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/shared/tokens",
+        "main": "libs/shared/tokens/src/index.ts",
+        "tsConfig": "libs/shared/tokens/tsconfig.lib.json",
+        "assets": [
+          "libs/shared/tokens/*.md",
+          "libs/shared/tokens/src/*.json",
+          {
+            "input": "libs/shared/tokens/gen",
+            "glob": "**/*",
+            "output": "gen"
+          }
+        ]
+      },
+      "dependsOn": ["build-tokens"]
+    }
+  }
+}
