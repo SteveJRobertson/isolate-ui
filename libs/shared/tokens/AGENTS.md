@@ -160,6 +160,25 @@ The `@nx/dependency-checks` ESLint rule validates that imported packages are pro
 2. Add build/config files to `ignoredFiles` in `eslint.config.mjs`
 3. Ensure the dependency is in `devDependencies` of the library's `package.json`
 
+## Commit Message Guidelines
+
+Use the `tokens` scope for changes to this project:
+
+```bash
+# ✅ Valid
+feat(tokens): add border radius tokens
+fix(tokens): correct primary color value
+test(tokens): add validation tests
+build(tokens): update style dictionary config
+
+# ❌ Invalid
+feat(design-tokens): add color  # wrong scope — use tokens
+Fix(tokens): correct value      # type must be lowercase
+add new spacing tokens          # missing type prefix
+```
+
+See the [root AGENTS.md](../../../AGENTS.md#commit-message-guidelines) for full guidelines, all valid types, and CI validation details.
+
 ## Future Enhancements
 
 Potential additions:

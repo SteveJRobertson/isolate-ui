@@ -153,6 +153,25 @@ Check that the function is exported from `src/index.ts`
 ### Type errors
 Run `nx typecheck utils` to see all type errors
 
+## Commit Message Guidelines
+
+Use the `utils` scope for changes to this project:
+
+```bash
+# ✅ Valid
+feat(utils): add string truncation helper
+fix(utils): handle null values in helper
+test(utils): add edge case tests
+docs(utils): update function documentation
+
+# ❌ Invalid
+feat(utilities): add helper  # wrong scope — use utils
+Fix(utils): resolve bug      # type must be lowercase
+update utility function      # missing type prefix
+```
+
+See the [root AGENTS.md](../../AGENTS.md#commit-message-guidelines) for full guidelines, all valid types, and CI validation details.
+
 ## Related Documentation
 
 - [Root AGENTS.md](../../AGENTS.md) - Overall project setup
