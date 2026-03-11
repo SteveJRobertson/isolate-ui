@@ -48,7 +48,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Configure npm authentication
-        run: echo "//registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN}" >> .npmrc
+        run: npm config set //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN} --location=user
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
