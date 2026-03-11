@@ -24,6 +24,7 @@ async function getConfig(): Promise<UserConfig> {
           'release', // Allow release commits (e.g. chore(release): ...)
           'deps', // Allow dependency update commits (e.g. chore(deps): ...)
           'commitlint', // Allow commits scoped to commitlint configuration changes
+          'ci', // Allow commits scoped to CI configuration changes (e.g. fix(ci): ...)
         ],
       ],
     },
