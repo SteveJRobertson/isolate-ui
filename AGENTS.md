@@ -236,6 +236,103 @@ nx build react-button
 nx affected -t test lint typecheck build
 ```
 
+## Commit Message Guidelines
+
+This project enforces [Conventional Commits](https://www.conventionalcommits.org/) via commitlint. Commit messages are validated locally (Husky pre-commit hook) and in GitHub Actions (PR commit validation + PR title validation).
+
+### Format
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+### Valid Types
+
+| Type | Description |
+|------|-------------|
+| `feat` | New feature |
+| `fix` | Bug fix |
+| `docs` | Documentation changes |
+| `style` | Code style changes (formatting, etc.) |
+| `refactor` | Code refactoring |
+| `perf` | Performance improvements |
+| `test` | Adding or updating tests |
+| `build` | Build system changes |
+| `ci` | CI/CD changes |
+| `chore` | Other changes (dependencies, configs, etc.) |
+| `revert` | Revert a previous commit |
+
+### Valid Scopes
+
+Scopes are **automatically discovered** from the Nx workspace and will grow as new projects are added.
+
+**Current project scopes:**
+- `react-button` - React button component
+- `utils` - Utility library
+- `tokens` - Design tokens library
+- `source` - Root workspace project
+
+**Special scopes (always valid):**
+- `release` - For release commits
+- `deps` - For dependency updates
+- `commitlint` - For commitlint config changes
+
+**Finding valid scopes:**
+
+```bash
+# List all Nx projects (these are valid scopes)
+nx show projects
+```
+
+**Scope is optional** for cross-cutting changes:
+
+```bash
+ci: update workflow
+docs: update README
+chore: update dependencies
+```
+
+### Examples
+
+```bash
+# ✅ Valid — project-specific changes with scope
+feat(react-button): add disabled state
+fix(utils): handle null values in helper
+test(tokens): add validation tests
+docs(react-button): update usage examples
+
+# ✅ Valid — repository-wide changes without scope
+ci: add commit validation
+docs: update contributing guide
+chore: update dependencies
+chore(deps): bump vitest to 3.2.4
+chore(release): publish react-button v1.0.0 [skip ci]
+```
+
+### Common Mistakes to Avoid
+
+```bash
+# ❌ Missing type prefix
+Add new feature
+Update button component
+
+# ❌ Capitalized type
+Feat: add new feature
+Fix: resolve bug
+
+# ❌ Invalid scope (must be an Nx project name or special scope)
+feat(button): add variant       # should be feat(react-button)
+feat(react): add button         # should be feat(react-button)
+
+# ❌ Too generic (auto-ignored by commitlint but not useful)
+Update file.ts
+Initial plan
+```
+
 ## Troubleshooting
 
 ### Clear Nx Cache
