@@ -297,25 +297,6 @@ Check that the component is exported from `src/index.ts`
 
 Run `nx typecheck react-button` to see all type errors
 
-## Commit Message Guidelines
-
-Use the `react-button` scope for changes to this project:
-
-```bash
-# ✅ Valid
-feat(react-button): add disabled state
-fix(react-button): correct focus ring color
-test(react-button): add accessibility tests
-docs(react-button): update usage examples
-
-# ❌ Invalid
-feat(button): add variant      # wrong scope — use react-button
-Feat(react-button): add thing  # type must be lowercase
-add new button variant         # missing type prefix
-```
-
-See the [root AGENTS.md](../../../AGENTS.md#commit-message-guidelines) for full guidelines, all valid types, and CI validation details.
-
 ## Related Documentation
 
 - [Root AGENTS.md](../../../AGENTS.md) - Overall project setup
