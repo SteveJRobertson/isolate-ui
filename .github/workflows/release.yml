@@ -47,6 +47,11 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Configure npm authentication
+        run: npm config set //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN} --location=user
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
       - name: Release
         run: pnpm nx release --yes
         env:
