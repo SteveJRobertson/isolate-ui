@@ -11,7 +11,6 @@ async function getConfig(): Promise<UserConfig> {
     ignores: [
       (commit) => /^Initial plan(\n|$)/.test(commit),
       (commit) => /^Update \S+\.\w+(\n|$)/.test(commit),
-      (commit) => /^fix\(ci\):/.test(commit),
     ],
     rules: {
       // Allow commits without scope (for global repo changes like "ci: update workflow")
