@@ -280,7 +280,6 @@ Scopes are **automatically discovered** from the Nx workspace and will grow as n
 - `release` - For release commits
 - `deps` - For dependency updates
 - `commitlint` - For commitlint config changes
-- `ci` - For CI configuration changes (e.g. `fix(ci): ...`)
 
 **Finding valid scopes:**
 
