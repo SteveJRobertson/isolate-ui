@@ -7,11 +7,11 @@
  * Vite's root (which breaks Playwright CT's iframe communication).
  *
  * Import order matters:
- *   1. Style Dictionary CSS variables (–isolate-*) must be defined first.
+ *   1. Style Dictionary CSS custom properties (`--isolate-*`) must be defined first.
  *   2. Panda CSS styles (which reference those variables) are loaded second.
  *
- * – `@isolate-ui/tokens-css` → `libs/shared/tokens/gen/css/variables.css`
- * – `@isolate-ui/panda-css`  → `styled-system/styles.css`
+ * - `@isolate-ui/tokens-css` → `libs/shared/tokens/gen/css/variables.css`
+ * - `@isolate-ui/panda-css`  → `styled-system/styles.css`
  */
 // 1. Design-token CSS custom properties (Style Dictionary output)
 //    Resolved via the `@isolate-ui/tokens-css` alias in playwright-ct.config.ts
