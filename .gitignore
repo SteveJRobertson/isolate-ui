@@ -44,6 +44,10 @@ Thumbs.db
 graph.html
 static/
 
+# Playwright Component Testing output
+playwright-report/
+test-results/
+
 vite.config.*.timestamp*
 vitest.config.*.timestamp*
 # Panda CSS generated files

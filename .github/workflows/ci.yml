@@ -42,3 +42,37 @@ jobs:
 
       - name: Typecheck affected
         run: pnpm nx affected -t typecheck --base=origin/main
+
+  component-test:
+    name: Component Tests (Chromium + WebKit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install chromium webkit
+
+      - name: Install WebKit system dependencies (Linux)
+        run: pnpm exec playwright install-deps webkit
+
+      - name: Generate Panda CSS stylesheet
+        run: pnpm exec panda cssgen
+
+      - name: Run component tests
+        run: pnpm nx run react-button:component-test
