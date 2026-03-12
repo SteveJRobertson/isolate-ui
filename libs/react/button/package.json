@@ -10,7 +10,7 @@
     }
   },
   "dependencies": {
-    "@ark-ui/react": "*"
+    "@ark-ui/react": "^5.34.1"
   },
   "repository": {
     "type": "git",
