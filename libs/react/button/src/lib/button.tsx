@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, PropsWithChildren, ReactNode } from 'react';
 import { ark } from '@ark-ui/react';
 import { helloWorld } from '@isolate-ui/utils';
 import { cx } from 'styled-system/css';
-import { buttonRecipe } from './button.recipe';
+import { buttonRecipe, type ButtonRecipeVariants } from './button.recipe';
 
 export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   /** Renders the button in a loading state, disabling interaction. */
@@ -11,6 +11,8 @@ export type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   leadingIcon?: ReactNode;
   /** Icon rendered after the label text. */
   trailingIcon?: ReactNode;
+  /** Visual style variant of the button. Defaults to "solid". */
+  variant?: ButtonRecipeVariants['variant'];
 };
 
 export function Button({
@@ -21,9 +23,10 @@ export function Button({
   trailingIcon,
   disabled,
   type = 'button',
+  variant = 'solid',
   ...buttonProps
 }: PropsWithChildren<ButtonProps>) {
-  const styles = buttonRecipe();
+  const styles = buttonRecipe({ variant });
 
   return (
     <ark.button
