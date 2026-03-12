@@ -51,9 +51,10 @@ describe('Button', () => {
     expect(button?.disabled).toBe(true);
     expect(button?.getAttribute('aria-busy')).toBe('true');
     expect(button?.getAttribute('data-loading')).toBe('true');
-    // Spinner should be present
+    // Spinner should be present with accessible role and label
     const spinner = container.querySelector('[role="status"]');
     expect(spinner).toBeTruthy();
+    expect(spinner?.getAttribute('aria-label')).toBe('Loading');
   });
 
   it('should disable the button when disabled prop is set', () => {

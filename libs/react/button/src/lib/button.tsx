@@ -41,7 +41,7 @@ export function Button({
       )}
 
       {loading && (
-        <span className={styles.spinner} aria-hidden="true" role="status">
+        <span className={styles.spinner} role="status" aria-label="Loading">
           ⟳
         </span>
       )}
