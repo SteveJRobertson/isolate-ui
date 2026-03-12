@@ -78,7 +78,7 @@ describe('MyComponent — Style Regression Snapshots', () => {
 4. **Run the tests once** to generate the initial snapshots:
 
 ```bash
-nx test react-button --run
+nx test react-button
 ```
 
 5. **Commit the generated `.snap` files** — they are the source of truth for the visual contract.
@@ -91,7 +91,7 @@ the stored snapshots with:
 ```bash
 pnpm vitest -u
 # or, for a specific project:
-nx test react-button -- --update-snapshots
+nx test react-button -- --update
 ```
 
 Review the diff in version control before committing to confirm only the intended

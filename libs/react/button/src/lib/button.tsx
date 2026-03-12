@@ -23,7 +23,7 @@ export function Button({
   trailingIcon,
   disabled,
   type = 'button',
-  variant = 'solid',
+  variant,
   ...buttonProps
 }: PropsWithChildren<ButtonProps>) {
   const styles = buttonRecipe({ variant });
