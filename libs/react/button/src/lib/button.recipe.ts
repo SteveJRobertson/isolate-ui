@@ -11,8 +11,10 @@ import { createSlotRecipe } from '@isolate-ui/utils';
  *
  * Variants:
  * - `solid`   — Filled background (default). Full primary colour, inverted text.
- * - `outline` — Transparent fill with a primary-colour border and text.
- * - `ghost`   — No background or border; text only, with hover/active fills.
+ * - `outline` — Transparent fill with a visible primary-colour border and text.
+ * - `ghost`   — No visible background or border; uses a transparent border (from
+ *               base styles) to preserve sizing across variants. Text-only
+ *               appearance with hover/active fills.
  *
  * All values reference design tokens to stay in sync with the Style Dictionary
  * source of truth. The `_dark` modifier is a stub for semantic tokens that will

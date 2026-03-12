@@ -36,8 +36,13 @@ describe('Button — Style Regression Snapshots', () => {
     });
 
     it('renders default (no variant prop) identically to solid', () => {
-      const { container } = render(<Button>Submit</Button>);
-      expect(container.firstChild).toMatchSnapshot();
+      const { container: solidContainer } = render(
+        <Button variant="solid">Submit</Button>,
+      );
+      const { container: defaultContainer } = render(<Button>Submit</Button>);
+      expect(defaultContainer.firstChild?.outerHTML).toBe(
+        solidContainer.firstChild?.outerHTML,
+      );
     });
   });
 

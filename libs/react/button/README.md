@@ -13,11 +13,11 @@ A multi-slot React button component built with [Ark UI](https://ark-ui.com/) and
 
 ## Variant prop
 
-| Value     | Description                                        |
-| --------- | -------------------------------------------------- |
-| `solid`   | Filled primary background — **default**            |
-| `outline` | Transparent fill, primary-coloured border and text |
-| `ghost`   | No background or border; text-only with hover fill |
+| Value     | Description                                                                                          |
+| --------- | ---------------------------------------------------------------------------------------------------- |
+| `solid`   | Filled primary background — **default**                                                              |
+| `outline` | Transparent fill with a visible primary-coloured border and text                                     |
+| `ghost`   | No visible background or border; transparent border for consistent sizing; text-only with hover fill |
 
 ## Running unit tests
 
