@@ -35,7 +35,7 @@
         "cwd": "{projectRoot}"
       },
       "dependsOn": [
-        { "projects": "@isolate-ui/source", "target": "generate-styles" }
+        { "projects": ["@isolate-ui/source"], "target": "generate-styles" }
       ],
       "inputs": ["default"]
     },

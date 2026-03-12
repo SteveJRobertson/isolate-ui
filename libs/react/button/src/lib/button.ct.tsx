@@ -111,22 +111,37 @@ test.describe('Button — focus & keyboard', () => {
     page,
   }) => {
     let submitted = false;
+
+    // Expose a bridge function so the browser context can signal submission
+    // back to the Node test process without a React IPC round-trip.
+    await page.exposeFunction('reportFormSubmit', () => {
+      submitted = true;
+    });
+
     await mount(
-      // No event.preventDefault() here: Playwright CT serialises the React
-      // SyntheticEvent to the Node test context as a plain object, so calling
-      // .preventDefault() on it would throw a TypeError before `submitted` is
-      // set.  In the CT iframe there is no real navigation target, so omitting
-      // it is safe and the test remains deterministic.
-      <form onSubmit={() => (submitted = true)}>
+      <form>
         <Button type="submit">Submit</Button>
       </form>,
     );
+
+    // Attach a native submit listener in the browser that prevents the default
+    // navigation (avoids a real reload of the CT iframe) and calls our bridge.
+    await page.locator('form').evaluate((form: HTMLFormElement) => {
+      form.addEventListener(
+        'submit',
+        (event) => {
+          event.preventDefault();
+          (window as unknown as { reportFormSubmit?: () => void }).reportFormSubmit?.();
+        },
+        { once: true },
+      );
+    });
+
     // Focus the button directly then trigger Enter — WebKit doesn't Tab-focus
     // buttons by default (it's a macOS/Safari setting that Playwright replicates).
     await page.locator('button').focus();
     await page.keyboard.press('Enter');
-    // Use polling: keyboard.press() resolves before the CT IPC round-trip that
-    // delivers the React callback to the test context completes.
+    // Poll until the bridge callback delivers the signal to the test process.
     await expect.poll(() => submitted).toBe(true);
   });
 });
