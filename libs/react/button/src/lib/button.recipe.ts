@@ -69,4 +69,6 @@ export const buttonRecipe = createSlotRecipe({
   },
 });
 
-export type ButtonRecipeVariants = Parameters<typeof buttonRecipe>[0];
+export type ButtonRecipeVariants = NonNullable<
+  Parameters<typeof buttonRecipe>[0]
+>;
