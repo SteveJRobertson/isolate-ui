@@ -97,7 +97,9 @@ test.describe('Button — focus & keyboard', () => {
 
   test('is not focusable when disabled', async ({ mount }) => {
     const component = await mount(<Button disabled>Disabled</Button>);
-    await expect(component).toBeDisabled();
+    // Attempt to focus — browsers prevent focus on disabled form elements.
+    await component.focus();
+    await expect(component).not.toBeFocused();
   });
 
   test('submits form when type=submit and enter is pressed', async ({
@@ -106,6 +108,11 @@ test.describe('Button — focus & keyboard', () => {
   }) => {
     let submitted = false;
     await mount(
+      // No event.preventDefault() here: Playwright CT serialises the React
+      // SyntheticEvent to the Node test context as a plain object, so calling
+      // .preventDefault() on it would throw a TypeError before `submitted` is
+      // set.  In the CT iframe there is no real navigation target, so omitting
+      // it is safe and the test remains deterministic.
       <form onSubmit={() => (submitted = true)}>
         <Button type="submit">Submit</Button>
       </form>,
@@ -114,7 +121,9 @@ test.describe('Button — focus & keyboard', () => {
     // buttons by default (it's a macOS/Safari setting that Playwright replicates).
     await page.locator('button').focus();
     await page.keyboard.press('Enter');
-    expect(submitted).toBe(true);
+    // Use polling: keyboard.press() resolves before the CT IPC round-trip that
+    // delivers the React callback to the test context completes.
+    await expect.poll(() => submitted).toBe(true);
   });
 });
 

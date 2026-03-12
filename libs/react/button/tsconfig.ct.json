@@ -11,5 +11,6 @@
     "src/**/*.ct.ts",
     "src/**/*.ct.tsx",
     "src/**/*.d.ts"
-  ]
+  ],
+  "references": []
 }

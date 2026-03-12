@@ -34,11 +34,10 @@
         "command": "pnpm exec playwright test -c playwright-ct.config.ts",
         "cwd": "{projectRoot}"
       },
-      "inputs": [
-        "default",
-        "{workspaceRoot}/styled-system/styles.css",
-        "{workspaceRoot}/libs/shared/tokens/gen/css/variables.css"
-      ]
+      "dependsOn": [
+        { "projects": "@isolate-ui/source", "target": "generate-styles" }
+      ],
+      "inputs": ["default"]
     },
     "nx-release-publish": {
       "options": {

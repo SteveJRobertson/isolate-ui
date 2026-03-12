@@ -71,8 +71,7 @@ jobs:
       - name: Install WebKit system dependencies (Linux)
         run: pnpm exec playwright install-deps webkit
 
-      - name: Generate Panda CSS stylesheet
-        run: pnpm exec panda cssgen
-
       - name: Run component tests
+        # generate-styles (panda cssgen) is automatically run first via
+        # the component-test target's dependsOn configuration in project.json
         run: pnpm nx run react-button:component-test
