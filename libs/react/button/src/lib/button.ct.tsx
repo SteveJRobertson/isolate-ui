@@ -56,7 +56,9 @@ test.describe('Button — click', () => {
       <Button onClick={() => (clicked = true)}>Click me</Button>,
     );
     await component.click();
-    expect(clicked).toBe(true);
+    // React event handlers are delivered to the Node test process via an async
+    // IPC round-trip in Playwright CT, so poll until the flag is set.
+    await expect.poll(() => clicked).toBe(true);
   });
 
   test('does not fire onClick when disabled', async ({ mount }) => {
@@ -68,7 +70,9 @@ test.describe('Button — click', () => {
     );
     // Disabled button should not respond to click
     await component.click({ force: true });
-    expect(clicked).toBe(false);
+    // Poll to give any unexpected async delivery a chance to arrive before
+    // asserting the flag remains false.
+    await expect.poll(() => clicked).toBe(false);
   });
 
   test('does not fire onClick when loading', async ({ mount }) => {
@@ -79,7 +83,7 @@ test.describe('Button — click', () => {
       </Button>,
     );
     await component.click({ force: true });
-    expect(clicked).toBe(false);
+    await expect.poll(() => clicked).toBe(false);
   });
 });
 

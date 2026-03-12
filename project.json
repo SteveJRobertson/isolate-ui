@@ -10,9 +10,9 @@
       },
       "inputs": [
         "{workspaceRoot}/panda.config.ts",
-        "{workspaceRoot}/libs/shared/tokens/**"
+        "{workspaceRoot}/libs/**"
       ],
-      "outputs": ["{workspaceRoot}/styled-system/styles.css"]
+      "outputs": ["{workspaceRoot}/styled-system"]
     },
     "local-registry": {
       "executor": "@nx/js:verdaccio",
