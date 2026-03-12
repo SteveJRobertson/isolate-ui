@@ -9,6 +9,9 @@
       "require": "./index.js"
     }
   },
+  "dependencies": {
+    "@ark-ui/react": "*"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/SteveJRobertson/isolate-ui.git",
