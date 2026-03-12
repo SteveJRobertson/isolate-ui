@@ -1,0 +1,16 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "../../../dist/out-tsc",
+    "types": ["node", "@playwright/test"]
+  },
+  "include": [
+    "playwright-ct.config.ts",
+    "playwright/**/*.ts",
+    "playwright/**/*.tsx",
+    "src/**/*.ct.ts",
+    "src/**/*.ct.tsx",
+    "src/**/*.d.ts"
+  ],
+  "references": []
+}

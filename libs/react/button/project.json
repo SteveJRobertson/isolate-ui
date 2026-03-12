@@ -28,6 +28,17 @@
       },
       "outputs": ["{workspaceRoot}/dist/storybook/react-button"]
     },
+    "component-test": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm exec playwright test -c playwright-ct.config.ts",
+        "cwd": "{projectRoot}"
+      },
+      "dependsOn": [
+        { "projects": ["@isolate-ui/source"], "target": "generate-styles" }
+      ],
+      "inputs": ["default"]
+    },
     "nx-release-publish": {
       "options": {
         "packageRoot": "dist/{projectRoot}"

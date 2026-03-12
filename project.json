@@ -2,6 +2,15 @@
   "name": "@isolate-ui/source",
   "$schema": "node_modules/nx/schemas/project-schema.json",
   "targets": {
+    "generate-styles": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "pnpm exec panda cssgen",
+        "cwd": "{workspaceRoot}"
+      },
+      "inputs": ["{workspaceRoot}/panda.config.ts", "{workspaceRoot}/libs/**"],
+      "outputs": ["{workspaceRoot}/styled-system"]
+    },
     "local-registry": {
       "executor": "@nx/js:verdaccio",
       "options": {
