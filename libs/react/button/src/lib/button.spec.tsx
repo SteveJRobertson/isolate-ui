@@ -10,7 +10,10 @@ describe('Button', () => {
 
   it('should render the label slot wrapping children', () => {
     render(<Button>Click me</Button>);
-    expect(screen.getByText('Click me')).toBeTruthy();
+    const button = screen.getByRole('button');
+    const label = screen.getByText('Click me');
+    expect(label.tagName).toBe('SPAN');
+    expect(label.parentElement).toBe(button);
   });
 
   it('should merge custom className with base styles', () => {
