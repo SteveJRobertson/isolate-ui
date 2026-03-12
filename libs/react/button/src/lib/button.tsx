@@ -20,17 +20,19 @@ export function Button({
   leadingIcon,
   trailingIcon,
   disabled,
+  type = 'button',
   ...buttonProps
 }: PropsWithChildren<ButtonProps>) {
   const styles = buttonRecipe();
 
   return (
     <ark.button
+      {...buttonProps}
+      type={type}
       className={cx(styles.root, className)}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
       data-loading={loading || undefined}
-      {...buttonProps}
     >
       {leadingIcon && (
         <span className={styles.icon} aria-hidden="true">
