@@ -131,7 +131,9 @@ test.describe('Button — focus & keyboard', () => {
         'submit',
         (event) => {
           event.preventDefault();
-          (window as unknown as { reportFormSubmit?: () => void }).reportFormSubmit?.();
+          (
+            window as unknown as { reportFormSubmit?: () => void }
+          ).reportFormSubmit?.();
         },
         { once: true },
       );
@@ -191,7 +193,9 @@ test.describe('Button — accessibility', () => {
 
   test('icons are hidden from assistive technology', async ({ mount }) => {
     const icon = <svg data-testid="icon" />;
-    const component = await mount(<Button leadingIcon={icon}>With Icon</Button>);
+    const component = await mount(
+      <Button leadingIcon={icon}>With Icon</Button>,
+    );
     const iconWrapper = component.locator('[aria-hidden="true"]').first();
     await expect(iconWrapper).toBeAttached();
   });

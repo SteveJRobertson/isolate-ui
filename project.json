@@ -8,10 +8,7 @@
         "command": "pnpm exec panda cssgen",
         "cwd": "{workspaceRoot}"
       },
-      "inputs": [
-        "{workspaceRoot}/panda.config.ts",
-        "{workspaceRoot}/libs/**"
-      ],
+      "inputs": ["{workspaceRoot}/panda.config.ts", "{workspaceRoot}/libs/**"],
       "outputs": ["{workspaceRoot}/styled-system"]
     },
     "local-registry": {
