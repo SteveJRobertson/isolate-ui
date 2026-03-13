@@ -39,7 +39,7 @@ test.describe('Button — rendering', () => {
 
   test('renders outline variant with border class', async ({ mount }) => {
     const component = await mount(<Button variant="outline">Outline</Button>);
-    await expect(component).toHaveClass(/bd-c_primary\.500/);
+    await expect(component).toHaveClass(/bd-c_primary\.600/);
   });
 
   test('renders ghost variant with transparent background', async ({
