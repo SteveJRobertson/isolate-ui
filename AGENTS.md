@@ -252,31 +252,33 @@ This project enforces [Conventional Commits](https://www.conventionalcommits.org
 
 ### Valid Types
 
-| Type | Description |
-|------|-------------|
-| `feat` | New feature |
-| `fix` | Bug fix |
-| `docs` | Documentation changes |
-| `style` | Code style changes (formatting, etc.) |
-| `refactor` | Code refactoring |
-| `perf` | Performance improvements |
-| `test` | Adding or updating tests |
-| `build` | Build system changes |
-| `ci` | CI/CD changes |
-| `chore` | Other changes (dependencies, configs, etc.) |
-| `revert` | Revert a previous commit |
+| Type       | Description                                 |
+| ---------- | ------------------------------------------- |
+| `feat`     | New feature                                 |
+| `fix`      | Bug fix                                     |
+| `docs`     | Documentation changes                       |
+| `style`    | Code style changes (formatting, etc.)       |
+| `refactor` | Code refactoring                            |
+| `perf`     | Performance improvements                    |
+| `test`     | Adding or updating tests                    |
+| `build`    | Build system changes                        |
+| `ci`       | CI/CD changes                               |
+| `chore`    | Other changes (dependencies, configs, etc.) |
+| `revert`   | Revert a previous commit                    |
 
 ### Valid Scopes
 
 Scopes are **automatically discovered** from the Nx workspace and will grow as new projects are added.
 
 **Current project scopes:**
+
 - `react-button` - React button component
 - `utils` - Utility library
 - `tokens` - Design tokens library
 - `source` - Root workspace project
 
 **Special scopes (always valid):**
+
 - `release` - For release commits
 - `deps` - For dependency updates
 - `commitlint` - For commitlint config changes
@@ -401,6 +403,7 @@ error  The "project-name" project uses the following packages, but they are miss
 The project includes automated accessibility testing using **@axe-core/playwright** to ensure WCAG 2.1 Level AA compliance.
 
 **Key Files:**
+
 - [A11Y_TESTING.md](A11Y_TESTING.md) - Complete accessibility testing guide
 - [libs/utils/src/lib/a11y.ts](libs/utils/src/lib/a11y.ts) - Helper utilities
 - Component tests: e.g., [libs/react/button/src/lib/button.ct.tsx](libs/react/button/src/lib/button.ct.tsx)
@@ -426,11 +429,13 @@ pnpm exec playwright test -c libs/react/button/playwright-ct.config.ts
 **DO NOT assume the tests are broken.** The tests are working correctly - they've found real accessibility problems.
 
 **Example from this project:**
+
 - Button outline/ghost variants failed with `color-contrast` violations
 - Original: `primary.500` (#3b82f6) on white = 3.4:1 contrast ❌
 - Fixed: `primary.700` (#1d4ed8) on white = ~7:1 contrast ✅
 
 **When tests fail:**
+
 1. Read the violation message carefully - it explains what's wrong
 2. Check the impact level (Critical, Serious, Moderate, Minor)
 3. Fix the component, don't disable the test
@@ -443,6 +448,7 @@ pnpm exec playwright test -c libs/react/button/playwright-ct.config.ts
 **This is expected.** Snapshots capture exact CSS classes, and changing colors changes the generated utility classes.
 
 **How to fix:**
+
 ```bash
 # Update snapshots after making validated style changes
 pnpm nx test <project-name> -- -u
@@ -458,6 +464,7 @@ pnpm nx test react-button -- -u
 **Why**: A component may be accessible in one state but fail in others.
 
 **Always test:**
+
 - All variants (solid, outline, ghost, etc.)
 - Disabled state
 - Loading state
@@ -465,6 +472,7 @@ pnpm nx test react-button -- -u
 - Both light and dark themes
 
 **Example pattern:**
+
 ```typescript
 test('default state passes a11y', async ({ mount }) => {
   const component = await mount(<Button>Default</Button>);
@@ -603,3 +611,27 @@ pnpm nx affected -t lint test typecheck --base=origin/main
 ---
 
 _Last updated: March 13, 2026_
+
+<!-- nx configuration start-->
+<!-- Leave the start & end comments to automatically receive updates. -->
+
+## General Guidelines for working with Nx
+
+- For navigating/exploring the workspace, invoke the `nx-workspace` skill first - it has patterns for querying projects, targets, and dependencies
+- When running tasks (for example build, lint, test, e2e, etc.), always prefer running the task through `nx` (i.e. `nx run`, `nx run-many`, `nx affected`) instead of using the underlying tooling directly
+- Prefix nx commands with the workspace's package manager (e.g., `pnpm nx build`, `npm exec nx test`) - avoids using globally installed CLI
+- You have access to the Nx MCP server and its tools, use them to help the user
+- For Nx plugin best practices, check `node_modules/@nx/<plugin>/PLUGIN.md`. Not all plugins have this file - proceed without it if unavailable.
+- NEVER guess CLI flags - always check nx_docs or `--help` first when unsure
+
+## Scaffolding & Generators
+
+- For scaffolding tasks (creating apps, libs, project structure, setup), ALWAYS invoke the `nx-generate` skill FIRST before exploring or calling MCP tools
+
+## When to use nx_docs
+
+- USE for: advanced config options, unfamiliar flags, migration guides, plugin configuration, edge cases
+- DON'T USE for: basic generator syntax (`nx g @nx/react:app`), standard commands, things you already know
+- The `nx-generate` skill handles generator discovery internally - don't call nx_docs just to look up generator syntax
+
+<!-- nx configuration end-->
