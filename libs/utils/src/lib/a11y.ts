@@ -1,0 +1,137 @@
+import { AxeBuilder } from '@axe-core/playwright';
+import { Page, Locator, expect } from '@playwright/test';
+
+/**
+ * Accessibility violation details with formatted output
+ */
+export interface A11yViolation {
+  id: string;
+  impact: string;
+  message: string;
+  nodes: Array<{
+    html: string;
+    target: string[];
+  }>;
+}
+
+/**
+ * Runs an accessibility audit on a component using axe-core
+ * and ensures it meets WCAG 2.1 Level AA standards.
+ *
+ * @param page - The Playwright page object
+ * @param selector - Optional CSS selector or Locator to audit (defaults to entire page)
+ * @param options - Optional configuration for axe-core
+ * @returns The violations array (empty if no violations)
+ */
+export async function scanForA11yViolations(
+  page: Page,
+  selector?: string | Locator,
+  options?: {
+    runOnly?: {
+      type: 'tag' | 'rule';
+      values: string[];
+    };
+    rules?: {
+      [key: string]: {
+        enabled: boolean;
+      };
+    };
+  },
+): Promise<A11yViolation[]> {
+  const builder = new AxeBuilder({ page });
+
+  if (selector) {
+    if (selector instanceof Locator) {
+      const boundingBox = await selector.boundingBox();
+      if (boundingBox) {
+        builder.include(selector);
+      }
+    } else if (typeof selector === 'string') {
+      builder.include(selector);
+    }
+  }
+
+  // Configure for WCAG 2.1 Level AA
+  builder.withTags(['wcag2aa', 'wcag21aa']);
+
+  if (options?.runOnly) {
+    builder.withRunOnly(options.runOnly);
+  }
+
+  if (options?.rules) {
+    // Enable/disable specific rules
+    Object.entries(options.rules).forEach(([ruleId, config]) => {
+      if (!config.enabled) {
+        builder.disableRules([ruleId]);
+      }
+    });
+  }
+
+  const results = await builder.analyze();
+
+  // Format violations for better readability
+  const violations = results.violations.map((violation) => ({
+    id: violation.id,
+    impact: violation.impact || 'unknown',
+    message: violation.help,
+    nodes: violation.nodes.map((node) => ({
+      html: node.html,
+      target: node.target,
+    })),
+  }));
+
+  return violations;
+}
+
+/**
+ * Custom matcher for Playwright that checks if a component
+ * has no accessibility violations.
+ *
+ * Usage:
+ *   await expect(page.locator('[data-testid="button"]')).toHaveNoA11yViolations();
+ */
+export async function expectToHaveNoA11yViolations(
+  pageOrLocator: Page | Locator,
+  options?: {
+    runOnly?: {
+      type: 'tag' | 'rule';
+      values: string[];
+    };
+    rules?: {
+      [key: string]: {
+        enabled: boolean;
+      };
+    };
+  },
+): Promise<void> {
+  let page: Page;
+  let selector: Locator | undefined;
+
+  // Determine if we're dealing with a Page or Locator
+  if ('locator' in pageOrLocator) {
+    page = pageOrLocator.page() as Page;
+    selector = pageOrLocator;
+  } else {
+    page = pageOrLocator;
+  }
+
+  const violations = await scanForA11yViolations(page, selector, options);
+
+  if (violations.length > 0) {
+    const violationReport = violations
+      .map((v) => {
+        const nodeDetails = v.nodes
+          .map(
+            (n) =>
+              `\n    - Selector: ${n.target.join(' > ')}\n      HTML: ${n.html}`,
+          )
+          .join('\n');
+        return `\n  [${v.impact?.toUpperCase() || 'UNKNOWN'}] ${v.id}\n    Message: ${v.message}${nodeDetails}`;
+      })
+      .join('\n');
+
+    throw new Error(
+      `Accessibility violations detected:\n${violationReport}\n\nFor more information, visit: https://www.deque.com/axe/devtools/`,
+    );
+  }
+}

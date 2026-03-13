@@ -14,6 +14,10 @@
  */
 
 import { expect, test } from '@playwright/experimental-ct-react';
+import {
+  expectToHaveNoA11yViolations,
+  scanForA11yViolations,
+} from '@isolate-ui/utils';
 import Button from './button';
 
 // ---------------------------------------------------------------------------
@@ -204,6 +208,51 @@ test.describe('Button — accessibility', () => {
     const component = await mount(<Button>Label text</Button>);
     const label = component.locator('.button__label');
     await expect(label).toHaveText('Label text');
+  });
+
+  test('default state passes automated accessibility audit (WCAG 2.1 AA)', async ({
+    mount,
+  }) => {
+    const component = await mount(<Button>Accessible Button</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('disabled state passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button disabled>Disabled Button</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('loading state passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button loading>Loading Button</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('outline variant passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button variant="outline">Outline</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('ghost variant passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button variant="ghost">Ghost</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('detects accessibility violations when present', async ({
+    mount,
+    page,
+  }) => {
+    // Intentionally create an inaccessible button for testing violation detection
+    await page.setContent(`
+      <button style="background: #ffffff; color: #fafafa;">
+        Low contrast button
+      </button>
+    `);
+
+    const violations = await scanForA11yViolations(page);
+
+    // Verify that the violation detection is working by checking for color-contrast issues
+    expect(violations.length).toBeGreaterThan(0);
+    expect(violations.some((v) => v.id === 'color-contrast')).toBe(true);
   });
 });
 
