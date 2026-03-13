@@ -241,18 +241,31 @@ test.describe('Button — accessibility', () => {
     mount,
     page,
   }) => {
-    // Intentionally create an inaccessible button for testing violation detection
+    // This test verifies that our a11y testing infrastructure correctly identifies
+    // violations. We intentionally create an inaccessible element to ensure the
+    // pipeline would catch real accessibility issues in CI.
     await page.setContent(`
       <button style="background: #ffffff; color: #fafafa;">
-        Low contrast button
+        Low contrast button (WCAG AA requires 4.5:1 ratio)
       </button>
     `);
 
     const violations = await scanForA11yViolations(page);
 
-    // Verify that the violation detection is working by checking for color-contrast issues
+    // Verify the scanner detected the color contrast violation
     expect(violations.length).toBeGreaterThan(0);
-    expect(violations.some((v) => v.id === 'color-contrast')).toBe(true);
+    const hasContrastViolation = violations.some(
+      (v) => v.id === 'color-contrast',
+    );
+    expect(hasContrastViolation).toBe(true);
+
+    // Verify violation includes helpful metadata
+    const contrastViolation = violations.find((v) => v.id === 'color-contrast');
+    if (contrastViolation) {
+      expect(contrastViolation.impact).toBeTruthy();
+      expect(contrastViolation.message).toBeTruthy();
+      expect(contrastViolation.nodes.length).toBeGreaterThan(0);
+    }
   });
 });
 

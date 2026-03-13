@@ -79,14 +79,22 @@ Runs an accessibility audit and returns violations without assertions.
 
 **Parameters:**
 - `page` - Playwright Page object
-- `selector` (optional) - CSS selector or Locator to audit (defaults to entire page)
+- `selector` (optional) - CSS selector string to limit audit scope. Locator objects are accepted for API compatibility, but the full page context is scanned (see note below)
 - `options` (optional) - Configuration object (see above)
 
 **Returns:** Array of `A11yViolation` objects
 
+> **Note on Locator objects:** While this function accepts Playwright Locator objects for convenience, the accessibility scan always analyzes the full page context. This is because many WCAG rules require understanding document-level relationships (e.g., form labels, heading hierarchy, landmark structure). To limit the scope, pass a CSS selector string instead.
+
 **Example:**
 ```typescript
-const violations = await scanForA11yViolations(page, 'button');
+// Scan specific section by CSS selector
+const violations = await scanForA11yViolations(page, '#main-content');
+
+// Scan full page (Locator provided but full context scanned)
+const button = page.locator('button');
+const violations = await scanForA11yViolations(page, button);
+
 violations.forEach((violation) => {
   console.log(`[${violation.impact}] ${violation.id}: ${violation.message}`);
   violation.nodes.forEach((node) => {

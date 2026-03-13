@@ -8,6 +8,10 @@
   "dependencies": {
     "tslib": "^2.3.0"
   },
+  "peerDependencies": {
+    "@axe-core/playwright": "^4.0.0",
+    "@playwright/test": "^1.0.0"
+  },
   "devDependencies": {
     "vitest": "^3.2.4",
     "@nx/vite": "^22.5.4"

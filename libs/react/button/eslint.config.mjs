@@ -5,6 +5,9 @@ export default [
   ...baseConfig,
   ...nx.configs['flat/react'],
   {
+    ignores: ['**/playwright/.cache/**'],
+  },
+  {
     files: ['**/*.ts', '**/*.tsx', '**/*.js', '**/*.jsx'],
     rules: {
       '@nx/enforce-module-boundaries': [
