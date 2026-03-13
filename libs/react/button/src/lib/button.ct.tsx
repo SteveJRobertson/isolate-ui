@@ -14,6 +14,10 @@
  */
 
 import { expect, test } from '@playwright/experimental-ct-react';
+import {
+  expectToHaveNoA11yViolations,
+  scanForA11yViolations,
+} from '@isolate-ui/utils/a11y';
 import Button from './button';
 
 // ---------------------------------------------------------------------------
@@ -35,7 +39,7 @@ test.describe('Button — rendering', () => {
 
   test('renders outline variant with border class', async ({ mount }) => {
     const component = await mount(<Button variant="outline">Outline</Button>);
-    await expect(component).toHaveClass(/bd-c_primary\.500/);
+    await expect(component).toHaveClass(/bd-c_primary\.600/);
   });
 
   test('renders ghost variant with transparent background', async ({
@@ -204,6 +208,64 @@ test.describe('Button — accessibility', () => {
     const component = await mount(<Button>Label text</Button>);
     const label = component.locator('.button__label');
     await expect(label).toHaveText('Label text');
+  });
+
+  test('default state passes automated accessibility audit (WCAG 2.1 AA)', async ({
+    mount,
+  }) => {
+    const component = await mount(<Button>Accessible Button</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('disabled state passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button disabled>Disabled Button</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('loading state passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button loading>Loading Button</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('outline variant passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button variant="outline">Outline</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('ghost variant passes accessibility audit', async ({ mount }) => {
+    const component = await mount(<Button variant="ghost">Ghost</Button>);
+    await expectToHaveNoA11yViolations(component);
+  });
+
+  test('detects accessibility violations when present', async ({
+    mount,
+    page,
+  }) => {
+    // This test verifies that our a11y testing infrastructure correctly identifies
+    // violations. We intentionally create an inaccessible element to ensure the
+    // pipeline would catch real accessibility issues in CI.
+    await page.setContent(`
+      <button style="background: #ffffff; color: #fafafa;">
+        Low contrast button (WCAG AA requires 4.5:1 ratio)
+      </button>
+    `);
+
+    const violations = await scanForA11yViolations(page);
+
+    // Verify the scanner detected the color contrast violation
+    expect(violations.length).toBeGreaterThan(0);
+    const hasContrastViolation = violations.some(
+      (v) => v.id === 'color-contrast',
+    );
+    expect(hasContrastViolation).toBe(true);
+
+    // Verify violation includes helpful metadata
+    const contrastViolation = violations.find((v) => v.id === 'color-contrast');
+    if (contrastViolation) {
+      expect(contrastViolation.impact).toBeTruthy();
+      expect(contrastViolation.message).toBeTruthy();
+      expect(contrastViolation.nodes.length).toBeGreaterThan(0);
+    }
   });
 });
 

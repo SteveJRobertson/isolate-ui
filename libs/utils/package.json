@@ -5,8 +5,22 @@
   "type": "commonjs",
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./a11y": {
+      "types": "./src/lib/a11y.d.ts",
+      "default": "./src/lib/a11y.js"
+    }
+  },
   "dependencies": {
     "tslib": "^2.3.0"
+  },
+  "peerDependencies": {
+    "@axe-core/playwright": "^4.0.0",
+    "@playwright/test": "^1.0.0"
   },
   "devDependencies": {
     "vitest": "^3.2.4",

@@ -86,13 +86,15 @@ export const buttonRecipe = createSlotRecipe({
       outline: {
         root: {
           backgroundColor: 'transparent',
-          color: 'primary.500',
-          borderColor: 'primary.500',
+          color: 'primary.700', // Using primary.700 for WCAG AA contrast on white bg
+          borderColor: 'primary.600',
           _hover: {
             backgroundColor: 'primary.50',
+            borderColor: 'primary.700',
           },
           _active: {
             backgroundColor: 'primary.100',
+            borderColor: 'primary.800',
           },
           _dark: {
             color: 'primary.300',
@@ -109,7 +111,7 @@ export const buttonRecipe = createSlotRecipe({
       ghost: {
         root: {
           backgroundColor: 'transparent',
-          color: 'primary.500',
+          color: 'primary.700', // Using primary.700 for WCAG AA contrast on white bg
           _hover: {
             backgroundColor: 'primary.50',
           },

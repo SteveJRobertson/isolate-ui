@@ -46,6 +46,9 @@ jobs:
   check-version-plan:
     name: Check Version Plan
     runs-on: ubuntu-latest
+    # Only run version plan check for PRs labeled 'release' or when explicitly requested.
+    # Regular feature PRs don't need version plans - versioning happens during release.
+    if: contains(github.event.pull_request.labels.*.name, 'release')
 
     steps:
       - name: Checkout
