@@ -225,6 +225,119 @@ pnpm nx run react-<component>:component-test -- --watch
 **Issue:** Button has no accessible name
 **Fix:** Add text content or `aria-label`
 
+## Lessons Learned
+
+This section documents practical lessons learned during the implementation and initial rollout of accessibility testing.
+
+### Real-World Color Contrast Issues
+
+**What Happened:** When accessibility tests were first added to the Button component, the `outline` and `ghost` variants immediately failed with color contrast violations.
+
+**The Issue:** 
+- Original colors used `primary.500` (#3b82f6) for text on white backgrounds
+- This only provides a **3.4:1 contrast ratio**
+- WCAG AA requires **4.5:1 for normal text**
+
+**The Fix:**
+- Changed to `primary.700` (#1d4ed8) for text - provides ~7:1 contrast ratio
+- Changed outline border to `primary.600` for better definition
+- All variants now pass WCAG AA standards
+
+**Key Takeaway:** This demonstrates that a11y testing works! It will catch real accessibility issues that might otherwise ship to production. When tests fail, treat it as valuable feedback about your design system, not just a CI inconvenience.
+
+### Snapshot Updates After Style Changes
+
+**What Happened:** After fixing color contrast issues, snapshot tests failed with mismatched CSS classes.
+
+**Why It Failed:** Vitest snapshot tests capture the exact rendered HTML/CSS classes. When we changed from `primary.500` to `primary.700`, the CSS utility classes changed (e.g., `c_primary.500` → `c_primary.700`).
+
+**How to Fix:**
+```bash
+# Update snapshots for specific project
+pnpm nx test <project-name> -- -u
+
+# Example
+pnpm nx test react-button -- -u
+```
+
+**Key Takeaway:** When making accessibility or style improvements that change CSS output:
+1. Run component tests (CT) first - they validate behavior
+2. Update snapshots second - they validate rendering
+3. Commit both changes together with clear explanation
+
+### Testing Multiple States is Critical
+
+**What We Found:** Default button states passed accessibility checks, but variant states had different contrast requirements.
+
+**Why It Matters:** A component might be accessible in one state but fail in others:
+- Default vs. variants (solid, outline, ghost)
+- Enabled vs. disabled states
+- Light theme vs. dark theme
+- Interactive states (hover, focus, active)
+
+**Best Practice:**
+```typescript
+// ✅ Good - Test all major variants and states
+test('default state passes a11y', async ({ mount }) => {
+  await expectToHaveNoA11yViolations(await mount(<Button>Default</Button>));
+});
+
+test('outline variant passes a11y', async ({ mount }) => {
+  await expectToHaveNoA11yViolations(await mount(<Button variant="outline">Outline</Button>));
+});
+
+test('disabled state passes a11y', async ({ mount }) => {
+  await expectToHaveNoA11yViolations(await mount(<Button disabled>Disabled</Button>));
+});
+```
+
+### Version Plan Workflow Considerations
+
+**What Happened:** Initially, the CI workflow required version plans for every PR, blocking feature development.
+
+**The Problem:** Feature PRs don't need version plans - only release PRs do. Requiring version plans on every PR creates unnecessary friction.
+
+**The Solution:** Made the `check-version-plan` job conditional:
+```yaml
+if: contains(github.event.pull_request.labels.*.name, 'release')
+```
+
+**Key Takeaway:** Distinguish between development workflows (feature PRs) and release workflows (version PRs). Only enforce versioning requirements when actually preparing a release.
+
+### Peer Dependencies for Testing Libraries
+
+**What We Learned:** The `@isolate-ui/utils` package imports from `@axe-core/playwright` and `@playwright/test` but initially didn't declare them as peer dependencies.
+
+**Why It Matters:** 
+- Prevents version conflicts
+- Makes requirements explicit
+- Improves dependency resolution
+
+**The Fix:**
+```json
+{
+  "peerDependencies": {
+    "@axe-core/playwright": "^4.0.0",
+    "@playwright/test": "^1.0.0"
+  }
+}
+```
+
+**Key Takeaway:** When a library package imports types or utilities from external packages used in tests, declare them as peer dependencies to avoid hidden dependency issues.
+
+### ESLint and Generated Files
+
+**What Happened:** ESLint attempted to lint Playwright's generated cache files (`.cache/assets/`), causing hundreds of errors.
+
+**The Fix:** Add generated directories to ESLint ignore patterns:
+```javascript
+{
+  ignores: ['**/playwright/.cache/**'],
+}
+```
+
+**Key Takeaway:** Always ignore generated/build output from linting tools. Add patterns early to prevent CI failures.
+
 ## References
 
 - [axe DevTools Documentation](https://www.deque.com/axe/devtools/)
