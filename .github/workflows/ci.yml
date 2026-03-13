@@ -118,15 +118,15 @@ jobs:
               # awk to scan the whole body and produce false "covered" entries.
               delimiter_count=$(grep -c '^---$' "$plan" || true)
               if [ "$delimiter_count" -lt 2 ]; then
-                echo "ERROR: version plan file '$plan' has malformed frontmatter (expected 2 '---' delimiters, found $delimiter_count)."
+                echo "ERROR: version plan '$plan' has malformed frontmatter (expected 2 '---' delimiters, found $delimiter_count)."
                 exit 1
               fi
-              COVERED="$COVERED
-$(awk '
+              plan_projects=$(awk '
                 /^---/ { delimiters++; next }
                 delimiters == 1 { print $1 }
                 delimiters >= 2 { exit }
-              ' "$plan" | tr -d ':')"
+              ' "$plan" | tr -d ':')
+              COVERED=$(printf '%s\n%s' "$COVERED" "$plan_projects")
             done
           fi
 
@@ -136,7 +136,7 @@ $(awk '
             # Use grep -Fx (fixed string, whole-line) against the newline-delimited
             # COVERED list for an exact match — avoids false positives from
             # hyphenated names where grep -w would match substrings.
-            if ! printf '%s' "$COVERED" | grep -qFx "$project"; then
+            if ! printf '%s\n' "$COVERED" | grep -qFx "$project"; then
               MISSING="$MISSING\n  - $project"
             fi
           done <<< "$AFFECTED"
