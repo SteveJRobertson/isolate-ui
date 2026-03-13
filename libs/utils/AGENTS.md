@@ -71,6 +71,7 @@ nx lint utils --fix
 ### Vitest Configuration
 
 [vitest.config.mts](vitest.config.mts) is configured with:
+
 - **Environment**: `node` (not browser/jsdom)
 - **Globals**: `true` - no need to import `describe`, `it`, `expect`
 - **Test pattern**: `{src,tests}/**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}`
@@ -79,6 +80,7 @@ nx lint utils --fix
 ### TypeScript Configuration
 
 The library uses TypeScript with:
+
 - **Strict mode**: Enabled for type safety
 - **Path mappings**: Import as `@isolate-ui/utils`
 - **Target**: ES2015
@@ -87,6 +89,7 @@ The library uses TypeScript with:
 ## Adding New Utilities
 
 1. **Create the utility function** in `src/lib/`:
+
    ```typescript
    // src/lib/my-util.ts
    export function myUtil(input: string): string {
@@ -95,6 +98,7 @@ The library uses TypeScript with:
    ```
 
 2. **Write tests**:
+
    ```typescript
    // src/lib/my-util.spec.ts
    import { myUtil } from './my-util';
@@ -107,6 +111,7 @@ The library uses TypeScript with:
    ```
 
 3. **Export from index.ts**:
+
    ```typescript
    // src/index.ts
    export * from './lib/my-util';
@@ -136,6 +141,7 @@ import { utils } from '@isolate-ui/utils';
 ## CI/CD
 
 Tests are automatically run:
+
 - On every commit (via Nx affected)
 - In pull requests
 - Before releases
@@ -145,12 +151,15 @@ Cached results are shared across the team via Nx Cloud (if configured).
 ## Troubleshooting
 
 ### Tests not found
+
 Make sure test files match the pattern: `*.spec.ts` or `*.test.ts`
 
 ### Import errors
+
 Check that the function is exported from `src/index.ts`
 
 ### Type errors
+
 Run `nx typecheck utils` to see all type errors
 
 ## Related Documentation

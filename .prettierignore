@@ -1,5 +1,21 @@
 # Add files here to ignore them from prettier formatting
+
+# Build outputs
 /dist
 /coverage
+
+# Nx cache
 /.nx/cache
 /.nx/workspace-data
+
+# Panda CSS generated files (do not format)
+/styled-system
+
+# Lock files
+pnpm-lock.yaml
+
+# Playwright cache
+**/playwright/.cache
+
+# Storybook build
+/storybook-static

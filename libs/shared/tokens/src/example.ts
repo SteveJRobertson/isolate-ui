@@ -1,7 +1,7 @@
 /**
  * Example usage of design tokens
  * This file demonstrates TypeScript autocomplete and type safety
- * 
+ *
  * Note: Use string keys for numeric token names (e.g., tokens.color.primary['500'])
  * to ensure type safety with the generated `as const` object structure.
  */
