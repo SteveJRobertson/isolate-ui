@@ -11,6 +11,9 @@
 # Panda CSS generated files (do not format)
 /styled-system
 
+# Design tokens generated files (do not format)
+/libs/shared/tokens/gen
+
 # Lock files
 pnpm-lock.yaml
 
