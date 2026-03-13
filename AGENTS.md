@@ -394,6 +394,185 @@ error  The "project-name" project uses the following packages, but they are miss
 
 **Example**: See `libs/shared/tokens/eslint.config.mjs` for a working example.
 
+## Accessibility Testing with Playwright
+
+### Overview
+
+The project includes automated accessibility testing using **@axe-core/playwright** to ensure WCAG 2.1 Level AA compliance.
+
+**Key Files:**
+- [A11Y_TESTING.md](A11Y_TESTING.md) - Complete accessibility testing guide
+- [libs/utils/src/lib/a11y.ts](libs/utils/src/lib/a11y.ts) - Helper utilities
+- Component tests: e.g., [libs/react/button/src/lib/button.ct.tsx](libs/react/button/src/lib/button.ct.tsx)
+
+### Running Component Tests
+
+Component tests use Playwright CT and run in real browsers (Chromium + WebKit):
+
+```bash
+# Run component tests for a specific project
+pnpm nx run react-button:component-test
+
+# Playwright commands also work directly
+pnpm exec playwright test -c libs/react/button/playwright-ct.config.ts
+```
+
+### Critical Learnings for Agents
+
+#### 1. A11y Test Failures are Real Issues (Not Test Bugs)
+
+**What Will Happen**: When you add accessibility tests to components, they may fail immediately with color contrast violations or other issues.
+
+**DO NOT assume the tests are broken.** The tests are working correctly - they've found real accessibility problems.
+
+**Example from this project:**
+- Button outline/ghost variants failed with `color-contrast` violations
+- Original: `primary.500` (#3b82f6) on white = 3.4:1 contrast ❌
+- Fixed: `primary.700` (#1d4ed8) on white = ~7:1 contrast ✅
+
+**When tests fail:**
+1. Read the violation message carefully - it explains what's wrong
+2. Check the impact level (Critical, Serious, Moderate, Minor)
+3. Fix the component, don't disable the test
+4. Document why if you must disable a specific rule
+
+#### 2. Snapshot Tests Break After Style Changes
+
+**What Will Happen**: After fixing accessibility issues that change CSS (like color values), Vitest snapshot tests will fail.
+
+**This is expected.** Snapshots capture exact CSS classes, and changing colors changes the generated utility classes.
+
+**How to fix:**
+```bash
+# Update snapshots after making validated style changes
+pnpm nx test <project-name> -- -u
+
+# Example
+pnpm nx test react-button -- -u
+```
+
+**Always commit snapshot updates together with the style changes** in the same commit, explaining what changed and why.
+
+#### 3. Test All Component States
+
+**Why**: A component may be accessible in one state but fail in others.
+
+**Always test:**
+- All variants (solid, outline, ghost, etc.)
+- Disabled state
+- Loading state
+- Interactive states if applicable
+- Both light and dark themes
+
+**Example pattern:**
+```typescript
+test('default state passes a11y', async ({ mount }) => {
+  const component = await mount(<Button>Default</Button>);
+  await expectToHaveNoA11yViolations(component);
+});
+
+test('outline variant passes a11y', async ({ mount }) => {
+  const component = await mount(<Button variant="outline">Outline</Button>);
+  await expectToHaveNoA11yViolations(component);
+});
+
+test('disabled state passes a11y', async ({ mount }) => {
+  const component = await mount(<Button disabled>Disabled</Button>);
+  await expectToHaveNoA11yViolations(component);
+});
+```
+
+#### 4. Playwright Cache Files and ESLint
+
+**What Will Happen**: ESLint will try to lint Playwright's generated cache files and fail with hundreds of errors.
+
+**Solution**: Always add generated directories to ESLint ignore patterns:
+
+```javascript
+// In eslint.config.mjs
+{
+  ignores: ['**/playwright/.cache/**'],
+}
+```
+
+**Pattern**: Generated/build output should always be ignored by linting tools.
+
+#### 5. Peer Dependencies for Testing Utilities
+
+**When creating utilities that wrap test libraries** (like the a11y helpers in `@isolate-ui/utils`), declare the testing libraries as peer dependencies:
+
+```json
+{
+  "peerDependencies": {
+    "@axe-core/playwright": "^4.0.0",
+    "@playwright/test": "^1.0.0"
+  }
+}
+```
+
+**Why**: Prevents version conflicts and makes requirements explicit.
+
+#### 6. AxeBuilder API Limitations
+
+**Important**: `AxeBuilder.include()` only accepts CSS selector strings, NOT Playwright Locator objects.
+
+```typescript
+// ✅ Correct - CSS selector string
+builder.include('#main-content');
+
+// ❌ Wrong - Locator object (will fail at runtime)
+const locator = page.locator('button');
+builder.include(locator); // Type error / runtime failure
+```
+
+**Our implementation** accepts Locator objects for API convenience but scans the full page context. This is correct because accessibility validation requires document-level context (form labels, heading hierarchy, landmarks, etc.).
+
+#### 7. CI Workflow Considerations
+
+**Version Plan Checks**: The `check-version-plan` job should only run for release PRs, not feature PRs.
+
+```yaml
+# Conditional check - only runs when PR is labeled 'release'
+if: contains(github.event.pull_request.labels.*.name, 'release')
+```
+
+**Why**: Feature development shouldn't be blocked by version plan requirements. Version plans are only needed when actually releasing.
+
+### Quick Reference: Common Tasks
+
+```bash
+# Run accessibility tests
+pnpm nx run react-button:component-test
+
+# Update snapshots after style changes
+pnpm nx test react-button -- -u
+
+# Check types (catches import issues)
+pnpm nx typecheck utils
+pnpm nx typecheck react-button
+
+# Lint (includes dependency checks)
+pnpm nx lint react-button
+
+# Run all quality checks
+pnpm nx affected -t lint test typecheck --base=origin/main
+```
+
+### When Implementing New Components
+
+1. **Add component tests first** - behavior and rendering
+2. **Add accessibility tests** - for all states and variants
+3. **Expect failures** - a11y tests will likely find issues
+4. **Fix the issues** - don't disable tests
+5. **Update snapshots** - after validated changes
+6. **Commit together** - code + snapshots + explanation
+
+### Resources for Agents
+
+- Full guide: [A11Y_TESTING.md](A11Y_TESTING.md)
+- WCAG 2.1 AA requirements: https://www.w3.org/WAI/WCAG21/quickref/?currentsLevel=aa
+- axe-core rule explanations: https://www.deque.com/axe/devtools/
+
 ## Additional Resources
 
 - [Nx Documentation](https://nx.dev)
@@ -406,8 +585,10 @@ error  The "project-name" project uses the following packages, but they are miss
 - **Nx**: 22.5.4
 - **pnpm**: 10.30.3
 - **Vitest**: 3.2.4
+- **Playwright**: 1.58.2
+- **@axe-core/playwright**: 4.11.1
 - **Node.js**: 22.x
 
 ---
 
-_Last updated: March 8, 2026_
+_Last updated: March 13, 2026_
