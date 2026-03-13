@@ -70,15 +70,27 @@ jobs:
           # Get the names of affected releasable projects (those under libs/).
           # nx release is configured with projects: ["libs/**"], so we use the
           # same scope to find projects that need a plan.
-          AFFECTED=$(pnpm nx show projects --affected --base=origin/main --json 2>/dev/null \
+          # stderr is intentionally kept visible so Nx/git errors are not hidden.
+          AFFECTED=$(pnpm nx show projects --affected --base=origin/main --json \
             | node -e "
                 const projects = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
-                const {execSync} = require('child_process');
+                const {execFileSync} = require('child_process');
                 const releasable = projects.filter(p => {
+                  let info;
                   try {
-                    const info = JSON.parse(execSync('pnpm nx show project ' + p + ' --json 2>/dev/null').toString());
-                    return info.root && info.root.startsWith('libs/');
-                  } catch { return false; }
+                    // Use execFileSync (no shell) to avoid injection from project names.
+                    // Inherit stderr so any Nx errors surface in CI logs.
+                    info = JSON.parse(
+                      execFileSync('pnpm', ['nx', 'show', 'project', p, '--json'], {
+                        stdio: ['pipe', 'pipe', 'inherit'],
+                      }).toString()
+                    );
+                  } catch {
+                    // Fail loudly — silently skipping would defeat the enforcement.
+                    process.stderr.write('ERROR: could not retrieve metadata for project: ' + p + '\n');
+                    process.exit(1);
+                  }
+                  return info.root && info.root.startsWith('libs/');
                 });
                 console.log(releasable.join('\n'));
               ")
@@ -91,13 +103,18 @@ jobs:
           echo "Affected releasable projects:"
           echo "$AFFECTED"
 
-          # Collect all project names that are covered by an existing plan file.
+          # Collect all project names covered by an existing plan file.
+          # Only read the YAML frontmatter (between the 1st and 2nd "---" lines)
+          # to avoid false matches from horizontal rules (---) in the body text.
           COVERED=""
           if [ -d ".nx/version-plans" ]; then
             for plan in .nx/version-plans/*.md; do
               [ -f "$plan" ] || continue
-              # Extract project keys from the YAML frontmatter (lines between ---).
-              COVERED="$COVERED $(awk '/^---/{f=!f; next} f{print $1}' "$plan" | tr -d ':')"
+              COVERED="$COVERED $(awk '
+                /^---/ { delimiters++; next }
+                delimiters == 1 { print $1 }
+                delimiters >= 2 { exit }
+              ' "$plan" | tr -d ':')"
             done
           fi
 
@@ -112,7 +129,7 @@ jobs:
           if [ -n "$MISSING" ]; then
             echo ""
             echo "ERROR: The following affected releasable projects have no version plan:"
-            printf "$MISSING\n"
+            printf '%b\n' "$MISSING"
             echo ""
             echo "Run the following command and commit the generated file:"
             echo "  pnpm nx release plan <major|minor|patch> --projects <project-name>"
