@@ -499,7 +499,7 @@ test('disabled state passes a11y', async ({ mount }) => {
 
 #### 5. Peer Dependencies for Testing Utilities
 
-**When creating utilities that wrap test libraries** (like the a11y helpers in `@isolate-ui/utils`), declare the testing libraries as peer dependencies:
+**When creating utilities that wrap test libraries** (like the a11y helpers in `@isolate-ui/utils/a11y`), declare the testing libraries as peer dependencies:
 
 ```json
 {
@@ -511,6 +511,17 @@ test('disabled state passes a11y', async ({ mount }) => {
 ```
 
 **Why**: Prevents version conflicts and makes requirements explicit.
+
+**Important**: Use a separate entry point (e.g., `@isolate-ui/utils/a11y`) to avoid pulling test dependencies into production builds. Configure package exports:
+
+```json
+{
+  "exports": {
+    ".": "./src/index.js",
+    "./a11y": "./src/lib/a11y.js"
+  }
+}
+```
 
 #### 6. AxeBuilder API Limitations
 

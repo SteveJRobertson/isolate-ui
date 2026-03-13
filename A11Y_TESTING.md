@@ -17,7 +17,7 @@ The project uses **@axe-core/playwright** to run automated accessibility audits 
 The simplest way to check a component's accessibility is using the `expectToHaveNoA11yViolations` helper from `@isolate-ui/utils`:
 
 ```typescript
-import { expectToHaveNoA11yViolations } from '@isolate-ui/utils';
+import { expectToHaveNoA11yViolations } from '@isolate-ui/utils/a11y';
 import { test } from '@playwright/experimental-ct-react';
 
 test('my component is accessible', async ({ mount }) => {
@@ -31,7 +31,7 @@ test('my component is accessible', async ({ mount }) => {
 To get detailed violation information without failing the test, use `scanForA11yViolations`:
 
 ```typescript
-import { scanForA11yViolations } from '@isolate-ui/utils';
+import { scanForA11yViolations } from '@isolate-ui/utils/a11y';
 
 test('my component violations', async ({ mount, page }) => {
   const component = await mount(<MyComponent />);
