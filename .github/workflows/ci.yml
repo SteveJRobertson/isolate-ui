@@ -43,6 +43,134 @@ jobs:
       - name: Typecheck affected
         run: pnpm nx affected -t typecheck --base=origin/main
 
+  check-version-plan:
+    name: Check Version Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check version plans for affected projects
+        run: |
+          # Get the names of affected releasable projects (those under libs/).
+          # nx release is configured with projects: ["libs/**"], so we use the
+          # same scope to find projects that need a plan.
+          # stderr is intentionally kept visible so Nx/git errors are not hidden.
+          AFFECTED=$(pnpm nx show projects --affected --base=origin/main --json \
+            | node -e "
+                const projects = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+                const {execFileSync} = require('child_process');
+                const releasable = projects.filter(p => {
+                  let info;
+                  try {
+                    // Use execFileSync (no shell) to avoid injection from project names.
+                    // Inherit stderr so any Nx errors surface in CI logs.
+                    info = JSON.parse(
+                      execFileSync('pnpm', ['nx', 'show', 'project', p, '--json'], {
+                        stdio: ['pipe', 'pipe', 'inherit'],
+                      }).toString()
+                    );
+                  } catch {
+                    // Fail loudly — silently skipping would defeat the enforcement.
+                    process.stderr.write('ERROR: could not retrieve metadata for project: ' + p + '\n');
+                    process.exit(1);
+                  }
+                  return info.root && info.root.startsWith('libs/');
+                });
+                console.log(releasable.join('\n'));
+              ")
+
+          if [ -z "$AFFECTED" ]; then
+            echo "No releasable projects affected — version plan not required."
+            exit 0
+          fi
+
+          echo "Affected releasable projects:"
+          echo "$AFFECTED"
+
+          # Collect all project names covered by an existing plan file.
+          # Only read the YAML frontmatter (between the 1st and 2nd "---" lines)
+          # to avoid false matches from horizontal rules (---) in the body text.
+          # Store as a newline-delimited list so exact matching works for
+          # hyphenated names (grep -w treats "-" as a non-word char, which lets
+          # "react-button" falsely match "react-button-next").
+          COVERED=""
+          if [ -d ".nx/version-plans" ]; then
+            for plan in .nx/version-plans/*.md; do
+              [ -f "$plan" ] || continue
+              # Validate frontmatter using awk: the file must open with a bare
+              # '---' on line 1 and have a matching closing '---'.  Using awk
+              # here (rather than grep -c across the whole file) means body-level
+              # horizontal rules (also '---') are never counted as delimiters.
+              # awk's exit code is preserved by separating it from tr -d.
+              if ! plan_projects_raw=$(awk '
+                NR == 1 && /^---$/ { delimiters = 1; next }
+                NR == 1 {
+                  print "ERROR: version plan does not begin with --- frontmatter" > "/dev/stderr"
+                  exit 1
+                }
+                /^---$/ && delimiters == 1 { delimiters = 2; next }
+                delimiters == 1 { print $1 }
+                delimiters >= 2 { exit }
+                END {
+                  if (delimiters < 2) {
+                    print "ERROR: version plan frontmatter is not closed with ---" > "/dev/stderr"
+                    exit 1
+                  }
+                }
+              ' "$plan"); then
+                echo "ERROR: version plan '$plan' has malformed frontmatter."
+                exit 1
+              fi
+              plan_projects=$(printf '%s' "$plan_projects_raw" | tr -d ':')
+              COVERED=$(printf '%s\n%s' "$COVERED" "$plan_projects")
+            done
+          fi
+
+          MISSING=""
+          while IFS= read -r project; do
+            [ -z "$project" ] && continue
+            # Use grep -Fx (fixed string, whole-line) against the newline-delimited
+            # COVERED list for an exact match — avoids false positives from
+            # hyphenated names where grep -w would match substrings.
+            if ! printf '%s\n' "$COVERED" | grep -qFx "$project"; then
+              if [ -z "$MISSING" ]; then
+                MISSING="  - $project"
+              else
+                MISSING="$MISSING\n  - $project"
+              fi
+            fi
+          done <<< "$AFFECTED"
+
+          if [ -n "$MISSING" ]; then
+            echo ""
+            echo "ERROR: The following affected releasable projects have no version plan:"
+            printf '%b\n' "$MISSING"
+            echo ""
+            echo "Run the following command and commit the generated file:"
+            echo "  pnpm nx release plan <major|minor|patch> --projects <project-name>"
+            echo ""
+            echo "See: https://nx.dev/recipes/nx-release/file-based-versioning-version-plans"
+            exit 1
+          fi
+
+          echo "All affected releasable projects have a version plan. ✓"
+
   component-test:
     name: Component Tests (Chromium + WebKit)
     runs-on: ubuntu-latest
