@@ -43,6 +43,86 @@ jobs:
       - name: Typecheck affected
         run: pnpm nx affected -t typecheck --base=origin/main
 
+  check-version-plan:
+    name: Check Version Plan
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Check version plans for affected projects
+        run: |
+          # Get the names of affected releasable projects (those under libs/).
+          # nx release is configured with projects: ["libs/**"], so we use the
+          # same scope to find projects that need a plan.
+          AFFECTED=$(pnpm nx show projects --affected --base=origin/main --json 2>/dev/null \
+            | node -e "
+                const projects = JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+                const {execSync} = require('child_process');
+                const releasable = projects.filter(p => {
+                  try {
+                    const info = JSON.parse(execSync('pnpm nx show project ' + p + ' --json 2>/dev/null').toString());
+                    return info.root && info.root.startsWith('libs/');
+                  } catch { return false; }
+                });
+                console.log(releasable.join('\n'));
+              ")
+
+          if [ -z "$AFFECTED" ]; then
+            echo "No releasable projects affected — version plan not required."
+            exit 0
+          fi
+
+          echo "Affected releasable projects:"
+          echo "$AFFECTED"
+
+          # Collect all project names that are covered by an existing plan file.
+          COVERED=""
+          if [ -d ".nx/version-plans" ]; then
+            for plan in .nx/version-plans/*.md; do
+              [ -f "$plan" ] || continue
+              # Extract project keys from the YAML frontmatter (lines between ---).
+              COVERED="$COVERED $(awk '/^---/{f=!f; next} f{print $1}' "$plan" | tr -d ':')"
+            done
+          fi
+
+          MISSING=""
+          while IFS= read -r project; do
+            [ -z "$project" ] && continue
+            if ! echo "$COVERED" | grep -qw "$project"; then
+              MISSING="$MISSING\n  - $project"
+            fi
+          done <<< "$AFFECTED"
+
+          if [ -n "$MISSING" ]; then
+            echo ""
+            echo "ERROR: The following affected releasable projects have no version plan:"
+            printf "$MISSING\n"
+            echo ""
+            echo "Run the following command and commit the generated file:"
+            echo "  pnpm nx release plan <major|minor|patch> --projects <project-name>"
+            echo ""
+            echo "See: https://nx.dev/recipes/nx-release/file-based-versioning-version-plans"
+            exit 1
+          fi
+
+          echo "All affected releasable projects have a version plan. ✓"
+
   component-test:
     name: Component Tests (Chromium + WebKit)
     runs-on: ubuntu-latest
