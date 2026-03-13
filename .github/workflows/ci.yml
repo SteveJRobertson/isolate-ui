@@ -150,7 +150,11 @@ jobs:
             # COVERED list for an exact match — avoids false positives from
             # hyphenated names where grep -w would match substrings.
             if ! printf '%s\n' "$COVERED" | grep -qFx "$project"; then
-              MISSING="$MISSING\n  - $project"
+              if [ -z "$MISSING" ]; then
+                MISSING="  - $project"
+              else
+                MISSING="$MISSING\n  - $project"
+              fi
             fi
           done <<< "$AFFECTED"
 
