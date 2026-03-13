@@ -4,7 +4,9 @@
   "license": "MIT",
   "scripts": {
     "prepare": "husky && node libs/shared/tokens/build.mjs && pnpm exec panda codegen",
-    "local-registry": "verdaccio --config .verdaccio/config.yml"
+    "local-registry": "verdaccio --config .verdaccio/config.yml",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "private": true,
   "devDependencies": {

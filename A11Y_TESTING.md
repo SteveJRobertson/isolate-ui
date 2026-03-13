@@ -233,12 +233,14 @@ This section documents practical lessons learned during the implementation and i
 
 **What Happened:** When accessibility tests were first added to the Button component, the `outline` and `ghost` variants immediately failed with color contrast violations.
 
-**The Issue:** 
+**The Issue:**
+
 - Original colors used `primary.500` (#3b82f6) for text on white backgrounds
 - This only provides a **3.4:1 contrast ratio**
 - WCAG AA requires **4.5:1 for normal text**
 
 **The Fix:**
+
 - Changed to `primary.700` (#1d4ed8) for text - provides ~7:1 contrast ratio
 - Changed outline border to `primary.600` for better definition
 - All variants now pass WCAG AA standards
@@ -252,6 +254,7 @@ This section documents practical lessons learned during the implementation and i
 **Why It Failed:** Vitest snapshot tests capture the exact rendered HTML/CSS classes. When we changed from `primary.500` to `primary.700`, the CSS utility classes changed (e.g., `c_primary.500` → `c_primary.700`).
 
 **How to Fix:**
+
 ```bash
 # Update snapshots for specific project
 pnpm nx test <project-name> -- -u
@@ -261,6 +264,7 @@ pnpm nx test react-button -- -u
 ```
 
 **Key Takeaway:** When making accessibility or style improvements that change CSS output:
+
 1. Run component tests (CT) first - they validate behavior
 2. Update snapshots second - they validate rendering
 3. Commit both changes together with clear explanation
@@ -270,12 +274,14 @@ pnpm nx test react-button -- -u
 **What We Found:** Default button states passed accessibility checks, but variant states had different contrast requirements.
 
 **Why It Matters:** A component might be accessible in one state but fail in others:
+
 - Default vs. variants (solid, outline, ghost)
 - Enabled vs. disabled states
 - Light theme vs. dark theme
 - Interactive states (hover, focus, active)
 
 **Best Practice:**
+
 ```typescript
 // ✅ Good - Test all major variants and states
 test('default state passes a11y', async ({ mount }) => {
@@ -298,6 +304,7 @@ test('disabled state passes a11y', async ({ mount }) => {
 **The Problem:** Feature PRs don't need version plans - only release PRs do. Requiring version plans on every PR creates unnecessary friction.
 
 **The Solution:** Made the `check-version-plan` job conditional:
+
 ```yaml
 if: contains(github.event.pull_request.labels.*.name, 'release')
 ```
@@ -308,12 +315,14 @@ if: contains(github.event.pull_request.labels.*.name, 'release')
 
 **What We Learned:** The `@isolate-ui/utils` package imports from `@axe-core/playwright` and `@playwright/test` but initially didn't declare them as peer dependencies.
 
-**Why It Matters:** 
+**Why It Matters:**
+
 - Prevents version conflicts
 - Makes requirements explicit
 - Improves dependency resolution
 
 **The Fix:**
+
 ```json
 {
   "peerDependencies": {
@@ -330,6 +339,7 @@ if: contains(github.event.pull_request.labels.*.name, 'release')
 **What Happened:** ESLint attempted to lint Playwright's generated cache files (`.cache/assets/`), causing hundreds of errors.
 
 **The Fix:** Add generated directories to ESLint ignore patterns:
+
 ```javascript
 {
   ignores: ['**/playwright/.cache/**'],
