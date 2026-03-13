@@ -1,2 +1,2 @@
 #!/usr/bin/env sh
-pnpm exec prettier --write --ignore-unknown .
+pnpm exec prettier --check --ignore-unknown .
