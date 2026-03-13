@@ -113,19 +113,32 @@ jobs:
           if [ -d ".nx/version-plans" ]; then
             for plan in .nx/version-plans/*.md; do
               [ -f "$plan" ] || continue
-              # Validate the file has a properly closed frontmatter block (exactly
-              # two "---" delimiter lines). A missing closing delimiter would cause
-              # awk to scan the whole body and produce false "covered" entries.
-              delimiter_count=$(grep -c '^---$' "$plan" || true)
-              if [ "$delimiter_count" -lt 2 ]; then
-                echo "ERROR: version plan '$plan' has malformed frontmatter (expected 2 '---' delimiters, found $delimiter_count)."
-                exit 1
-              fi
-              plan_projects=$(awk '
-                /^---/ { delimiters++; next }
+              # Validate frontmatter using awk: the file must open with a bare
+              # '---' on line 1 and have a matching closing '---'.  Using awk
+              # here (rather than grep -c across the whole file) means body-level
+              # horizontal rules (also '---') are never counted as delimiters.
+              # awk's exit code is preserved by separating it from tr -d.
+              plan_projects_raw=$(awk '
+                NR == 1 && /^---$/ { delimiters = 1; next }
+                NR == 1 {
+                  print "ERROR: version plan does not begin with --- frontmatter" > "/dev/stderr"
+                  exit 1
+                }
+                /^---$/ && delimiters == 1 { delimiters = 2; next }
                 delimiters == 1 { print $1 }
                 delimiters >= 2 { exit }
-              ' "$plan" | tr -d ':')
+                END {
+                  if (delimiters < 2) {
+                    print "ERROR: version plan frontmatter is not closed with ---" > "/dev/stderr"
+                    exit 1
+                  }
+                }
+              ' "$plan")
+              if [ $? -ne 0 ]; then
+                echo "ERROR: version plan '$plan' has malformed frontmatter."
+                exit 1
+              fi
+              plan_projects=$(printf '%s' "$plan_projects_raw" | tr -d ':')
               COVERED=$(printf '%s\n%s' "$COVERED" "$plan_projects")
             done
           fi
