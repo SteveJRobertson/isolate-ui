@@ -106,11 +106,23 @@ jobs:
           # Collect all project names covered by an existing plan file.
           # Only read the YAML frontmatter (between the 1st and 2nd "---" lines)
           # to avoid false matches from horizontal rules (---) in the body text.
+          # Store as a newline-delimited list so exact matching works for
+          # hyphenated names (grep -w treats "-" as a non-word char, which lets
+          # "react-button" falsely match "react-button-next").
           COVERED=""
           if [ -d ".nx/version-plans" ]; then
             for plan in .nx/version-plans/*.md; do
               [ -f "$plan" ] || continue
-              COVERED="$COVERED $(awk '
+              # Validate the file has a properly closed frontmatter block (exactly
+              # two "---" delimiter lines). A missing closing delimiter would cause
+              # awk to scan the whole body and produce false "covered" entries.
+              delimiter_count=$(grep -c '^---$' "$plan" || true)
+              if [ "$delimiter_count" -lt 2 ]; then
+                echo "ERROR: version plan file '$plan' has malformed frontmatter (expected 2 '---' delimiters, found $delimiter_count)."
+                exit 1
+              fi
+              COVERED="$COVERED
+$(awk '
                 /^---/ { delimiters++; next }
                 delimiters == 1 { print $1 }
                 delimiters >= 2 { exit }
@@ -121,7 +133,10 @@ jobs:
           MISSING=""
           while IFS= read -r project; do
             [ -z "$project" ] && continue
-            if ! echo "$COVERED" | grep -qw "$project"; then
+            # Use grep -Fx (fixed string, whole-line) against the newline-delimited
+            # COVERED list for an exact match — avoids false positives from
+            # hyphenated names where grep -w would match substrings.
+            if ! printf '%s' "$COVERED" | grep -qFx "$project"; then
               MISSING="$MISSING\n  - $project"
             fi
           done <<< "$AFFECTED"
