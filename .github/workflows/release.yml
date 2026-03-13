@@ -47,6 +47,18 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Verify version plans exist
+        run: |
+          echo "Checking for version plans before release..."
+          
+          # Check if there are any version plan files
+          if [ ! -d ".nx/version-plans" ] || [ -z "$(ls -A .nx/version-plans/*.md 2>/dev/null)" ]; then
+            echo "⚠️  No version plans found. Release will use conventional commits for versioning."
+          else
+            echo "✓ Version plans found:"
+            ls -1 .nx/version-plans/*.md 2>/dev/null || true
+          fi
+
       - name: Configure npm authentication
         run: npm config set //registry.npmjs.org/:_authToken=${NODE_AUTH_TOKEN} --location=user
         env:
