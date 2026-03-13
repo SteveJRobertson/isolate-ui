@@ -11,9 +11,9 @@ jobs:
     runs-on: ubuntu-latest
     if: "!contains(github.event.head_commit.message, '[skip ci]')"
     permissions:
-      id-token: write      # Required for npm provenance
-      contents: write      # Required for pushing commits and tags
-      pull-requests: read  # Required for GitHub App token
+      id-token: write # Required for npm provenance
+      contents: write # Required for pushing commits and tags
+      pull-requests: read # Required for GitHub App token
 
     steps:
       - name: Generate GitHub App token
@@ -50,7 +50,7 @@ jobs:
       - name: Verify version plans exist
         run: |
           echo "Checking for version plans before release..."
-          
+
           # Check if there are any version plan files
           if [ ! -d ".nx/version-plans" ] || [ -z "$(ls -A .nx/version-plans/*.md 2>/dev/null)" ]; then
             echo "⚠️  No version plans found. Release will use conventional commits for versioning."

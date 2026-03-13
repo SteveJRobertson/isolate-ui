@@ -36,7 +36,7 @@ import { scanForA11yViolations } from '@isolate-ui/utils';
 test('my component violations', async ({ mount, page }) => {
   const component = await mount(<MyComponent />);
   const violations = await scanForA11yViolations(page, component);
-  
+
   console.log('Found violations:', violations);
   // violations contains impact level, rule ID, message, and affected elements
 });
@@ -49,6 +49,7 @@ test('my component violations', async ({ mount, page }) => {
 Asserts that a page or component has no accessibility violations.
 
 **Parameters:**
+
 - `pageOrLocator` - Either a Playwright `Page` or `Locator` object
 - `options` (optional) - Configuration object with:
   - `runOnly` - Restrict audit to specific rules or tags
@@ -57,6 +58,7 @@ Asserts that a page or component has no accessibility violations.
 **Throws:** Error with detailed violation report if violations are found
 
 **Example:**
+
 ```typescript
 // Check entire page
 await expectToHaveNoA11yViolations(page);
@@ -68,8 +70,8 @@ await expectToHaveNoA11yViolations(button);
 await expectToHaveNoA11yViolations(component, {
   runOnly: {
     type: 'tag',
-    values: ['wcag2aa', 'wcag21aa']
-  }
+    values: ['wcag2aa', 'wcag21aa'],
+  },
 });
 ```
 
@@ -78,6 +80,7 @@ await expectToHaveNoA11yViolations(component, {
 Runs an accessibility audit and returns violations without assertions.
 
 **Parameters:**
+
 - `page` - Playwright Page object
 - `selector` (optional) - CSS selector string to limit audit scope. Locator objects are accepted for API compatibility, but the full page context is scanned (see note below)
 - `options` (optional) - Configuration object (see above)
@@ -87,6 +90,7 @@ Runs an accessibility audit and returns violations without assertions.
 > **Note on Locator objects:** While this function accepts Playwright Locator objects for convenience, the accessibility scan always analyzes the full page context. This is because many WCAG rules require understanding document-level relationships (e.g., form labels, heading hierarchy, landmark structure). To limit the scope, pass a CSS selector string instead.
 
 **Example:**
+
 ```typescript
 // Scan specific section by CSS selector
 const violations = await scanForA11yViolations(page, '#main-content');
@@ -112,7 +116,7 @@ Some automated checks may produce false positives. You can disable specific axe 
 ```typescript
 test('custom component with unavoidable violation', async ({ mount }) => {
   const component = await mount(<CustomComponent />);
-  
+
   await expectToHaveNoA11yViolations(component, {
     rules: {
       'color-contrast': { enabled: false },
@@ -140,7 +144,7 @@ For components that render outside the component root (modals, popovers), scan t
 ```typescript
 test('modal dialog is accessible', async ({ mount, page }) => {
   const component = await mount(<Modal open>Content</Modal>);
-  
+
   // Scan entire page, not just the mount point
   await expectToHaveNoA11yViolations(page);
 });
@@ -158,7 +162,7 @@ test('form field is accessible', async ({ mount }) => {
       <FormField required />
     </form>
   );
-  
+
   // Scans the label relationship as well
   await expectToHaveNoA11yViolations(component.locator('form'));
 });
@@ -202,18 +206,22 @@ pnpm nx run react-<component>:component-test -- --watch
 ## Common Violations & Fixes
 
 ### color-contrast
+
 **Issue:** Text doesn't have sufficient contrast ratio (should be at least 4.5:1 for normal text)
 **Fix:** Adjust text or background color, or adjust component sizing
 
 ### image-alt
+
 **Issue:** Images missing alternate text
 **Fix:** Add `alt` attribute to images
 
 ### aria-required-attr
+
 **Issue:** ARIA role missing required attributes
 **Fix:** Add required ARIA attributes for the role being used
 
 ### button-name
+
 **Issue:** Button has no accessible name
 **Fix:** Add text content or `aria-label`
 
@@ -227,6 +235,7 @@ pnpm nx run react-<component>:component-test -- --watch
 ## Support
 
 For accessibility questions or issues:
+
 1. Check the [axe DevTools guide](https://www.deque.com/axe/devtools/) for rule details
 2. Review [WCAG 2.1 Level AA requirements](https://www.w3.org/WAI/WCAG21/quickref/?currentsLevel=aa)
 3. Open an issue on the repository with violation details
