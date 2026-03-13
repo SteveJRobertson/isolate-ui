@@ -17,7 +17,7 @@ import { expect, test } from '@playwright/experimental-ct-react';
 import {
   expectToHaveNoA11yViolations,
   scanForA11yViolations,
-} from '@isolate-ui/utils';
+} from '@isolate-ui/utils/a11y';
 import Button from './button';
 
 // ---------------------------------------------------------------------------

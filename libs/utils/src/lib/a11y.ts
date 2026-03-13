@@ -82,11 +82,12 @@ export async function scanForA11yViolations(
 }
 
 /**
- * Custom matcher for Playwright that checks if a component
- * has no accessibility violations.
+ * Asserts that a page or component has no accessibility violations.
+ * Throws an error with detailed violation information if violations are found.
  *
  * Usage:
- *   await expect(page.locator('[data-testid="button"]')).toHaveNoA11yViolations();
+ *   await expectToHaveNoA11yViolations(page);
+ *   await expectToHaveNoA11yViolations(component);
  */
 export async function expectToHaveNoA11yViolations(
   pageOrLocator: Page | Locator,
@@ -106,11 +107,12 @@ export async function expectToHaveNoA11yViolations(
   let selector: Locator | undefined;
 
   // Determine if we're dealing with a Page or Locator
-  if ('locator' in pageOrLocator) {
-    page = pageOrLocator.page() as Page;
-    selector = pageOrLocator;
+  // Locators have a page() method, Pages do not
+  if (typeof (pageOrLocator as Locator).page === 'function') {
+    page = (pageOrLocator as Locator).page() as Page;
+    selector = pageOrLocator as Locator;
   } else {
-    page = pageOrLocator;
+    page = pageOrLocator as Page;
   }
 
   const violations = await scanForA11yViolations(page, selector, options);
