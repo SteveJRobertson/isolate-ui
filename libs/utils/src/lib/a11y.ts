@@ -1,4 +1,5 @@
 import { AxeBuilder } from '@axe-core/playwright';
+import type { UnlabelledFrameSelector } from 'axe-core';
 import type { Page, Locator } from '@playwright/test';
 
 /**
@@ -10,7 +11,7 @@ export interface A11yViolation {
   message: string;
   nodes: Array<{
     html: string;
-    target: string[];
+    target: UnlabelledFrameSelector;
   }>;
 }
 
@@ -53,7 +54,7 @@ export async function scanForA11yViolations(
   builder.withTags(['wcag2aa', 'wcag21aa']);
 
   if (options?.runOnly) {
-    builder.withRunOnly(options.runOnly);
+    builder.options({ runOnly: options.runOnly });
   }
 
   if (options?.rules) {
