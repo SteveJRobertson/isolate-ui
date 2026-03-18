@@ -20,7 +20,8 @@
   },
   "peerDependencies": {
     "@axe-core/playwright": "^4.0.0",
-    "@playwright/test": "^1.0.0"
+    "@playwright/test": "^1.0.0",
+    "axe-core": "^4.0.0"
   },
   "devDependencies": {
     "vitest": "^3.2.4",
