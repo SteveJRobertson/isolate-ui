@@ -1,5 +1,6 @@
 import { AxeBuilder } from '@axe-core/playwright';
 import type { Page, Locator } from '@playwright/test';
+import type { UnlabelledFrameSelector } from 'axe-core';
 
 /**
  * Accessibility violation details with formatted output
@@ -10,7 +11,7 @@ export interface A11yViolation {
   message: string;
   nodes: Array<{
     html: string;
-    target: string[];
+    target: UnlabelledFrameSelector;
   }>;
 }
 
@@ -53,7 +54,7 @@ export async function scanForA11yViolations(
   builder.withTags(['wcag2aa', 'wcag21aa']);
 
   if (options?.runOnly) {
-    builder.withRunOnly(options.runOnly);
+    builder.options({ runOnly: options.runOnly });
   }
 
   if (options?.rules) {
@@ -123,7 +124,7 @@ export async function expectToHaveNoA11yViolations(
         const nodeDetails = v.nodes
           .map(
             (n) =>
-              `\n    - Selector: ${n.target.join(' > ')}\n      HTML: ${n.html}`,
+              `\n    - Selector: ${n.target.map((t) => (Array.isArray(t) ? t.join(' ') : t)).join(' > ')}\n      HTML: ${n.html}`,
           )
           .join('\n');
         return `\n  [${v.impact?.toUpperCase() || 'UNKNOWN'}] ${v.id}\n    Message: ${v.message}${nodeDetails}`;
