@@ -364,7 +364,8 @@ const resetProgressCodes = new Set([
 function formatMessage(msg) {
   if (verbosity === 'minimal') {
     const currentStatus = `${cipeStatus}|${selfHealingStatus}|${verificationStatus}`;
-    if (currentStatus === (prevStatus || '')) return null;
+    const expectedPrevStatus = `${prevCipeStatus || ''}|${prevShStatus || ''}|${prevVerificationStatus || ''}`;
+    if (currentStatus === expectedPrevStatus) return null;
     return msg;
   }
   if (verbosity === 'verbose') {

@@ -50,6 +50,11 @@ export default defineConfig({
             '../../..',
             'libs/utils/src/index.ts',
           ),
+          '@isolate-ui/utils/a11y': join(
+            __dirname,
+            '../../..',
+            'libs/utils/src/lib/a11y.ts',
+          ),
         },
       },
     },

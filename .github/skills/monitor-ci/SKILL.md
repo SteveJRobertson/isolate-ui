@@ -24,12 +24,12 @@ $ARGUMENTS
 | Setting                   | Default       | Description                                                               |
 | ------------------------- | ------------- | ------------------------------------------------------------------------- |
 | `--max-cycles`            | 10            | Maximum **agent-initiated** CI Attempt cycles before timeout              |
-| `--timeout`               | 120           | Maximum duration in minutes                                               |
+| `--timeout`               | 7200          | Maximum duration in seconds (default: 7200s = 2 hours)                    |
 | `--verbosity`             | medium        | Output level: minimal, medium, verbose                                    |
 | `--branch`                | (auto-detect) | Branch to monitor                                                         |
 | `--fresh`                 | false         | Ignore previous context, start fresh                                      |
 | `--auto-fix-workflow`     | false         | Attempt common fixes for pre-CI-Attempt failures (e.g., lockfile updates) |
-| `--new-cipe-timeout`      | 10            | Minutes to wait for new CI Attempt after action                           |
+| `--new-cipe-timeout`      | 600           | Seconds to wait for new CI Attempt after action (default: 600s = 10 min)  |
 | `--local-verify-attempts` | 3             | Max local verification + enhance cycles before pushing to CI              |
 
 Parse any overrides from `$ARGUMENTS` and merge with defaults.
