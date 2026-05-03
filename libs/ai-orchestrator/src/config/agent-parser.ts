@@ -17,7 +17,9 @@ const REQUIRED_PERSONA_IDS = [
 export type RequiredPersonaId = (typeof REQUIRED_PERSONA_IDS)[number];
 
 /**
- * Parsed output from AGENTS.md.
+ * Validation result for AGENTS.md.
+ * Contains the in-code persona map (source of truth) plus metadata
+ * confirming which file was validated and when.
  */
 export interface AgentsConfig {
   personas: Record<string, AgentPersona>;

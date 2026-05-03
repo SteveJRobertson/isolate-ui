@@ -11,7 +11,10 @@ import { findWorkspaceRoot } from '../config';
 const AGENTS_MD_PATH = path.join(findWorkspaceRoot(process.cwd()), 'AGENTS.md');
 
 function tempDbPath(): string {
-  return path.join(os.tmpdir(), `orchestrator-test-${Date.now()}.db`);
+  return path.join(
+    os.tmpdir(),
+    `orchestrator-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
+  );
 }
 
 describe('OrchestratorGraph', () => {

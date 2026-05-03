@@ -85,7 +85,7 @@ pnpm nx lint ai-orchestrator
 
 ## Personas
 
-Each persona is configured in `AGENTS.md` at the project root and parsed by the orchestrator:
+The orchestrator uses in-code persona definitions and validates them against the persona markers in `AGENTS.md` at the project root:
 
 ### 1. Product Owner (@isolate-po)
 

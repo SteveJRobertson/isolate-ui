@@ -2,7 +2,8 @@
  * Agent Persona Definitions
  *
  * Each persona represents a specialized role in the Isolate UI development lifecycle.
- * These are configured from the root AGENTS.md file and used to initialize LangGraph nodes.
+ * These definitions are hardcoded in this file and used to initialize LangGraph nodes.
+ * The root AGENTS.md is validated separately to confirm all personas are documented there.
  */
 
 export interface AgentPersona {

@@ -22,10 +22,15 @@ describe('findWorkspaceRoot', () => {
   });
 
   it('throws if no nx.json can be found', () => {
-    // Start from a directory that is guaranteed to have no nx.json above it
-    expect(() => findWorkspaceRoot('/tmp')).toThrow(
-      'Could not locate workspace root',
-    );
+    // Create a fresh isolated temp dir with no nx.json anywhere above it
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'no-nx-'));
+    try {
+      expect(() => findWorkspaceRoot(tmpDir)).toThrow(
+        'Could not locate workspace root',
+      );
+    } finally {
+      fs.rmdirSync(tmpDir);
+    }
   });
 });
 

@@ -2,7 +2,7 @@ import * as path from 'path';
 import { AgentState, DEFAULT_AGENT_STATE } from '../schema';
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { SqliteSaver } from '../persistence';
-import { validateAgentsConfig } from '../config';
+import { validateAgentsConfig, findWorkspaceRoot } from '../config';
 
 /**
  * Node function signature — each persona node receives the current state
@@ -48,7 +48,15 @@ export class OrchestratorGraph {
   private dbPath: string;
 
   constructor(dbPath?: string, agentsMdPath?: string) {
-    this.dbPath = dbPath ?? path.resolve(process.cwd(), 'data', 'state.db');
+    this.dbPath =
+      dbPath ??
+      path.resolve(
+        findWorkspaceRoot(process.cwd()),
+        'libs',
+        'ai-orchestrator',
+        'data',
+        'state.db',
+      );
     this.checkpointer = new SqliteSaver(this.dbPath);
 
     // Validate AGENTS.md on startup — fail-fast if misconfigured
@@ -212,8 +220,9 @@ export class OrchestratorGraph {
       const persona = AGENT_PERSONAS[personaId];
       const index = getPersonaIds().indexOf(personaId);
       const nextPersonas = getPersonaIds();
-      const next =
-        index < nextPersonas.length - 1 ? nextPersonas[index + 1] : null;
+      const next = (
+        index < nextPersonas.length - 1 ? nextPersonas[index + 1] : null
+      ) as AgentState['next_recipient'];
 
       return {
         next_recipient: next,

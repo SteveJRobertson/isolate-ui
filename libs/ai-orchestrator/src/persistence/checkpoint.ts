@@ -12,6 +12,24 @@ import { AgentState, AgentStateSchema } from '../schema';
 export class SqliteSaver {
   private db: Database.Database;
 
+  // Prepared statements — initialised once after schema setup for reuse across calls.
+  // Preparing on every save() call adds unnecessary overhead in long-running orchestrations.
+  private stmtUpsert!: Database.Statement;
+  private stmtInsertHistory!: Database.Statement;
+  private stmtGetCheckpoint!: Database.Statement;
+  private stmtGetAtStep!: Database.Statement;
+  private stmtGetHistory!: Database.Statement;
+  private stmtListThreads!: Database.Statement;
+  private stmtDeleteHistory!: Database.Statement;
+  private stmtDeleteCheckpoint!: Database.Statement;
+  // Transaction wrapping upsert + history insert so both are always in sync
+  private txSave!: (
+    threadId: string,
+    stateJson: string,
+    stepCount: number,
+    agentId: string | null,
+  ) => void;
+
   constructor(dbPath: string) {
     // Ensure directory exists
     const dir = path.dirname(dbPath);
@@ -21,7 +39,10 @@ export class SqliteSaver {
 
     // Open/create database
     this.db = new Database(dbPath);
+    // Enforce referential integrity — SQLite disables FK checks by default
+    this.db.pragma('foreign_keys = ON');
     this.initSchema();
+    this.prepareStatements();
   }
 
   /**
@@ -45,13 +66,66 @@ export class SqliteSaver {
         state TEXT NOT NULL,
         agent_id TEXT,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(thread_id) REFERENCES checkpoints(thread_id)
+        FOREIGN KEY(thread_id) REFERENCES checkpoints(thread_id) ON DELETE CASCADE
       );
 
       CREATE INDEX IF NOT EXISTS idx_thread_id ON checkpoints(thread_id);
       CREATE INDEX IF NOT EXISTS idx_history_thread ON checkpoint_history(thread_id);
       CREATE INDEX IF NOT EXISTS idx_history_thread_step ON checkpoint_history(thread_id, step_number);
     `);
+  }
+
+  /**
+   * Prepare all SQL statements once for reuse across calls.
+   * better-sqlite3 prepared statements are safe to reuse on the same synchronous connection.
+   */
+  private prepareStatements(): void {
+    this.stmtUpsert = this.db.prepare(`
+      INSERT INTO checkpoints (thread_id, state, step_count, updated_at)
+      VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+      ON CONFLICT(thread_id) DO UPDATE SET
+        state = excluded.state,
+        step_count = excluded.step_count,
+        updated_at = CURRENT_TIMESTAMP
+    `);
+    this.stmtInsertHistory = this.db.prepare(`
+      INSERT INTO checkpoint_history (thread_id, step_number, state, agent_id)
+      VALUES (?, ?, ?, ?)
+    `);
+    this.stmtGetCheckpoint = this.db.prepare(
+      'SELECT state, step_count FROM checkpoints WHERE thread_id = ?',
+    );
+    this.stmtGetAtStep = this.db.prepare(
+      `SELECT state FROM checkpoint_history
+       WHERE thread_id = ? AND step_number = ?`,
+    );
+    this.stmtGetHistory = this.db.prepare(
+      `SELECT step_number, agent_id, state FROM checkpoint_history
+       WHERE thread_id = ?
+       ORDER BY step_number ASC`,
+    );
+    this.stmtListThreads = this.db.prepare(
+      'SELECT thread_id FROM checkpoints ORDER BY updated_at DESC',
+    );
+    this.stmtDeleteHistory = this.db.prepare(
+      'DELETE FROM checkpoint_history WHERE thread_id = ?',
+    );
+    this.stmtDeleteCheckpoint = this.db.prepare(
+      'DELETE FROM checkpoints WHERE thread_id = ?',
+    );
+    const upsert = this.stmtUpsert;
+    const insertHistory = this.stmtInsertHistory;
+    this.txSave = this.db.transaction(
+      (
+        threadId: string,
+        stateJson: string,
+        stepCount: number,
+        agentId: string | null,
+      ) => {
+        upsert.run(threadId, stateJson, stepCount);
+        insertHistory.run(threadId, stepCount, stateJson, agentId);
+      },
+    );
   }
 
   /**
@@ -70,26 +144,7 @@ export class SqliteSaver {
     const stepCount = current ? current.step_count + 1 : 0;
 
     try {
-      // Wrap both writes in a transaction so checkpoint + history are always in sync.
-      // If either statement fails the entire transaction rolls back atomically.
-      const upsertCheckpoint = this.db.prepare(`
-        INSERT INTO checkpoints (thread_id, state, step_count, updated_at)
-        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
-        ON CONFLICT(thread_id) DO UPDATE SET
-          state = excluded.state,
-          step_count = excluded.step_count,
-          updated_at = CURRENT_TIMESTAMP
-      `);
-      const insertHistory = this.db.prepare(`
-        INSERT INTO checkpoint_history (thread_id, step_number, state, agent_id)
-        VALUES (?, ?, ?, ?)
-      `);
-
-      const transaction = this.db.transaction(() => {
-        upsertCheckpoint.run(threadId, stateJson, stepCount);
-        insertHistory.run(threadId, stepCount, stateJson, agentId || null);
-      });
-      transaction();
+      this.txSave(threadId, stateJson, stepCount, agentId ?? null);
     } catch (error) {
       throw new Error(
         `Failed to save checkpoint for thread ${threadId}: ${error}`,
@@ -104,10 +159,7 @@ export class SqliteSaver {
    */
   public get(threadId: string): (AgentState & { step_count: number }) | null {
     try {
-      const stmt = this.db.prepare(
-        'SELECT state, step_count FROM checkpoints WHERE thread_id = ?',
-      );
-      const row = stmt.get(threadId) as
+      const row = this.stmtGetCheckpoint.get(threadId) as
         | { state: string; step_count: number }
         | undefined;
 
@@ -132,11 +184,7 @@ export class SqliteSaver {
    */
   public getAtStep(threadId: string, stepNumber: number): AgentState | null {
     try {
-      const stmt = this.db.prepare(
-        `SELECT state FROM checkpoint_history
-         WHERE thread_id = ? AND step_number = ?`,
-      );
-      const row = stmt.get(threadId, stepNumber) as
+      const row = this.stmtGetAtStep.get(threadId, stepNumber) as
         | { state: string }
         | undefined;
 
@@ -162,12 +210,7 @@ export class SqliteSaver {
     state: AgentState;
   }> {
     try {
-      const stmt = this.db.prepare(
-        `SELECT step_number, agent_id, state FROM checkpoint_history
-         WHERE thread_id = ?
-         ORDER BY step_number ASC`,
-      );
-      const rows = stmt.all(threadId) as Array<{
+      const rows = this.stmtGetHistory.all(threadId) as Array<{
         step_number: number;
         agent_id: string | null;
         state: string;
@@ -190,10 +233,7 @@ export class SqliteSaver {
    */
   public listThreads(): string[] {
     try {
-      const stmt = this.db.prepare(
-        'SELECT thread_id FROM checkpoints ORDER BY updated_at DESC',
-      );
-      const rows = stmt.all() as Array<{ thread_id: string }>;
+      const rows = this.stmtListThreads.all() as Array<{ thread_id: string }>;
       return rows.map((row) => row.thread_id);
     } catch (error) {
       throw new Error(`Failed to list threads: ${error}`);
@@ -205,12 +245,8 @@ export class SqliteSaver {
    */
   public deleteThread(threadId: string): void {
     try {
-      this.db
-        .prepare('DELETE FROM checkpoint_history WHERE thread_id = ?')
-        .run(threadId);
-      this.db
-        .prepare('DELETE FROM checkpoints WHERE thread_id = ?')
-        .run(threadId);
+      this.stmtDeleteHistory.run(threadId);
+      this.stmtDeleteCheckpoint.run(threadId);
     } catch (error) {
       throw new Error(`Failed to delete thread ${threadId}: ${error}`);
     }

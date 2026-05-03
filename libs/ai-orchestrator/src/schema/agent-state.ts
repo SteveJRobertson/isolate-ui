@@ -21,11 +21,14 @@ export const AgentStateSchema = z.object({
 
   /**
    * Current recipient - the persona that should process next.
-   * Values: 'po' | 'architect' | 'dev' | 'a11y' | 'qa' | 'docs' | null
+   * Validated as a known persona ID or null; invalid values are rejected at schema parse time.
    *
-   * When null, the orchestrator router determines the next recipient.
+   * When null, the workflow has completed or the next recipient has not yet been set.
    */
-  next_recipient: z.string().nullable().default(null),
+  next_recipient: z
+    .enum(['po', 'architect', 'dev', 'a11y', 'qa', 'docs'])
+    .nullable()
+    .default(null),
 
   /**
    * Git diff string or code snippet under review.
