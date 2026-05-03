@@ -80,7 +80,7 @@ describe('SqliteSaver', () => {
     saver.save('thread-2', { ...DEFAULT_AGENT_STATE, next_recipient: 'dev' });
 
     const retrieved = saver.get('thread-2');
-    expect(retrieved?.step_count).toBe(2);
+    expect(retrieved?.step_count).toBe(3);
   });
 
   it('records history with agent IDs', () => {
@@ -119,11 +119,11 @@ describe('SqliteSaver', () => {
       code_buffer: 'step-1',
     });
 
-    const stepZero = saver.getAtStep('issue-5', 0);
-    expect(stepZero?.code_buffer).toBe('step-0');
-
     const stepOne = saver.getAtStep('issue-5', 1);
-    expect(stepOne?.code_buffer).toBe('step-1');
+    expect(stepOne?.code_buffer).toBe('step-0');
+
+    const stepTwo = saver.getAtStep('issue-5', 2);
+    expect(stepTwo?.code_buffer).toBe('step-1');
   });
 
   it('lists all thread IDs', () => {

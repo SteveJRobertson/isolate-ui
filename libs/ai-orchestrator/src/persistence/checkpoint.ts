@@ -141,9 +141,9 @@ export class SqliteSaver {
       const validatedState = AgentStateSchema.parse(state);
       const stateJson = JSON.stringify(validatedState);
 
-      // Get current step count
+      // Get current step count (1-indexed: first save = 1, second save = 2, …)
       const current = this.get(threadId);
-      const stepCount = current ? current.step_count + 1 : 0;
+      const stepCount = current ? current.step_count + 1 : 1;
 
       this.txSave(threadId, stateJson, stepCount, agentId ?? null);
     } catch (error) {
