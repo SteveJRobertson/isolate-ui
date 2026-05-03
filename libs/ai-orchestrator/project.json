@@ -1,0 +1,29 @@
+{
+  "name": "ai-orchestrator",
+  "$schema": "../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/ai-orchestrator/src",
+  "projectType": "library",
+  "tags": ["scope:ai", "type:orchestrator"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/ai-orchestrator",
+        "main": "libs/ai-orchestrator/src/index.ts",
+        "tsConfig": "libs/ai-orchestrator/tsconfig.lib.json",
+        "assets": []
+      }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"]
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p libs/ai-orchestrator/tsconfig.lib.json"
+      }
+    }
+  }
+}

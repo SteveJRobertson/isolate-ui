@@ -19,6 +19,7 @@
       "@isolate-ui/utils": ["libs/utils/src/index.ts"],
       "@isolate-ui/utils/a11y": ["libs/utils/src/lib/a11y.ts"],
       "@isolate-ui/tokens": ["libs/shared/tokens/src/index.ts"],
+      "@isolate-ui/ai-orchestrator": ["libs/ai-orchestrator/src/index.ts"],
       "styled-system/*": ["styled-system/*"]
     }
   },
