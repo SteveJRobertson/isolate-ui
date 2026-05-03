@@ -2,7 +2,7 @@ import * as path from 'path';
 import { AgentState, DEFAULT_AGENT_STATE } from '../schema';
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { SqliteSaver } from '../persistence';
-import { parseAgentsConfig } from '../config';
+import { validateAgentsConfig } from '../config';
 
 /**
  * Node function signature — each persona node receives the current state
@@ -54,7 +54,7 @@ export class OrchestratorGraph {
     this.checkpointer = new SqliteSaver(this.dbPath);
 
     // Validate AGENTS.md on startup — fail-fast if misconfigured
-    parseAgentsConfig(agentsMdPath);
+    validateAgentsConfig(agentsMdPath);
 
     // Register default no-op nodes for each persona
     // Real LLM implementations will be swapped in via registerNode()
@@ -94,10 +94,17 @@ export class OrchestratorGraph {
     initialInput?: Partial<AgentState>,
     maxSteps = 20,
   ): Promise<OrchestratorRunResult> {
-    // Resume from checkpoint or start fresh
+    // Resume from checkpoint or start fresh.
+    // Strip step_count from the saved state — it's a persistence internal and
+    // must not leak into AgentState or OrchestratorRunResult.finalState.
     const savedState = this.checkpointer.get(threadId);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { step_count: _sc, ...savedAgentState } = savedState ?? {
+      step_count: undefined,
+      ...DEFAULT_AGENT_STATE,
+    };
     let state: AgentState = savedState
-      ? { ...savedState }
+      ? savedAgentState
       : { ...DEFAULT_AGENT_STATE, ...initialInput };
 
     // If starting fresh and no initial recipient set, begin with po (product owner)

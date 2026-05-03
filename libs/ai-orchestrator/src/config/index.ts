@@ -1,5 +1,5 @@
 export {
-  parseAgentsConfig,
+  validateAgentsConfig,
   assertPersonaExists,
   findWorkspaceRoot,
   type AgentsConfig,

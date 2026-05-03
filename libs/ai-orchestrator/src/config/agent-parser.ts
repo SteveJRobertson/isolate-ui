@@ -55,7 +55,7 @@ export function findWorkspaceRoot(startDir: string): string {
  *
  * @param agentsMdPath - Absolute path to AGENTS.md (defaults to workspace root)
  */
-export function parseAgentsConfig(agentsMdPath?: string): AgentsConfig {
+export function validateAgentsConfig(agentsMdPath?: string): AgentsConfig {
   const resolvedPath =
     agentsMdPath ?? path.join(findWorkspaceRoot(__dirname), 'AGENTS.md');
 

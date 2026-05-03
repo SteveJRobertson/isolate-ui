@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
-import { parseAgentsConfig, findWorkspaceRoot } from '../config';
+import { validateAgentsConfig, findWorkspaceRoot } from '../config';
 
 // The workspace root — confirmed to contain nx.json
 const WORKSPACE_ROOT = findWorkspaceRoot(process.cwd());
@@ -29,9 +29,9 @@ describe('findWorkspaceRoot', () => {
   });
 });
 
-describe('parseAgentsConfig', () => {
+describe('validateAgentsConfig', () => {
   it('parses the real AGENTS.md and returns all 6 personas', () => {
-    const config = parseAgentsConfig(REAL_AGENTS_MD);
+    const config = validateAgentsConfig(REAL_AGENTS_MD);
     const ids = Object.keys(config.personas);
     expect(ids).toContain('po');
     expect(ids).toContain('architect');
@@ -42,13 +42,13 @@ describe('parseAgentsConfig', () => {
   });
 
   it('returns the source file path and a validatedAt timestamp', () => {
-    const config = parseAgentsConfig(REAL_AGENTS_MD);
+    const config = validateAgentsConfig(REAL_AGENTS_MD);
     expect(config.sourceFile).toBe(REAL_AGENTS_MD);
     expect(config.validatedAt).toBeInstanceOf(Date);
   });
 
   it('throws when AGENTS.md does not exist at the given path', () => {
-    expect(() => parseAgentsConfig('/nonexistent/path/AGENTS.md')).toThrow(
+    expect(() => validateAgentsConfig('/nonexistent/path/AGENTS.md')).toThrow(
       'AGENTS.md not found at: /nonexistent/path/AGENTS.md',
     );
   });
@@ -62,7 +62,7 @@ describe('parseAgentsConfig', () => {
     );
 
     try {
-      expect(() => parseAgentsConfig(tmpFile)).toThrow(
+      expect(() => validateAgentsConfig(tmpFile)).toThrow(
         'AGENTS.md is missing required persona definitions',
       );
     } finally {
@@ -86,7 +86,7 @@ describe('parseAgentsConfig', () => {
     );
 
     try {
-      const config = parseAgentsConfig(tmpFile);
+      const config = validateAgentsConfig(tmpFile);
       expect(Object.keys(config.personas)).toHaveLength(6);
     } finally {
       fs.unlinkSync(tmpFile);
@@ -98,7 +98,7 @@ describe('parseAgentsConfig', () => {
     fs.writeFileSync(tmpFile, `# Minimal\n@isolate-po only\n`);
 
     try {
-      expect(() => parseAgentsConfig(tmpFile)).toThrow('@isolate-architect');
+      expect(() => validateAgentsConfig(tmpFile)).toThrow('@isolate-architect');
     } finally {
       fs.unlinkSync(tmpFile);
     }

@@ -140,11 +140,14 @@ const state = await checkpointer.get(threadId);
 
 ## Configuration
 
-Personas are automatically parsed from the root `AGENTS.md` file. The orchestrator validates:
+Personas are validated against the root `AGENTS.md` file on startup via `validateAgentsConfig()`.
+The validation checks that each required persona marker (`@isolate-po`, `@isolate-architect`, etc.)
+is present anywhere in the file.
 
-- All 6 required personas are present
-- Persona definitions match the Zod schema
-- Required fields (name, description, constraints) exist
+> **Note**: Persona definitions (system prompts, model selection, I/O fields) live in the
+> in-code `AGENT_PERSONAS` map in `src/agents/personas.ts`. `AGENTS.md` serves as the
+> canonical human-readable reference; `validateAgentsConfig()` ensures the two are kept in sync
+> by failing fast if any persona is missing from the file.
 
 If validation fails, the orchestrator throws a hard error during initialization.
 
