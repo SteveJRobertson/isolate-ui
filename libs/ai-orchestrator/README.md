@@ -27,7 +27,7 @@ The AI Orchestrator acts as the "Brain" of Isolate UI development, managing a st
 ```typescript
 {
   messages: BaseMessage[];           // Full conversation history
-  next_recipient: string;            // Current agent persona
+  next_recipient: 'po' | 'architect' | 'dev' | 'a11y' | 'qa' | 'docs' | null;
   code_buffer: string;               // Git diff or code under review
   a11y_report: string;               // Accessibility audit feedback
   arch_approval: boolean;            // Monorepo consistency gate

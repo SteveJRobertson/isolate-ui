@@ -1,12 +1,6 @@
 import { z } from 'zod';
 
 /**
- * Type for LangChain BaseMessage - imported when LangGraph graph is implemented
- * For now, we use a generic message type to avoid circular dependencies
- */
-type BaseMessage = Record<string, unknown>;
-
-/**
  * Zod schema for the orchestrator's centralized state.
  *
  * This state flows through all 6 agent nodes and is persisted after each step.
@@ -17,7 +11,7 @@ export const AgentStateSchema = z.object({
    * Full conversation history with all messages sent/received.
    * Each agent appends its response here for context.
    */
-  messages: z.array(z.any()).default([] as BaseMessage[]),
+  messages: z.array(z.record(z.string(), z.unknown())).default([]),
 
   /**
    * Current recipient - the persona that should process next.
