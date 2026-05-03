@@ -71,8 +71,9 @@ export function validateAgentsConfig(agentsMdPath?: string): AgentsConfig {
 
   const content = fs.readFileSync(resolvedPath, 'utf-8');
 
-  // Validate that the AGENTS.md contains persona markers for all required roles.
-  // We look for headings that reference each persona name.
+  // Validate that AGENTS.md contains persona markers for all required roles.
+  // Matching is intentionally permissive: `@isolate-<id>` may appear anywhere
+  // in the file, including headings, inline references, or formatted text.
   const mentionedPersonas = detectPersonasInContent(content);
   const missingPersonas = REQUIRED_PERSONA_IDS.filter(
     (id) => !mentionedPersonas.includes(id),

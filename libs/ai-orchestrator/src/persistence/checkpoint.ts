@@ -181,7 +181,7 @@ export class SqliteSaver {
   /**
    * Get state at a specific step in the history.
    * @param threadId - Thread identifier
-   * @param stepNumber - Step number (0-indexed)
+   * @param stepNumber - Step number (1-indexed; the first saved checkpoint is step 1)
    */
   public getAtStep(threadId: string, stepNumber: number): AgentState | null {
     try {
