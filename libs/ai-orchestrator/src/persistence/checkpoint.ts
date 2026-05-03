@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-// @ts-expect-error - better-sqlite3 type definitions will be added
-import Database from 'better-sqlite3';
+import Database = require('better-sqlite3');
 import { AgentState, AgentStateSchema } from '../schema';
 
 /**
@@ -71,8 +70,9 @@ export class SqliteSaver {
     const stepCount = current ? current.step_count + 1 : 0;
 
     try {
-      // Update or insert checkpoint
-      const stmt = this.db.prepare(`
+      // Wrap both writes in a transaction so checkpoint + history are always in sync.
+      // If either statement fails the entire transaction rolls back atomically.
+      const upsertCheckpoint = this.db.prepare(`
         INSERT INTO checkpoints (thread_id, state, step_count, updated_at)
         VALUES (?, ?, ?, CURRENT_TIMESTAMP)
         ON CONFLICT(thread_id) DO UPDATE SET
@@ -80,14 +80,16 @@ export class SqliteSaver {
           step_count = excluded.step_count,
           updated_at = CURRENT_TIMESTAMP
       `);
-      stmt.run(threadId, stateJson, stepCount);
-
-      // Record in history
-      const historyStmt = this.db.prepare(`
+      const insertHistory = this.db.prepare(`
         INSERT INTO checkpoint_history (thread_id, step_number, state, agent_id)
         VALUES (?, ?, ?, ?)
       `);
-      historyStmt.run(threadId, stepCount, stateJson, agentId || null);
+
+      const transaction = this.db.transaction(() => {
+        upsertCheckpoint.run(threadId, stateJson, stepCount);
+        insertHistory.run(threadId, stepCount, stateJson, agentId || null);
+      });
+      transaction();
     } catch (error) {
       throw new Error(
         `Failed to save checkpoint for thread ${threadId}: ${error}`,

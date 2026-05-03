@@ -168,8 +168,10 @@ export class OrchestratorGraph {
   public getState(threadId: string): AgentState | null {
     const state = this.checkpointer.get(threadId);
     if (!state) return null;
-    // Strip the step_count augmentation from SqliteSaver
-    const { ...agentState } = state;
+    // Strip the step_count augmentation added by SqliteSaver — callers should
+    // only observe AgentState fields, not persistence internals.
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { step_count, ...agentState } = state;
     return agentState;
   }
 

@@ -45,8 +45,10 @@ export function findWorkspaceRoot(startDir: string): string {
 /**
  * Parses the root AGENTS.md file and validates all required personas are present.
  *
- * The parser looks for persona markers in the format:
- *   ## Persona: @isolate-<id>
+ * The parser scans for any occurrence of `@isolate-<id>` anywhere in the file
+ * (headings, inline references, bold text, etc.). This is intentionally permissive —
+ * the requirement is that each persona is mentioned, not that it appears in a
+ * specific heading format.
  *
  * Fail-fast: throws hard errors if AGENTS.md is missing or required personas
  * are absent. This prevents the orchestrator from running in a degraded state.
