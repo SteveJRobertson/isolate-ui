@@ -5,10 +5,13 @@
  * Uses LangGraph.js to coordinate 6 specialized agent personas.
  */
 
-// Re-exports will be added as modules are implemented
-// - AgentState schema
-// - Persona configurations
-// - Orchestrator graph
-// - Persistence layer
+// Core schema
+export * from './schema';
+
+// Agent definitions
+export * from './agents';
+
+// Persistence layer
+export * from './persistence';
 
 export const AI_ORCHESTRATOR_VERSION = '0.1.0';
