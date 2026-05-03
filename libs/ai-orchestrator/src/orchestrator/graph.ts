@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { AgentState, DEFAULT_AGENT_STATE } from '../schema';
+import { AgentState, AgentStateSchema, DEFAULT_AGENT_STATE } from '../schema';
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { SqliteSaver } from '../persistence';
 import { validateAgentsConfig, findWorkspaceRoot } from '../config';
@@ -57,10 +57,11 @@ export class OrchestratorGraph {
         'data',
         'state.db',
       );
-    this.checkpointer = new SqliteSaver(this.dbPath);
-
     // Validate AGENTS.md on startup — fail-fast if misconfigured
+    // (must happen before SqliteSaver so we don't create DB files on bad config)
     validateAgentsConfig(agentsMdPath);
+
+    this.checkpointer = new SqliteSaver(this.dbPath);
 
     // Register default no-op nodes for each persona
     // Real LLM implementations will be swapped in via registerNode()
@@ -109,9 +110,11 @@ export class OrchestratorGraph {
       step_count: undefined,
       ...DEFAULT_AGENT_STATE,
     };
+    // Parse through the schema so any undefined values in initialInput fall back
+    // to schema defaults, preventing invalid state from entering the execution loop.
     let state: AgentState = savedState
       ? savedAgentState
-      : { ...DEFAULT_AGENT_STATE, ...initialInput };
+      : AgentStateSchema.parse({ ...DEFAULT_AGENT_STATE, ...initialInput });
 
     // If starting fresh and no initial recipient set, begin with po (product owner)
     if (!savedState && !state.next_recipient) {

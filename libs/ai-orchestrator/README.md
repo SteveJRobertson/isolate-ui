@@ -1,6 +1,6 @@
 # AI Orchestrator
 
-Multi-agent orchestrator for the Isolate UI development lifecycle. Uses **LangGraph.js** to coordinate 6 specialized agent personas for component implementation.
+Multi-agent orchestrator for the Isolate UI development lifecycle. Coordinates 6 specialized agent personas for component implementation via a stateful execution graph (LangGraph.js integration planned).
 
 ## Overview
 
@@ -26,12 +26,18 @@ The AI Orchestrator acts as the "Brain" of Isolate UI development, managing a st
 
 ```typescript
 {
-  messages: BaseMessage[];           // Full conversation history
+  messages: Array<{
+    // Serialized conversation history
+    type: string; //   LangChain message type (human/ai/tool)
+    content: string; //   Message text
+    id?: string; //   Optional message ID
+    additional_kwargs?: Record<string, unknown>;
+  }>;
   next_recipient: 'po' | 'architect' | 'dev' | 'a11y' | 'qa' | 'docs' | null;
-  code_buffer: string;               // Git diff or code under review
-  a11y_report: string;               // Accessibility audit feedback
-  arch_approval: boolean;            // Monorepo consistency gate
-  metadata: Record<string, any>;     // Iteration tracking
+  code_buffer: string; // Git diff or code under review
+  a11y_report: string; // Accessibility audit feedback
+  arch_approval: boolean; // Monorepo consistency gate
+  metadata: Record<string, any>; // Iteration tracking
 }
 ```
 

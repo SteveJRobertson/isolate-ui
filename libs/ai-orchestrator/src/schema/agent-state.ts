@@ -6,12 +6,25 @@ import { z } from 'zod';
  * This state flows through all 6 agent nodes and is persisted after each step.
  * Each agent reads relevant fields and updates others before passing to the next.
  */
+/**
+ * Stable serialized shape for a LangChain message persisted in SQLite.
+ * Mirrors the minimal fields used by LangChain's BaseMessage serialization.
+ */
+export const SerializedMessageSchema = z.object({
+  type: z.string(),
+  content: z.string(),
+  id: z.string().optional(),
+  additional_kwargs: z.record(z.string(), z.unknown()).optional(),
+});
+
+export type SerializedMessage = z.infer<typeof SerializedMessageSchema>;
+
 export const AgentStateSchema = z.object({
   /**
-   * Full conversation history with all messages sent/received.
-   * Each agent appends its response here for context.
+   * Full conversation history stored as serialized message objects.
+   * Conforms to LangChain BaseMessage serialization for SQLite persistence.
    */
-  messages: z.array(z.record(z.string(), z.unknown())).default([]),
+  messages: z.array(SerializedMessageSchema).default([]),
 
   /**
    * Current recipient - the persona that should process next.

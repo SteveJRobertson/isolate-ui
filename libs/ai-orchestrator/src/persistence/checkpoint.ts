@@ -135,15 +135,16 @@ export class SqliteSaver {
    * @param agentId - (optional) ID of the agent that produced this state
    */
   public save(threadId: string, state: AgentState, agentId?: string): void {
-    // Validate state
-    const validatedState = AgentStateSchema.parse(state);
-    const stateJson = JSON.stringify(validatedState);
-
-    // Get current step count
-    const current = this.get(threadId);
-    const stepCount = current ? current.step_count + 1 : 0;
-
     try {
+      // Validate and serialize inside the try/catch so any failure (including
+      // JSON.stringify errors on circular metadata) surfaces with thread context.
+      const validatedState = AgentStateSchema.parse(state);
+      const stateJson = JSON.stringify(validatedState);
+
+      // Get current step count
+      const current = this.get(threadId);
+      const stepCount = current ? current.step_count + 1 : 0;
+
       this.txSave(threadId, stateJson, stepCount, agentId ?? null);
     } catch (error) {
       throw new Error(

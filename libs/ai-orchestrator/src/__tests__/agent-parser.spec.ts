@@ -29,7 +29,7 @@ describe('findWorkspaceRoot', () => {
         'Could not locate workspace root',
       );
     } finally {
-      fs.rmdirSync(tmpDir);
+      fs.rmSync(tmpDir, { recursive: true, force: true });
     }
   });
 });
