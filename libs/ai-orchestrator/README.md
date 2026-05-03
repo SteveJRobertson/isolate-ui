@@ -135,7 +135,7 @@ Resume workflows by thread ID (GitHub Issue number):
 
 ```typescript
 const checkpointer = new SqliteSaver(dbPath);
-const state = await checkpointer.get(threadId);
+const state = checkpointer.get(threadId);
 ```
 
 ## Configuration

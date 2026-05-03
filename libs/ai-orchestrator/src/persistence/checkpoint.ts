@@ -50,7 +50,7 @@ export class SqliteSaver {
 
       CREATE INDEX IF NOT EXISTS idx_thread_id ON checkpoints(thread_id);
       CREATE INDEX IF NOT EXISTS idx_history_thread ON checkpoint_history(thread_id);
-      CREATE INDEX IF NOT EXISTS idx_history_step ON checkpoint_history(step_number);
+      CREATE INDEX IF NOT EXISTS idx_history_thread_step ON checkpoint_history(thread_id, step_number);
     `);
   }
 

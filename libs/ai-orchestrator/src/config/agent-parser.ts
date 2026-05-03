@@ -100,7 +100,8 @@ export function validateAgentsConfig(agentsMdPath?: string): AgentsConfig {
  *   - ### @isolate-dev
  */
 function detectPersonasInContent(content: string): RequiredPersonaId[] {
-  const personaPattern = /@isolate-(po|architect|dev|a11y|qa|docs)/g;
+  const personaPattern =
+    /@isolate-(po|architect|dev|a11y|qa|docs)(?![A-Za-z0-9_-])/g;
   const found = new Set<RequiredPersonaId>();
   let match: RegExpExecArray | null;
 

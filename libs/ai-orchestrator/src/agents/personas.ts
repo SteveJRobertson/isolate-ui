@@ -34,6 +34,19 @@ export interface AgentPersona {
 }
 
 /**
+ * Ordered list of persona IDs — defines the default workflow sequence.
+ * Explicit ordering prevents fragility from Object.keys() insertion order changes.
+ */
+export const PERSONA_IDS = [
+  'po',
+  'architect',
+  'dev',
+  'a11y',
+  'qa',
+  'docs',
+] as const;
+
+/**
  * The 6 specialized agent personas for Isolate UI development.
  */
 export const AGENT_PERSONAS: Record<string, AgentPersona> = {
@@ -200,10 +213,11 @@ export function getPersona(id: string): AgentPersona | undefined {
 }
 
 /**
- * Get all persona IDs.
+ * Get all persona IDs in workflow order.
+ * Uses the explicit PERSONA_IDS list to ensure consistent routing.
  */
 export function getPersonaIds(): string[] {
-  return Object.keys(AGENT_PERSONAS);
+  return [...PERSONA_IDS];
 }
 
 /**

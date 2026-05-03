@@ -48,9 +48,7 @@ export class OrchestratorGraph {
   private dbPath: string;
 
   constructor(dbPath?: string, agentsMdPath?: string) {
-    this.dbPath =
-      dbPath ??
-      path.resolve(path.join(__dirname, '..', '..', 'data', 'state.db'));
+    this.dbPath = dbPath ?? path.resolve(process.cwd(), 'data', 'state.db');
     this.checkpointer = new SqliteSaver(this.dbPath);
 
     // Validate AGENTS.md on startup — fail-fast if misconfigured
