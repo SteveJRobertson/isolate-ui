@@ -22,6 +22,7 @@ export class SqliteSaver {
   private stmtListThreads!: Database.Statement;
   private stmtDeleteHistory!: Database.Statement;
   private stmtDeleteCheckpoint!: Database.Statement;
+  private stmtGetStepCount!: Database.Statement;
   // Transaction wrapping upsert + history insert so both are always in sync
   private txSave!: (
     threadId: string,
@@ -113,6 +114,9 @@ export class SqliteSaver {
     this.stmtDeleteCheckpoint = this.db.prepare(
       'DELETE FROM checkpoints WHERE thread_id = ?',
     );
+    this.stmtGetStepCount = this.db.prepare(
+      'SELECT step_count FROM checkpoints WHERE thread_id = ?',
+    );
     const upsert = this.stmtUpsert;
     const insertHistory = this.stmtInsertHistory;
     this.txSave = this.db.transaction(
@@ -142,8 +146,11 @@ export class SqliteSaver {
       const stateJson = JSON.stringify(validatedState);
 
       // Get current step count (1-indexed: first save = 1, second save = 2, …)
-      const current = this.get(threadId);
-      const stepCount = current ? current.step_count + 1 : 1;
+      // Query only step_count to avoid re-parsing the full JSON state on every save.
+      const row = this.stmtGetStepCount.get(threadId) as
+        | { step_count: number }
+        | undefined;
+      const stepCount = row ? row.step_count + 1 : 1;
 
       this.txSave(threadId, stateJson, stepCount, agentId ?? null);
     } catch (error) {
@@ -246,8 +253,11 @@ export class SqliteSaver {
    */
   public deleteThread(threadId: string): void {
     try {
-      this.stmtDeleteHistory.run(threadId);
-      this.stmtDeleteCheckpoint.run(threadId);
+      const deleteThreadTransaction = this.db.transaction((id: string) => {
+        this.stmtDeleteHistory.run(id);
+        this.stmtDeleteCheckpoint.run(id);
+      });
+      deleteThreadTransaction(threadId);
     } catch (error) {
       throw new Error(`Failed to delete thread ${threadId}: ${error}`);
     }

@@ -1,5 +1,6 @@
 export {
   AgentStateSchema,
+  createDefaultAgentState,
   DEFAULT_AGENT_STATE,
   SerializedMessageSchema,
   type AgentState,

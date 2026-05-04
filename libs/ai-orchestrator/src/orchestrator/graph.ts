@@ -1,5 +1,9 @@
 import * as path from 'path';
-import { AgentState, AgentStateSchema, DEFAULT_AGENT_STATE } from '../schema';
+import {
+  AgentState,
+  AgentStateSchema,
+  createDefaultAgentState,
+} from '../schema';
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { SqliteSaver } from '../persistence';
 import { validateAgentsConfig, findWorkspaceRoot } from '../config';
@@ -108,13 +112,16 @@ export class OrchestratorGraph {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { step_count: _sc, ...savedAgentState } = savedState ?? {
       step_count: undefined,
-      ...DEFAULT_AGENT_STATE,
+      ...createDefaultAgentState(),
     };
     // Parse through the schema so any undefined values in initialInput fall back
     // to schema defaults, preventing invalid state from entering the execution loop.
     let state: AgentState = savedState
       ? savedAgentState
-      : AgentStateSchema.parse({ ...DEFAULT_AGENT_STATE, ...initialInput });
+      : AgentStateSchema.parse({
+          ...createDefaultAgentState(),
+          ...initialInput,
+        });
 
     // If starting fresh and no initial recipient set, begin with po (product owner)
     if (!savedState && !state.next_recipient) {

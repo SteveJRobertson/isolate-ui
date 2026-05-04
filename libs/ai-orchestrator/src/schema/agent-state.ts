@@ -24,7 +24,7 @@ export const AgentStateSchema = z.object({
    * Full conversation history stored as serialized message objects.
    * Conforms to LangChain BaseMessage serialization for SQLite persistence.
    */
-  messages: z.array(SerializedMessageSchema).default([]),
+  messages: z.array(SerializedMessageSchema).default(() => []),
 
   /**
    * Current recipient - the persona that should process next.
@@ -65,7 +65,7 @@ export const AgentStateSchema = z.object({
    * - variant_selected: string
    * - design_tokens_applied: string[]
    */
-  metadata: z.record(z.string(), z.any()).default({}),
+  metadata: z.record(z.string(), z.any()).default(() => ({})),
 });
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
@@ -81,3 +81,19 @@ export const DEFAULT_AGENT_STATE: AgentState = {
   arch_approval: false,
   metadata: {},
 };
+
+/**
+ * Factory that returns a fresh default state object on each call.
+ * Prefer this over spreading DEFAULT_AGENT_STATE when starting new workflows,
+ * to avoid accidental sharing of nested mutable references (messages, metadata).
+ */
+export function createDefaultAgentState(): AgentState {
+  return {
+    messages: [],
+    next_recipient: null,
+    code_buffer: '',
+    a11y_report: '',
+    arch_approval: false,
+    metadata: {},
+  };
+}
