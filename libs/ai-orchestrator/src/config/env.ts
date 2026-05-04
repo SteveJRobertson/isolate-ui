@@ -28,7 +28,7 @@ export function validateOrchestratorEnv(): OrchestratorEnv {
   } catch (error) {
     if (error instanceof z.ZodError) {
       const missingFields = error.errors
-        .filter((e) => e.code === 'too_small')
+        .filter((e) => e.code === 'too_small' || e.code === 'invalid_type')
         .map((e) => e.path.join('.'))
         .join(', ');
 
