@@ -135,27 +135,27 @@ export class OrchestratorGraph {
       a11y: 'a11y',
       qa: 'qa',
       docs: 'docs',
-      __end__: END,
-    });
+      __end__: '__end__',
+    } as any);
 
     // Add conditional edges from each persona node
     personaIds.forEach((personaId) => {
-      stateGraph.addConditionalEdges(personaId, routeByRecipient, {
+      stateGraph.addConditionalEdges(personaId as any, routeByRecipient, {
         po: 'po',
         architect: 'architect',
         dev: 'dev',
         a11y: 'a11y',
         qa: 'qa',
         docs: 'docs',
-        __end__: END,
-      });
+        __end__: '__end__',
+      } as any);
     });
 
     // Compile with recursion limit based on maxStepsLimit
     return stateGraph.compile({
-      checkpointer: this.checkpointer,
+      checkpointer: this.checkpointer as any,
       recursionLimit: this.maxStepsLimit,
-    });
+    } as any);
   }
 
   /**
@@ -268,7 +268,7 @@ export class OrchestratorGraph {
    * Get the current state of a thread without running it.
    */
   public getState(threadId: string): AgentState | null {
-    const state = this.checkpointer.get(threadId);
+    const state = this.checkpointer.getLatest(threadId);
     return state ? AgentStateSchema.parse(state) : null;
   }
 

@@ -15,10 +15,10 @@ let anthropicClient: ChatAnthropic | null = null;
  */
 export function getOpenAIClient(): ChatOpenAI {
   if (!openaiClient) {
-    validateOrchestratorEnv(); // Fail fast if keys are missing
+    const env = validateOrchestratorEnv(); // Fail fast if keys are missing
     openaiClient = new ChatOpenAI({
       modelName: 'gpt-4o',
-      apiKey: process.env.OPENAI_API_KEY,
+      apiKey: env.OPENAI_API_KEY,
       temperature: 0.7,
       maxTokens: 4096,
     });
@@ -32,13 +32,13 @@ export function getOpenAIClient(): ChatOpenAI {
  */
 export function getAnthropicClient(): ChatAnthropic {
   if (!anthropicClient) {
-    validateOrchestratorEnv(); // Fail fast if keys are missing
+    const env = validateOrchestratorEnv(); // Fail fast if keys are missing
     anthropicClient = new ChatAnthropic({
       modelName: 'claude-3-5-sonnet-20241022',
-      apiKey: process.env.ANTHROPIC_API_KEY,
+      apiKey: env.ANTHROPIC_API_KEY,
       temperature: 0.7,
       maxTokens: 4096,
-    });
+    } as any);
   }
   return anthropicClient;
 }

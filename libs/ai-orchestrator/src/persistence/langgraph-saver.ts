@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { randomUUID } from 'crypto';
 import Database = require('better-sqlite3');
-import { BaseCheckpointSaver, RunnableConfig } from '@langchain/langgraph';
+import { BaseCheckpointSaver } from '@langchain/langgraph';
+import type { RunnableConfig } from '@langchain/core/runnables';
 import { AgentState } from '../schema';
 
 /**
@@ -11,7 +12,7 @@ import { AgentState } from '../schema';
  * Implements BaseCheckpointSaver interface for seamless integration with LangGraph's
  * state persistence and resumption API.
  */
-export class LangGraphSqliteSaver extends BaseCheckpointSaver {
+export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
   private db: Database.Database;
   private stmtUpsert!: Database.Statement;
   private stmtGetLatest!: Database.Statement;
@@ -101,7 +102,7 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
     // Transaction for atomic put operations
     this.txPutTuple = this.db.transaction(
       (configurable: Record<string, any>, checkpoint: any, metadata: any) => {
-        const threadId = configurable.thread_id || 'default';
+        const threadId = configurable['thread_id'] || 'default';
         const checkpointId = checkpoint.id || randomUUID();
 
         // Upsert checkpoint with auto-incrementing sequence
@@ -123,7 +124,7 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
   public async getTuple(
     config: RunnableConfig,
   ): Promise<[checkpoint: any, metadata: any, writes: any[]] | null> {
-    const threadId = config.configurable?.thread_id || 'default';
+    const threadId = (config.configurable as any)?.['thread_id'] || 'default';
     const row = this.stmtGetLatest.get(threadId) as any;
 
     if (!row) {
@@ -158,7 +159,7 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
     writes: Array<[string, any]>,
     checkpointId: string,
   ): Promise<void> {
-    const threadId = config.configurable?.thread_id || 'default';
+    const threadId = (config.configurable as any)?.['thread_id'] || 'default';
 
     // Ensure checkpoint exists before inserting writes
     const existing = this.db
@@ -197,10 +198,9 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
   }
 
   /**
-   * Get a checkpoint by ID.
-   * Convenience method for debugging/inspection.
+   * Get a checkpoint by thread ID (convenience method for debugging/inspection).
    */
-  public get(threadId: string): AgentState | null {
+  public getLatest(threadId: string): AgentState | null {
     const row = this.stmtGetLatest.get(threadId) as any;
     if (!row) return null;
 
