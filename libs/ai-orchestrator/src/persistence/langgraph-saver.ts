@@ -47,6 +47,7 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
         checkpoint_id TEXT NOT NULL,
         checkpoint_body BLOB NOT NULL,
         metadata_body BLOB NOT NULL,
+        sequence INTEGER NOT NULL DEFAULT 0,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
         PRIMARY KEY (thread_id, checkpoint_id)
       );
@@ -63,6 +64,7 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
       );
 
       CREATE INDEX IF NOT EXISTS idx_checkpoints_thread ON checkpoints(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_checkpoints_sequence ON checkpoints(thread_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_writes_thread ON checkpoint_writes(thread_id);
     `);
   }
@@ -72,15 +74,15 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
    */
   private prepareStatements(): void {
     this.stmtUpsert = this.db.prepare(`
-      INSERT OR REPLACE INTO checkpoints (thread_id, checkpoint_id, checkpoint_body, metadata_body)
-      VALUES (?, ?, ?, ?)
+      INSERT OR REPLACE INTO checkpoints (thread_id, checkpoint_id, checkpoint_body, metadata_body, sequence)
+      VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM checkpoints WHERE thread_id = ?))
     `);
 
     this.stmtGetLatest = this.db.prepare(`
       SELECT checkpoint_id, checkpoint_body, metadata_body
       FROM checkpoints
       WHERE thread_id = ?
-      ORDER BY created_at DESC
+      ORDER BY sequence DESC
       LIMIT 1
     `);
 
@@ -96,12 +98,13 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
         const threadId = configurable.thread_id || 'default';
         const checkpointId = checkpoint.id || Date.now().toString();
 
-        // Upsert checkpoint
+        // Upsert checkpoint with auto-incrementing sequence
         this.stmtUpsert.run(
           threadId,
           checkpointId,
           JSON.stringify(checkpoint),
           JSON.stringify(metadata),
+          threadId,
         );
       },
     );
@@ -191,7 +194,12 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
    */
   public get(threadId: string): AgentState | null {
     const row = this.stmtGetLatest.get(threadId) as any;
-    return row ? JSON.parse(row.checkpoint_body) : null;
+    if (!row) return null;
+
+    const checkpoint = JSON.parse(row.checkpoint_body);
+    // LangGraph v0.1 checkpoints use 'channel_values' not 'values'
+    const state = checkpoint.channel_values || checkpoint.values || checkpoint;
+    return state as AgentState;
   }
 
   /**

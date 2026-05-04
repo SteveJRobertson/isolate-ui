@@ -86,19 +86,19 @@ export class OrchestratorGraph {
           default: () => [],
         },
         next_recipient: {
-          value: (x: any, y: any) => y ?? x,
+          value: (x: any, y: any) => (y !== undefined ? y : x), // Properly handle null values
           default: () => null,
         },
         code_buffer: {
-          value: (x: any, y: any) => y ?? x,
+          value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => '',
         },
         a11y_report: {
-          value: (x: any, y: any) => y ?? x,
+          value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => '',
         },
         arch_approval: {
-          value: (x: any, y: any) => y ?? x,
+          value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => false,
         },
         metadata: {
@@ -122,13 +122,7 @@ export class OrchestratorGraph {
     // Conditional router function
     const routeByRecipient = (state: AgentState): string => {
       const next = state.next_recipient;
-      if (!next) {
-        return '__end__';
-      }
-      if (personaIds.includes(next)) {
-        return next;
-      }
-      return '__end__';
+      return !next ? '__end__' : personaIds.includes(next) ? next : '__end__';
     };
 
     // Add conditional edges from START
@@ -188,9 +182,27 @@ export class OrchestratorGraph {
     maxSteps = 20,
   ): Promise<OrchestratorRunResult> {
     this.stepCount = 0;
-    return this.invoke(threadId, initialInput, {
-      configurable: { thread_id: threadId },
-    });
+    try {
+      const result = await this.invoke(threadId, initialInput, {
+        configurable: { thread_id: threadId },
+      });
+
+      if (result.stepCount > maxSteps) {
+        throw new Error(
+          `exceeded max steps: ${result.stepCount} > ${maxSteps}`,
+        );
+      }
+
+      return result;
+    } catch (error) {
+      // Convert LangGraph recursion limit errors to our custom error
+      if (error instanceof Error && error.message.includes('Recursion limit')) {
+        throw new Error(
+          `exceeded max steps: recursion limit hit (configured: ${maxSteps})`,
+        );
+      }
+      throw error;
+    }
   }
 
   /**
