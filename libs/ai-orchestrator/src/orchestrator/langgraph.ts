@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { StateGraph, START, END } from '@langchain/langgraph';
+import { StateGraph, START } from '@langchain/langgraph';
 import {
   AgentState,
   createDefaultAgentState,
@@ -44,8 +44,8 @@ export class OrchestratorGraph {
   private checkpointer: LangGraphSqliteSaver;
   private dbPath: string;
   private nodes: Map<string, AgentNodeFn> = new Map();
-  private stepCount: number = 0;
-  private maxStepsLimit: number = 500;
+  private stepCount = 0;
+  private maxStepsLimit = 500;
 
   constructor(dbPath?: string, agentsMdPath?: string) {
     this.dbPath =
@@ -234,7 +234,7 @@ export class OrchestratorGraph {
     };
 
     // Parse input through schema for validation
-    let parsedInput = input
+    const parsedInput = input
       ? AgentStateSchema.parse({
           ...createDefaultAgentState(),
           ...input,
