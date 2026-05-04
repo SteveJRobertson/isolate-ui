@@ -7,7 +7,12 @@ import { z } from 'zod';
 const OrchestratorEnvSchema = z.object({
   OPENAI_API_KEY: z.string().min(1, 'OPENAI_API_KEY is required'),
   ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
-  GITHUB_TOKEN: z.string().min(1, 'GITHUB_TOKEN is required').optional(),
+  GITHUB_TOKEN: z
+    .string()
+    .optional()
+    .refine((val) => !val || val.length > 0, {
+      message: 'GITHUB_TOKEN must be non-empty if provided',
+    }),
   LANGCHAIN_TRACING_V2: z.enum(['true', 'false']).optional(),
   LANGCHAIN_API_KEY: z.string().optional(),
   WEBHOOK_SECRET: z.string().optional(),
@@ -27,13 +32,17 @@ export function validateOrchestratorEnv(): OrchestratorEnv {
     return OrchestratorEnvSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const missingFields = error.errors
-        .filter((e) => e.code === 'too_small' || e.code === 'invalid_type')
-        .map((e) => e.path.join('.'))
-        .join(', ');
+      // Collect all validation errors with details
+      const errorDetails = error.errors
+        .map((e) => {
+          const field = e.path.join('.');
+          const message = e.message || e.code;
+          return `${field}: ${message}`;
+        })
+        .join('; ');
 
       throw new Error(
-        `Orchestrator environment validation failed. Missing required keys: ${missingFields}. ` +
+        `Orchestrator environment validation failed. ${errorDetails}. ` +
           `Please check .env.example and ensure OPENAI_API_KEY and ANTHROPIC_API_KEY are set.`,
       );
     }

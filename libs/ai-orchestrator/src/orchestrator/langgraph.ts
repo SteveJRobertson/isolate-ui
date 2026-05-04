@@ -223,6 +223,9 @@ export class OrchestratorGraph {
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, any> },
   ): Promise<OrchestratorRunResult> {
+    // Reset step counter for this invocation (thread-safe per-invocation tracking)
+    this.stepCount = 0;
+
     // Check if there's an existing checkpoint for this thread
     const existingCheckpoint = this.checkpointer.getLatest(threadId);
 
@@ -240,7 +243,7 @@ export class OrchestratorGraph {
           ...input,
         })
       : existingCheckpoint
-        ? existingCheckpoint
+        ? AgentStateSchema.parse(existingCheckpoint)
         : createDefaultAgentState();
 
     // Only default to 'po' if starting fresh (no existing checkpoint and no explicit input)
