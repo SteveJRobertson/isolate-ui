@@ -73,10 +73,11 @@ export class OrchestratorGraph {
   }
 
   /**
-   * Build the LangGraph StateGraph with conditional edges.
-   * Uses the maxStepsLimit to control recursion depth.
+   * Build and compile a LangGraph StateGraph with conditional edges.
+   * Accepts a per-call recursion limit so concurrent run() calls each get
+   * their own isolated compiled graph without mutating shared instance state.
    */
-  private buildGraph() {
+  private buildGraph(limit = this.maxStepsLimit) {
     const personaIds = getPersonaIds();
 
     // Create the graph with AgentState as the state type
@@ -154,10 +155,10 @@ export class OrchestratorGraph {
       } as any);
     });
 
-    // Compile with recursion limit based on maxStepsLimit
+    // Compile with the provided recursion limit
     return stateGraph.compile({
       checkpointer: this.checkpointer as any,
-      recursionLimit: this.maxStepsLimit,
+      recursionLimit: limit,
     } as any);
   }
 
@@ -186,14 +187,17 @@ export class OrchestratorGraph {
     initialInput?: Partial<AgentState>,
     maxSteps = 20,
   ): Promise<OrchestratorRunResult> {
-    // Set recursion limit for this execution
-    this.maxStepsLimit = maxSteps;
-    this.graph = this.buildGraph();
+    // Build a local graph with per-run recursionLimit to avoid mutating shared
+    // instance state (which would race under concurrent run() calls).
+    const localGraph = this.buildGraph(maxSteps);
 
     try {
-      const result = await this.invoke(threadId, initialInput, {
-        configurable: { thread_id: threadId },
-      });
+      const result = await this.invokeWithGraph(
+        localGraph,
+        threadId,
+        initialInput,
+        { configurable: { thread_id: threadId } },
+      );
 
       return result;
     } catch (error) {
@@ -204,10 +208,6 @@ export class OrchestratorGraph {
         );
       }
       throw error;
-    } finally {
-      // Reset to default limit
-      this.maxStepsLimit = 500;
-      this.graph = this.buildGraph();
     }
   }
 
@@ -221,6 +221,20 @@ export class OrchestratorGraph {
    * @param config - LangGraph config object (must include configurable.thread_id)
    */
   public async invoke(
+    threadId: string,
+    input?: Partial<AgentState>,
+    config?: { configurable?: Record<string, any> },
+  ): Promise<OrchestratorRunResult> {
+    return this.invokeWithGraph(this.graph, threadId, input, config);
+  }
+
+  /**
+   * Internal: invoke a specific compiled graph instance.
+   * Separates graph selection from invocation logic so run() can use a
+   * per-invocation local graph without touching shared instance state.
+   */
+  private async invokeWithGraph(
+    graph: ReturnType<typeof StateGraph.prototype.compile>,
     threadId: string,
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, any> },
@@ -245,6 +259,10 @@ export class OrchestratorGraph {
         ? AgentStateSchema.parse(existingCheckpoint)
         : createDefaultAgentState();
 
+    // Reset step counter — _step_count is per-invocation and must not carry
+    // over from a previous run stored in the checkpoint.
+    parsedInput._step_count = 0;
+
     // Only default to 'po' if starting fresh (no existing checkpoint and no explicit input)
     if (
       !existingCheckpoint &&
@@ -255,7 +273,7 @@ export class OrchestratorGraph {
     }
 
     // Invoke the graph
-    const result = await this.graph.invoke(parsedInput, fullConfig);
+    const result = await graph.invoke(parsedInput, fullConfig);
 
     // Extract the final state
     const finalState = AgentStateSchema.parse(result);

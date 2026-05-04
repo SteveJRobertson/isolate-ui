@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 /**
  * Environment variable validation schema for ai-orchestrator.
- * Ensures required API keys are present at startup.
+ * API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY) are validated lazily by each
+ * client factory when first accessed, not at schema parse time.
  */
 const OrchestratorEnvSchema = z.object({
   OPENAI_API_KEY: z.string().min(1).optional(),

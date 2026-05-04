@@ -62,9 +62,10 @@ export const AgentStateSchema = z.object({
   metadata: z.record(z.string(), z.any()).default(() => ({})),
 
   /**
-   * Internal: step counter for this invocation only.
-   * Tracked via state to avoid shared mutable instance fields.
-   * Reset on each invoke(); not persisted across resumptions.
+   * Internal: cumulative step counter for this thread, tracked via state to
+   * avoid shared mutable instance fields. Reset to 0 at the start of each
+   * invoke() call, so it reflects steps taken in the current invocation only
+   * (not across checkpoint resumptions).
    */
   _step_count: z.number().default(0),
 });
