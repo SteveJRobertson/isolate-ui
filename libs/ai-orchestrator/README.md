@@ -159,18 +159,24 @@ If validation fails, the orchestrator throws a hard error during initialization.
 
 ## Dependencies
 
+Currently installed:
+
+- `zod` - Runtime schema validation
+- `better-sqlite3` - Persistent state storage
+
+Planned (not yet installed — LangGraph.js integration is part of the target architecture
+but the packages are not required by the current implementation):
+
 - `@langchain/langgraph` - Multi-agent orchestration
 - `@langchain/openai` - GPT-4o integration
 - `@langchain/anthropic` - Claude 3.5 Sonnet integration
-- `zod` - Runtime schema validation
-- `better-sqlite3` - Persistent state storage
 
 ## Testing
 
 Tests verify:
 
 - [x] Multi-node orchestration workflow execution
-- [x] All 6 personas parse correctly from AGENTS.md
+- [x] All 6 personas detected correctly in AGENTS.md
 - [x] State persists to SQLite and resumes via thread_id
 - [x] GitHub Copilot can summarize persona constraints
 

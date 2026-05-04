@@ -45,7 +45,7 @@ export function findWorkspaceRoot(startDir: string): string {
 }
 
 /**
- * Parses the root AGENTS.md file and validates all required personas are present.
+ * Validates the root AGENTS.md file and confirms all required personas are present.
  *
  * The parser scans for any occurrence of `@isolate-<id>` anywhere in the file
  * (headings, inline references, bold text, etc.). This is intentionally permissive —
