@@ -44,7 +44,6 @@ export class OrchestratorGraph {
   private checkpointer: LangGraphSqliteSaver;
   private dbPath: string;
   private nodes: Map<string, AgentNodeFn> = new Map();
-  private stepCount = 0;
   private maxStepsLimit = 500;
 
   constructor(dbPath?: string, agentsMdPath?: string) {
@@ -107,6 +106,10 @@ export class OrchestratorGraph {
           value: (x: any, y: any) => ({ ...x, ...y }),
           default: () => ({}),
         },
+        _step_count: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => 0,
+        },
       },
     });
 
@@ -116,8 +119,8 @@ export class OrchestratorGraph {
         const nodeFn =
           this.nodes.get(personaId) || this.createDefaultNode(personaId);
         const result = await nodeFn(state);
-        this.stepCount++;
-        return result;
+        // Track step count in state (not instance field) to avoid concurrent invocation races
+        return { ...result, _step_count: (state._step_count ?? 0) + 1 };
       });
     });
 
@@ -183,7 +186,6 @@ export class OrchestratorGraph {
     initialInput?: Partial<AgentState>,
     maxSteps = 20,
   ): Promise<OrchestratorRunResult> {
-    this.stepCount = 0;
     // Set recursion limit for this execution
     this.maxStepsLimit = maxSteps;
     this.graph = this.buildGraph();
@@ -223,9 +225,6 @@ export class OrchestratorGraph {
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, any> },
   ): Promise<OrchestratorRunResult> {
-    // Reset step counter for this invocation (thread-safe per-invocation tracking)
-    this.stepCount = 0;
-
     // Check if there's an existing checkpoint for this thread
     const existingCheckpoint = this.checkpointer.getLatest(threadId);
 
@@ -264,7 +263,7 @@ export class OrchestratorGraph {
     return {
       threadId,
       finalState,
-      stepCount: this.stepCount,
+      stepCount: finalState._step_count,
     };
   }
 

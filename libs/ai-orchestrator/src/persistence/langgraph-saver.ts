@@ -120,6 +120,7 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
   /**
    * Get the latest checkpoint for a thread.
    * Implements LangGraph's BaseCheckpointSaver.getTuple().
+   * Loads persisted channel writes to support resumption/replay semantics.
    */
   public async getTuple(
     config: RunnableConfig,
@@ -131,10 +132,21 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
       return null;
     }
 
+    // Load channel writes for proper checkpoint restore semantics
+    const writesRows = this.db
+      .prepare(
+        `SELECT channel, version, data FROM checkpoint_writes
+         WHERE thread_id = ? AND checkpoint_id = ?
+         ORDER BY version DESC`,
+      )
+      .all(threadId, row.checkpoint_id) as any[];
+
+    const writes = writesRows.map((w: any) => [w.channel, JSON.parse(w.data)]);
+
     return [
       JSON.parse(row.checkpoint_body),
       JSON.parse(row.metadata_body),
-      [], // TODO: Load writes if needed
+      writes,
     ];
   }
 
