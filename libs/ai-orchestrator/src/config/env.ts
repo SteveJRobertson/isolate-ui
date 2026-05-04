@@ -9,10 +9,8 @@ const OrchestratorEnvSchema = z.object({
   ANTHROPIC_API_KEY: z.string().min(1, 'ANTHROPIC_API_KEY is required'),
   GITHUB_TOKEN: z
     .string()
-    .optional()
-    .refine((val) => !val || val.length > 0, {
-      message: 'GITHUB_TOKEN must be non-empty if provided',
-    }),
+    .min(1, 'GITHUB_TOKEN must be non-empty if provided')
+    .optional(),
   LANGCHAIN_TRACING_V2: z.enum(['true', 'false']).optional(),
   LANGCHAIN_API_KEY: z.string().optional(),
   WEBHOOK_SECRET: z.string().optional(),
