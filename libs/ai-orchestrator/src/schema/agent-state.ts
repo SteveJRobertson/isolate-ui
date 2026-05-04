@@ -60,6 +60,14 @@ export const AgentStateSchema = z.object({
    * - design_tokens_applied: string[]
    */
   metadata: z.record(z.string(), z.any()).default(() => ({})),
+
+  /**
+   * Internal: cumulative step counter for this thread, tracked via state to
+   * avoid shared mutable instance fields. Reset to 0 at the start of each
+   * invoke() call, so it reflects steps taken in the current invocation only
+   * (not across checkpoint resumptions).
+   */
+  _step_count: z.number().default(0),
 });
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
@@ -74,6 +82,7 @@ export const DEFAULT_AGENT_STATE: AgentState = {
   a11y_report: '',
   arch_approval: false,
   metadata: {},
+  _step_count: 0,
 };
 
 /**
@@ -89,5 +98,6 @@ export function createDefaultAgentState(): AgentState {
     a11y_report: '',
     arch_approval: false,
     metadata: {},
+    _step_count: 0,
   };
 }

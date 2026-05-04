@@ -17,6 +17,9 @@ export * from './persistence';
 // Configuration parser
 export * from './config';
 
+// LLM clients
+export * from './llm';
+
 // Orchestrator graph
 export * from './orchestrator';
 

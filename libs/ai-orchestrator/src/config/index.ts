@@ -7,3 +7,5 @@ export {
   type AgentsConfig,
   type RequiredPersonaId,
 } from './agent-parser';
+
+export { validateOrchestratorEnv, type OrchestratorEnv } from './env';
