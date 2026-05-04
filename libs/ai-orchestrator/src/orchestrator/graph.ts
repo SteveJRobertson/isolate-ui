@@ -144,8 +144,20 @@ export class OrchestratorGraph {
       // Execute the agent node
       const updates = await node.fn(state);
 
-      // Merge updates into state
-      state = { ...state, ...updates };
+      // Merge updates into state.
+      // For nested mutable fields, use explicit merge to avoid clobbering:
+      //   - messages: concat so nodes can append without losing prior history
+      //   - metadata: object spread so nodes can partially update keys
+      // All other fields are overwritten by the node's returned value.
+      state = {
+        ...state,
+        ...updates,
+        messages: [...state.messages, ...(updates.messages ?? [])],
+        metadata: {
+          ...state.metadata,
+          ...(updates.metadata ?? {}),
+        },
+      };
 
       // Persist after every step
       this.checkpointer.save(threadId, state, recipientId);
