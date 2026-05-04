@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach } from 'vitest';
+import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { OrchestratorGraph } from '../orchestrator';
@@ -10,19 +11,30 @@ import { findWorkspaceRoot } from '../config';
 // Locate workspace root via nx.json — robust across Vitest/Node runtimes
 const AGENTS_MD_PATH = path.join(findWorkspaceRoot(process.cwd()), 'AGENTS.md');
 
-function tempDbPath(): string {
-  return path.join(
-    os.tmpdir(),
-    `orchestrator-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
-  );
-}
-
 describe('OrchestratorGraph', () => {
   const graphs: OrchestratorGraph[] = [];
+  const tempFiles: string[] = [];
+
+  function tempDbPath(): string {
+    const p = path.join(
+      os.tmpdir(),
+      `orchestrator-test-${Date.now()}-${Math.random().toString(36).slice(2)}.db`,
+    );
+    tempFiles.push(p);
+    return p;
+  }
 
   afterEach(() => {
     graphs.forEach((g) => g.close());
     graphs.length = 0;
+    tempFiles.forEach((f) => {
+      try {
+        fs.unlinkSync(f);
+      } catch {
+        // file may not exist if test failed before DB was created
+      }
+    });
+    tempFiles.length = 0;
   });
 
   it('initializes without errors', () => {

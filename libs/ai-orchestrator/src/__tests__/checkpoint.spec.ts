@@ -6,19 +6,23 @@ import { SqliteSaver } from '../persistence';
 import { DEFAULT_AGENT_STATE } from '../schema';
 
 // Use a unique temp directory for each test database so parallel runs don't collide
-function tempDbPath(): string {
-  const tempDir = fs.mkdtempSync(
-    path.join(os.tmpdir(), 'ai-orchestrator-test-'),
-  );
-  return path.join(tempDir, 'checkpoint.db');
-}
-
 describe('SqliteSaver', () => {
   const dbs: SqliteSaver[] = [];
+  const tempDirs: string[] = [];
+
+  function tempDbPath(): string {
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'ai-orchestrator-test-'),
+    );
+    tempDirs.push(tempDir);
+    return path.join(tempDir, 'checkpoint.db');
+  }
 
   afterEach(() => {
     dbs.forEach((db) => db.close());
     dbs.length = 0;
+    tempDirs.forEach((dir) => fs.rmSync(dir, { recursive: true, force: true }));
+    tempDirs.length = 0;
   });
 
   it('creates the database and schema on init', () => {

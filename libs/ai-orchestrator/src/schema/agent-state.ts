@@ -1,12 +1,6 @@
 import { z } from 'zod';
 
 /**
- * Zod schema for the orchestrator's centralized state.
- *
- * This state flows through all 6 agent nodes and is persisted after each step.
- * Each agent reads relevant fields and updates others before passing to the next.
- */
-/**
  * Stable serialized shape for a LangChain message persisted in SQLite.
  * Mirrors the minimal fields used by LangChain's BaseMessage serialization.
  */
