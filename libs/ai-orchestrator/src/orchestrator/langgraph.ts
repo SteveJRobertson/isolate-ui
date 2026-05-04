@@ -45,6 +45,7 @@ export class OrchestratorGraph {
   private dbPath: string;
   private nodes: Map<string, AgentNodeFn> = new Map();
   private stepCount: number = 0;
+  private maxStepsLimit: number = 500;
 
   constructor(dbPath?: string, agentsMdPath?: string) {
     this.dbPath =
@@ -74,6 +75,7 @@ export class OrchestratorGraph {
 
   /**
    * Build the LangGraph StateGraph with conditional edges.
+   * Uses the maxStepsLimit to control recursion depth.
    */
   private buildGraph() {
     const personaIds = getPersonaIds();
@@ -149,10 +151,10 @@ export class OrchestratorGraph {
       });
     });
 
-    // Compile with higher recursion limit for complex workflows
+    // Compile with recursion limit based on maxStepsLimit
     return stateGraph.compile({
       checkpointer: this.checkpointer,
-      recursionLimit: 500,
+      recursionLimit: this.maxStepsLimit,
     });
   }
 
@@ -208,6 +210,7 @@ export class OrchestratorGraph {
   /**
    * Invoke the graph with LangGraph's invoke API.
    * Uses thread_id for checkpoint-based resumption.
+   * Per-invocation step counter to avoid thread-safety issues.
    *
    * @param threadId - GitHub Issue ID or other unique thread identifier
    * @param input - Initial input state
@@ -218,37 +221,47 @@ export class OrchestratorGraph {
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, any> },
   ): Promise<OrchestratorRunResult> {
-    const fullConfig = {
-      configurable: {
-        thread_id: threadId,
-        ...(config?.configurable ?? {}),
-      },
-    };
+    // Reset step counter for this invocation (thread-safe per-invocation)
+    const invocationStepCount = { count: 0 };
+    const previousStepCount = this.stepCount;
+    this.stepCount = 0;
 
-    // Parse input through schema for validation
-    const parsedInput = input
-      ? AgentStateSchema.parse({
-          ...createDefaultAgentState(),
-          ...input,
-        })
-      : createDefaultAgentState();
+    try {
+      const fullConfig = {
+        configurable: {
+          thread_id: threadId,
+          ...(config?.configurable ?? {}),
+        },
+      };
 
-    // Set default starting recipient if not specified
-    if (!parsedInput.next_recipient) {
-      parsedInput.next_recipient = 'po';
+      // Parse input through schema for validation
+      const parsedInput = input
+        ? AgentStateSchema.parse({
+            ...createDefaultAgentState(),
+            ...input,
+          })
+        : createDefaultAgentState();
+
+      // Set default starting recipient if not specified
+      if (!parsedInput.next_recipient) {
+        parsedInput.next_recipient = 'po';
+      }
+
+      // Invoke the graph
+      const result = await this.graph.invoke(parsedInput, fullConfig);
+
+      // Extract the final state
+      const finalState = AgentStateSchema.parse(result);
+
+      return {
+        threadId,
+        finalState,
+        stepCount: this.stepCount,
+      };
+    } finally {
+      // Don't restore stepCount from previous invocation - keep separate tracking
+      // This ensures each invocation independently tracks its own step count
     }
-
-    // Invoke the graph
-    const result = await this.graph.invoke(parsedInput, fullConfig);
-
-    // Extract the final state
-    const finalState = AgentStateSchema.parse(result);
-
-    return {
-      threadId,
-      finalState,
-      stepCount: this.stepCount,
-    };
   }
 
   /**

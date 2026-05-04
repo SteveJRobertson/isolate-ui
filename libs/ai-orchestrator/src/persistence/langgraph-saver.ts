@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import { randomUUID } from 'crypto';
 import Database = require('better-sqlite3');
 import { BaseCheckpointSaver, RunnableConfig } from '@langchain/langgraph';
 import { AgentState } from '../schema';
@@ -56,16 +57,17 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
         thread_id TEXT NOT NULL,
         checkpoint_id TEXT NOT NULL,
         channel TEXT NOT NULL,
-        version INTEGER,
+        version INTEGER NOT NULL,
         data BLOB NOT NULL,
         created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        PRIMARY KEY (thread_id, checkpoint_id, channel),
+        PRIMARY KEY (thread_id, checkpoint_id, channel, version),
         FOREIGN KEY (thread_id, checkpoint_id) REFERENCES checkpoints(thread_id, checkpoint_id) ON DELETE CASCADE
       );
 
       CREATE INDEX IF NOT EXISTS idx_checkpoints_thread ON checkpoints(thread_id);
       CREATE INDEX IF NOT EXISTS idx_checkpoints_sequence ON checkpoints(thread_id, sequence);
       CREATE INDEX IF NOT EXISTS idx_writes_thread ON checkpoint_writes(thread_id);
+      CREATE INDEX IF NOT EXISTS idx_writes_version_lookup ON checkpoint_writes(thread_id, checkpoint_id, channel, version);
     `);
   }
 
@@ -74,8 +76,12 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
    */
   private prepareStatements(): void {
     this.stmtUpsert = this.db.prepare(`
-      INSERT OR REPLACE INTO checkpoints (thread_id, checkpoint_id, checkpoint_body, metadata_body, sequence)
+      INSERT INTO checkpoints (thread_id, checkpoint_id, checkpoint_body, metadata_body, sequence)
       VALUES (?, ?, ?, ?, (SELECT COALESCE(MAX(sequence), 0) + 1 FROM checkpoints WHERE thread_id = ?))
+      ON CONFLICT(thread_id, checkpoint_id) DO UPDATE SET
+      checkpoint_body = excluded.checkpoint_body,
+      metadata_body = excluded.metadata_body,
+      sequence = excluded.sequence
     `);
 
     this.stmtGetLatest = this.db.prepare(`
@@ -96,7 +102,7 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
     this.txPutTuple = this.db.transaction(
       (configurable: Record<string, any>, checkpoint: any, metadata: any) => {
         const threadId = configurable.thread_id || 'default';
-        const checkpointId = checkpoint.id || Date.now().toString();
+        const checkpointId = checkpoint.id || randomUUID();
 
         // Upsert checkpoint with auto-incrementing sequence
         this.stmtUpsert.run(
@@ -184,6 +190,8 @@ export class LangGraphSqliteSaver extends BaseCheckpointSaver {
       ) as any;
       const version = (versionRow?.max_version ?? 0) + 1;
 
+      // Use INSERT OR REPLACE to handle version updates
+      // (version is part of primary key, so this replaces old version with new)
       stmt.run(threadId, checkpointId, channel, version, JSON.stringify(data));
     }
   }
