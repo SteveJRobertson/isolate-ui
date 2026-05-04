@@ -178,23 +178,32 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
         .run(threadId, checkpointId, '{}', '{}');
     }
 
-    const stmt = this.db.prepare(`
-      INSERT INTO checkpoint_writes (thread_id, checkpoint_id, channel, version, data)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+    // Wrap version lookup and insert in transaction to prevent race conditions
+    this.db.transaction(() => {
+      const stmt = this.db.prepare(`
+        INSERT INTO checkpoint_writes (thread_id, checkpoint_id, channel, version, data)
+        VALUES (?, ?, ?, ?, ?)
+      `);
 
-    for (const [channel, data] of writes) {
-      const versionRow = this.stmtGetWriteVersion.get(
-        threadId,
-        checkpointId,
-        channel,
-      ) as any;
-      const version = (versionRow?.max_version ?? 0) + 1;
+      for (const [channel, data] of writes) {
+        const versionRow = this.stmtGetWriteVersion.get(
+          threadId,
+          checkpointId,
+          channel,
+        ) as any;
+        const version = (versionRow?.max_version ?? 0) + 1;
 
-      // Use INSERT OR REPLACE to handle version updates
-      // (version is part of primary key, so this replaces old version with new)
-      stmt.run(threadId, checkpointId, channel, version, JSON.stringify(data));
-    }
+        // Insert a new versioned write record for this channel.
+        // The incremented version preserves prior writes rather than replacing them.
+        stmt.run(
+          threadId,
+          checkpointId,
+          channel,
+          version,
+          JSON.stringify(data),
+        );
+      }
+    })();
   }
 
   /**

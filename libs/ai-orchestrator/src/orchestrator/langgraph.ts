@@ -184,26 +184,28 @@ export class OrchestratorGraph {
     maxSteps = 20,
   ): Promise<OrchestratorRunResult> {
     this.stepCount = 0;
+    // Set recursion limit for this execution
+    this.maxStepsLimit = maxSteps;
+    this.graph = this.buildGraph();
+
     try {
       const result = await this.invoke(threadId, initialInput, {
         configurable: { thread_id: threadId },
       });
-
-      if (result.stepCount > maxSteps) {
-        throw new Error(
-          `exceeded max steps: ${result.stepCount} > ${maxSteps}`,
-        );
-      }
 
       return result;
     } catch (error) {
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
         throw new Error(
-          `exceeded max steps: recursion limit hit (configured: ${maxSteps})`,
+          `exceeded max steps: recursion limit hit (limit: ${maxSteps})`,
         );
       }
       throw error;
+    } finally {
+      // Reset to default limit
+      this.maxStepsLimit = 500;
+      this.graph = this.buildGraph();
     }
   }
 
@@ -221,47 +223,46 @@ export class OrchestratorGraph {
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, any> },
   ): Promise<OrchestratorRunResult> {
-    // Reset step counter for this invocation (thread-safe per-invocation)
-    const invocationStepCount = { count: 0 };
-    const previousStepCount = this.stepCount;
-    this.stepCount = 0;
+    // Check if there's an existing checkpoint for this thread
+    const existingCheckpoint = this.checkpointer.getLatest(threadId);
 
-    try {
-      const fullConfig = {
-        configurable: {
-          thread_id: threadId,
-          ...(config?.configurable ?? {}),
-        },
-      };
+    const fullConfig = {
+      configurable: {
+        ...(config?.configurable ?? {}),
+        thread_id: threadId,
+      },
+    };
 
-      // Parse input through schema for validation
-      const parsedInput = input
-        ? AgentStateSchema.parse({
-            ...createDefaultAgentState(),
-            ...input,
-          })
+    // Parse input through schema for validation
+    let parsedInput = input
+      ? AgentStateSchema.parse({
+          ...createDefaultAgentState(),
+          ...input,
+        })
+      : existingCheckpoint
+        ? existingCheckpoint
         : createDefaultAgentState();
 
-      // Set default starting recipient if not specified
-      if (!parsedInput.next_recipient) {
-        parsedInput.next_recipient = 'po';
-      }
-
-      // Invoke the graph
-      const result = await this.graph.invoke(parsedInput, fullConfig);
-
-      // Extract the final state
-      const finalState = AgentStateSchema.parse(result);
-
-      return {
-        threadId,
-        finalState,
-        stepCount: this.stepCount,
-      };
-    } finally {
-      // Don't restore stepCount from previous invocation - keep separate tracking
-      // This ensures each invocation independently tracks its own step count
+    // Only default to 'po' if starting fresh (no existing checkpoint and no explicit input)
+    if (
+      !existingCheckpoint &&
+      !input?.next_recipient &&
+      !parsedInput.next_recipient
+    ) {
+      parsedInput.next_recipient = 'po';
     }
+
+    // Invoke the graph
+    const result = await this.graph.invoke(parsedInput, fullConfig);
+
+    // Extract the final state
+    const finalState = AgentStateSchema.parse(result);
+
+    return {
+      threadId,
+      finalState,
+      stepCount: this.stepCount,
+    };
   }
 
   /**
