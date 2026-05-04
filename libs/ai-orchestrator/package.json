@@ -1,0 +1,27 @@
+{
+  "name": "@isolate-ui/ai-orchestrator",
+  "version": "0.1.0",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    }
+  },
+  "dependencies": {
+    "tslib": "^2.3.0",
+    "zod": "^3.23.0",
+    "better-sqlite3": "^12.9.0"
+  },
+  "devDependencies": {
+    "@nx/js": "^22.5.4",
+    "@nx/vite": "^22.5.4",
+    "@nx/vitest": "^22.5.4",
+    "vitest": "^3.2.4",
+    "typescript": "^5.5.0",
+    "@types/better-sqlite3": "^7.6.13"
+  }
+}

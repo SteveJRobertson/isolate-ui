@@ -610,4 +610,45 @@ pnpm nx affected -t lint test typecheck --base=origin/main
 
 ---
 
-_Last updated: March 13, 2026_
+_Last updated: May 3, 2026_
+
+---
+
+## Agent Personas (AI Orchestrator)
+
+The following personas are managed by `@isolate-ui/ai-orchestrator` via LangGraph.js.
+Each persona is a specialized agent in the Isolate UI development lifecycle.
+
+### @isolate-po (Product Owner)
+
+Responsible for selecting Ark UI primitives and mapping design tokens from the Panda CSS
+design system. Reviews component requests and produces a design specification before
+handing off to the architect.
+
+### @isolate-architect (Architect)
+
+Enforces Nx project boundary rules and validates that only permitted shared utilities
+(`@isolate-ui/utils`, `@isolate-ui/tokens`) are imported. Gates architectural approval
+before implementation begins.
+
+### @isolate-dev (Developer)
+
+Implements TypeScript/React components with Panda CSS styling. Follows "The Blueprint"
+component pattern and produces production-ready code based on the product owner's
+specification and architect's approval.
+
+### @isolate-a11y (Accessibility Specialist)
+
+Specialist auditor for WAI-ARIA compliance and keyboard navigation patterns. Validates
+WCAG 2.1 Level AA conformance and produces an accessibility report with violation details
+and remediation steps.
+
+### @isolate-qa (QA Engineer)
+
+Validates Vitest test coverage and error state recovery. Ensures minimum 80% coverage,
+all error paths are tested, and component behaviour is verified under edge cases.
+
+### @isolate-docs (Documentation)
+
+Generates Storybook Component Story Format (CSF) stories and README artifacts. Documents
+all prop interfaces, variants, and accessibility features for developer consumption.
