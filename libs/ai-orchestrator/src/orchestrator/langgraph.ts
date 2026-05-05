@@ -8,6 +8,12 @@ import {
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { LangGraphSqliteSaver } from '../persistence';
 import { validateAgentsConfig, findWorkspaceRoot } from '../config';
+import {
+  RefinementConfig,
+  DEFAULT_REFINEMENT_CONFIG,
+  RefinementIterationLimitError,
+  createRefinementNode,
+} from './refinement-loop';
 
 /**
  * Node function signature for LangGraph nodes.
@@ -45,6 +51,7 @@ export class OrchestratorGraph {
   private dbPath: string;
   private nodes: Map<string, AgentNodeFn> = new Map();
   private maxStepsLimit = 500;
+  private refinementConfig: RefinementConfig = DEFAULT_REFINEMENT_CONFIG;
 
   constructor(dbPath?: string, agentsMdPath?: string) {
     this.dbPath =
@@ -111,6 +118,22 @@ export class OrchestratorGraph {
           value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => 0,
         },
+        rejectionCount: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => 0,
+        },
+        rejectionReason: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => '',
+        },
+        lastApprovedBy: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => null,
+        },
+        signoffs: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => ({}),
+        },
       },
     });
 
@@ -163,6 +186,31 @@ export class OrchestratorGraph {
   }
 
   /**
+   * Configure the refinement loop for the PO → Dev → QA sequence.
+   * Must be called before invoke() / run() to take effect.
+   *
+   * @param config - Partial overrides merged with DEFAULT_REFINEMENT_CONFIG
+   */
+  public configureRefinement(config: Partial<RefinementConfig>): void {
+    this.refinementConfig = { ...DEFAULT_REFINEMENT_CONFIG, ...config };
+  }
+
+  /**
+   * Wrap a persona node with refinement loop logic (approval/rejection routing,
+   * iteration counting, and iteration-limit interrupts).
+   *
+   * Use this instead of registerNode() for personas that participate in the
+   * Definition of Ready refinement loop (po, dev, qa).
+   *
+   * @param personaId - Persona to wrap (must be in refinementConfig.baseSequence)
+   * @param fn        - The underlying node implementation
+   */
+  public registerRefinementNode(personaId: string, fn: AgentNodeFn): void {
+    const wrapped = createRefinementNode(personaId, this.refinementConfig, fn);
+    this.registerNode(personaId, wrapped);
+  }
+
+  /**
    * Register (or replace) a node implementation for a persona.
    *
    * @param personaId - e.g. 'po', 'architect', 'dev'
@@ -201,6 +249,8 @@ export class OrchestratorGraph {
 
       return result;
     } catch (error) {
+      // Re-throw refinement iteration limit errors — callers must handle them
+      if (error instanceof RefinementIterationLimitError) throw error;
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
         throw new Error(

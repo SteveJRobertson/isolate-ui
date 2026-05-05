@@ -68,6 +68,34 @@ export const AgentStateSchema = z.object({
    * (not across checkpoint resumptions).
    */
   _step_count: z.number().default(0),
+
+  // ── Refinement loop fields ────────────────────────────────────────────────
+
+  /**
+   * Number of times any persona in the refinement sequence has rejected the
+   * current proposal. Resets to 0 when the loop completes successfully.
+   * When this reaches RefinementConfig.maxIterations the graph throws
+   * RefinementIterationLimitError to signal a human-in-the-loop pause.
+   */
+  rejectionCount: z.number().default(0),
+
+  /**
+   * The rejection reason captured from the last rejecting persona's message.
+   * Surfaced in the GitHub comment and human-pause notification.
+   */
+  rejectionReason: z.string().default(''),
+
+  /**
+   * ID of the last persona that issued an APPROVED decision.
+   * Used to track progress through the refinement sequence.
+   */
+  lastApprovedBy: z.string().nullable().default(null),
+
+  /**
+   * Per-persona approval flags. Keys are persona IDs ('po', 'dev', 'qa').
+   * Reset to {} when a rejection causes the loop to restart from the beginning.
+   */
+  signoffs: z.record(z.string(), z.boolean()).default(() => ({})),
 });
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
@@ -83,6 +111,10 @@ export const DEFAULT_AGENT_STATE: AgentState = {
   arch_approval: false,
   metadata: {},
   _step_count: 0,
+  rejectionCount: 0,
+  rejectionReason: '',
+  lastApprovedBy: null,
+  signoffs: {},
 };
 
 /**
@@ -99,5 +131,9 @@ export function createDefaultAgentState(): AgentState {
     arch_approval: false,
     metadata: {},
     _step_count: 0,
+    rejectionCount: 0,
+    rejectionReason: '',
+    lastApprovedBy: null,
+    signoffs: {},
   };
 }
