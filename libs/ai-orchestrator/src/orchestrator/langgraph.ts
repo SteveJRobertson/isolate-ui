@@ -15,6 +15,12 @@ import {
   createRefinementNode,
 } from './refinement-loop';
 import {
+  MeshRouterConfig,
+  DEFAULT_MESH_CONFIG,
+  MeshStalemateError,
+  createMeshRouterNode,
+} from './mesh-router';
+import {
   postRefinementLoopComment,
   type RefinementCommentPayload,
 } from '../github/poster';
@@ -56,6 +62,7 @@ export class OrchestratorGraph {
   private nodes: Map<string, AgentNodeFn> = new Map();
   private maxStepsLimit = 500;
   private refinementConfig: RefinementConfig = DEFAULT_REFINEMENT_CONFIG;
+  private meshConfig: MeshRouterConfig = DEFAULT_MESH_CONFIG;
 
   /**
    * GitHub repo coordinates used when posting refinement loop comments.
@@ -167,13 +174,64 @@ export class OrchestratorGraph {
       });
     });
 
-    // Conditional router function
+    // Add the Ambiguity Mesh Router node.
+    // Inserted after every persona node via a deterministic edge.
+    // Detects cross-persona queries and performs non-linear mesh jumps.
+    const meshRouterFn = createMeshRouterNode(this.meshConfig);
+    stateGraph.addNode('mesh_router', meshRouterFn);
+
+    // Add the human_review node — a minimal logging node.
+    // The graph pauses BEFORE this node executes when compiled with
+    // interruptBefore: ['human_review'] (LangGraph v0.1.x interrupt pattern).
+    //
+    // Resumption contract:
+    //   1. MeshStalemateError is thrown by mesh_router at the loop limit.
+    //   2. run() catches it, posts the stalemate GitHub comment, and re-throws.
+    //   3. The caller handles human review externally.
+    //   4. To resume, the caller re-invokes with the same thread_id and
+    //      next_recipient set to 'human_review' (cast as any if needed).
+    //   5. interruptBefore pauses before this node, allowing a final checkpoint
+    //      review before resuming the deterministic workflow.
+    //   6. On a subsequent re-invoke the node runs: it sets next_recipient to
+    //      mesh_origin so the graph continues from the diversion point.
+    stateGraph.addNode(
+      'human_review',
+      (state: AgentState): Partial<AgentState> => {
+        console.log(
+          `[ai-orchestrator] human_review node: resuming workflow from mesh_origin="${state.mesh_origin}"`,
+        );
+        return {
+          next_recipient: state.mesh_origin ?? null,
+        };
+      },
+    );
+
+    // Routing function for START and human_review — routes directly to persona nodes.
+    // Does not include human_review so that the initial dispatch and post-human-review
+    // routing bypass the mesh_router (avoiding spurious re-detection on old messages).
     const routeByRecipient = (state: AgentState): string => {
       const next = state.next_recipient;
       return !next ? '__end__' : personaIds.includes(next) ? next : '__end__';
     };
 
-    // Add conditional edges from START
+    // Routing function for mesh_router output.
+    // Extends routeByRecipient with a human_review target, which is reached when
+    // a caller explicitly sets next_recipient to 'human_review' to trigger the
+    // interruptBefore pause (e.g. after catching MeshStalemateError externally).
+    const routeAfterMesh = (state: AgentState): string => {
+      const next = state.next_recipient as string;
+      if (!next) return '__end__';
+      if (next === 'human_review') return 'human_review';
+      return personaIds.includes(
+        next as AgentState['next_recipient'] extends string
+          ? AgentState['next_recipient']
+          : never,
+      )
+        ? next
+        : '__end__';
+    };
+
+    // START → persona nodes (direct dispatch — bypasses mesh_router on initial entry)
     stateGraph.addConditionalEdges(START, routeByRecipient, {
       po: 'po',
       architect: 'architect',
@@ -184,23 +242,45 @@ export class OrchestratorGraph {
       __end__: '__end__',
     } as any);
 
-    // Add conditional edges from each persona node
+    // Persona nodes → mesh_router (deterministic)
+    // Every persona output is inspected by the mesh router before the next
+    // routing decision is made.
     personaIds.forEach((personaId) => {
-      stateGraph.addConditionalEdges(personaId as any, routeByRecipient, {
-        po: 'po',
-        architect: 'architect',
-        dev: 'dev',
-        a11y: 'a11y',
-        qa: 'qa',
-        docs: 'docs',
-        __end__: '__end__',
-      } as any);
+      stateGraph.addEdge(personaId as any, 'mesh_router' as any);
     });
 
-    // Compile with the provided recursion limit
+    // mesh_router → persona nodes | human_review | __end__ (conditional)
+    stateGraph.addConditionalEdges('mesh_router' as any, routeAfterMesh, {
+      po: 'po',
+      architect: 'architect',
+      dev: 'dev',
+      a11y: 'a11y',
+      qa: 'qa',
+      docs: 'docs',
+      human_review: 'human_review',
+      __end__: '__end__',
+    } as any);
+
+    // human_review → persona nodes | __end__ (conditional, bypasses mesh_router)
+    // Routing directly to the persona avoids the mesh_router re-analysing the
+    // same message that originally triggered the stalemate.
+    stateGraph.addConditionalEdges('human_review' as any, routeByRecipient, {
+      po: 'po',
+      architect: 'architect',
+      dev: 'dev',
+      a11y: 'a11y',
+      qa: 'qa',
+      docs: 'docs',
+      __end__: '__end__',
+    } as any);
+
+    // Compile with interruptBefore: ['human_review'] so the graph pauses before
+    // executing human_review, allowing a human to review the stalemate context
+    // before the workflow is allowed to resume.
     return stateGraph.compile({
       checkpointer: this.checkpointer as any,
       recursionLimit: limit,
+      interruptBefore: ['human_review'],
     } as any);
   }
 
@@ -212,6 +292,20 @@ export class OrchestratorGraph {
    */
   public configureRefinement(config: Partial<RefinementConfig>): void {
     this.refinementConfig = { ...DEFAULT_REFINEMENT_CONFIG, ...config };
+  }
+
+  /**
+   * Configure the Ambiguity Mesh Router.
+   * Must be called before invoke() / run() to take effect.
+   *
+   * Key options:
+   * - maxMeshLoops: max non-linear jumps before MeshStalemateError (default 5)
+   * - llmClient: inject a mock client for testing (avoids API calls)
+   *
+   * @param config - Partial overrides merged with DEFAULT_MESH_CONFIG
+   */
+  public configureMesh(config: Partial<MeshRouterConfig>): void {
+    this.meshConfig = { ...DEFAULT_MESH_CONFIG, ...config };
   }
 
   /**
@@ -301,6 +395,14 @@ export class OrchestratorGraph {
 
       return result;
     } catch (error) {
+      // On mesh stalemate: post the stalemate comment then re-throw.
+      // The caller is responsible for handling human review and re-invoking
+      // the graph (with next_recipient set to 'human_review' or mesh_origin)
+      // once a human has approved resumption.
+      if (error instanceof MeshStalemateError) {
+        await this.tryPostStalemateComment(threadId, githubToken, error);
+        throw error;
+      }
       // On iteration limit: post the human-review comment then re-throw
       if (error instanceof RefinementIterationLimitError) {
         // The node threw before returning its state update, so the last
@@ -336,6 +438,25 @@ export class OrchestratorGraph {
       }
       throw error;
     }
+  }
+
+  /**
+   * Build and post a mesh stalemate comment to GitHub.
+   * Stub — wired to the full poster implementation in Phase 4.
+   * Silently no-ops when GITHUB_TOKEN is absent.
+   */
+  private async tryPostStalemateComment(
+    threadId: string,
+    token: string | undefined,
+    error: MeshStalemateError,
+  ): Promise<void> {
+    if (!token) return;
+    // TODO (Phase 4): replace with postMeshStalemateComment() once poster.ts is extended.
+    console.warn(
+      `[ai-orchestrator] Mesh stalemate on thread "${threadId}": ` +
+        `${error.meshLoopCount} mesh jumps exceeded limit. ` +
+        `Origin: ${error.originPersona}. GitHub comment posting pending Phase 4.`,
+    );
   }
 
   /**

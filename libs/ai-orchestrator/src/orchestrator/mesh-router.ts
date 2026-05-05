@@ -212,7 +212,15 @@ export function createMeshRouterNode(
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
     if (!resolvedClient) {
-      resolvedClient = createDefaultMeshClient();
+      try {
+        resolvedClient = createDefaultMeshClient();
+      } catch {
+        // No API key available — mesh router is disabled for this run.
+        // Fail safe: pass through unchanged rather than crashing the graph.
+        // This preserves existing behaviour in environments without OPENAI_API_KEY
+        // (e.g. tests that don't inject a client via config.llmClient).
+        return {};
+      }
     }
 
     const { target } = await analyzeMeshQuery(
