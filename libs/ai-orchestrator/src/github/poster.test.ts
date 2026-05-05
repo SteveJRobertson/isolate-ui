@@ -5,7 +5,10 @@ import {
   formatPersonaSignoffs,
   buildCommentBody,
   postRefinementLoopComment,
+  buildStalemateCommentBody,
+  postMeshStalemateComment,
   type RefinementCommentPayload,
+  type MeshStalematePayload,
 } from './poster';
 
 // ── Mock @octokit/rest at module level so it's hoisted before imports ─────────
@@ -220,5 +223,130 @@ describe('postRefinementLoopComment', () => {
     });
     expect(result?.commentId).toBe(123);
     expect(result?.commentUrl).toContain('issuecomment-123');
+  });
+});
+
+// ── buildStalemateCommentBody ─────────────────────────────────────────────────
+
+describe('buildStalemateCommentBody', () => {
+  const stalematePayload: MeshStalematePayload = {
+    issueNumber: 20,
+    owner: 'SteveJRobertson',
+    repo: 'isolate-ui',
+    meshLoopCount: 6,
+    originPersona: 'qa',
+    lastMessage: '@isolate-po can you clarify the token?',
+    issueAuthor: 'SteveJRobertson',
+  };
+
+  it('includes the stalemate heading', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    expect(body).toContain('## 🔴 Ambiguity Mesh — Stalemate');
+  });
+
+  it('includes human review warning', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    expect(body).toContain('Human review required');
+  });
+
+  it('includes the mesh loop count in the summary table', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    expect(body).toContain('6');
+  });
+
+  it('includes the origin persona in the summary table', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    expect(body).toContain('@isolate-qa');
+  });
+
+  it('breaks the @mention in issueAuthor with a zero-width space', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    // Must NOT contain a raw @SteveJRobertson (would fire a notification)
+    expect(body).not.toContain('@SteveJRobertson');
+    // Must contain the broken form
+    expect(body).toContain('@\u200bSteveJRobertson');
+  });
+
+  it('sanitizes @mentions embedded in lastMessage', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    // The @isolate-po in lastMessage should be broken
+    expect(body).not.toMatch(/@isolate-po/);
+    expect(body).toContain('@\u200bisolate-po');
+  });
+
+  it('collapses newlines in lastMessage to keep blockquote single-line', () => {
+    const multilinePayload: MeshStalematePayload = {
+      ...stalematePayload,
+      lastMessage: 'First line\nSecond line\nThird line',
+    };
+    const body = buildStalemateCommentBody(multilinePayload);
+    // Newlines should be collapsed to spaces inside the blockquote
+    expect(body).toContain('First line Second line Third line');
+  });
+
+  it('renders null originPersona gracefully', () => {
+    const payload: MeshStalematePayload = {
+      ...stalematePayload,
+      originPersona: null,
+    };
+    const body = buildStalemateCommentBody(payload);
+    expect(body).toContain('_unknown_');
+  });
+
+  it('includes resume instructions', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    expect(body).toContain('How to Resume');
+  });
+});
+
+// ── postMeshStalemateComment ──────────────────────────────────────────────────
+
+describe('postMeshStalemateComment', () => {
+  const stalematePayload: MeshStalematePayload = {
+    issueNumber: 20,
+    owner: 'SteveJRobertson',
+    repo: 'isolate-ui',
+    meshLoopCount: 6,
+    originPersona: 'qa',
+    lastMessage: 'some message',
+    issueAuthor: 'SteveJRobertson',
+  };
+
+  beforeEach(() => {
+    mockCreateComment.mockReset();
+  });
+
+  it('returns null when token is undefined', async () => {
+    const result = await postMeshStalemateComment(stalematePayload, undefined);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when token is empty string', async () => {
+    const result = await postMeshStalemateComment(stalematePayload, '');
+    expect(result).toBeNull();
+  });
+
+  it('calls Octokit createComment with stalemate body', async () => {
+    mockCreateComment.mockResolvedValue({
+      data: {
+        html_url:
+          'https://github.com/SteveJRobertson/isolate-ui/issues/20#issuecomment-456',
+        id: 456,
+      },
+    });
+
+    const result = await postMeshStalemateComment(
+      stalematePayload,
+      'ghp_faketoken',
+    );
+
+    expect(mockCreateComment).toHaveBeenCalledWith({
+      owner: 'SteveJRobertson',
+      repo: 'isolate-ui',
+      issue_number: 20,
+      body: expect.stringContaining('## 🔴 Ambiguity Mesh — Stalemate'),
+    });
+    expect(result?.commentId).toBe(456);
+    expect(result?.commentUrl).toContain('issuecomment-456');
   });
 });

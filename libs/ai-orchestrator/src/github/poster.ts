@@ -213,8 +213,10 @@ export async function postRefinementLoopComment(
 export function buildStalemateCommentBody(
   payload: MeshStalematePayload,
 ): string {
-  // Break the @mention with a zero-width space — same technique as sanitizeLlmText
-  const safeAuthor = payload.issueAuthor.replace(/@/g, '@\u200b');
+  // Prepend @ then break it with a zero-width space — same technique as sanitizeLlmText.
+  // issueAuthor is stored without a leading @, so we add it here and immediately insert
+  // the zero-width space to prevent GitHub from firing a notification.
+  const safeAuthor = `@\u200b${payload.issueAuthor.replace(/@/g, '')}`;
   const safeOrigin = payload.originPersona
     ? `\`@isolate-${payload.originPersona}\``
     : '_unknown_';
