@@ -102,14 +102,15 @@ export const AgentStateSchema = z.object({
   /**
    * Number of non-linear (mesh) jumps performed during the current workflow.
    * Independent of rejectionCount. When this exceeds MeshRouterConfig.maxMeshLoops
-   * the graph routes to the human_review node and pauses via interruptBefore.
+   * the mesh router throws MeshStalemateError; the caller (OrchestratorGraph.run)
+   * is responsible for posting a stalemate comment and surfacing the error.
    */
   mesh_loop_count: z.number().default(0),
 
   /**
    * The persona ID that was active (i.e. had just produced a message) when an
-   * ambiguity-driven mesh jump was triggered. Used by the human_review node to
-   * resume the graph at the correct origin after human approval.
+   * ambiguity-driven mesh jump was triggered. Recorded so that callers can
+   * communicate the diversion point in a stalemate comment.
    * Null when no mesh jump is in-flight.
    */
   mesh_origin: z

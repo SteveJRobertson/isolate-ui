@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -85,7 +85,7 @@ export async function applyCodeBuffer(
   try {
     fs.writeFileSync(tmpFile, codeBuffer, 'utf8');
 
-    execSync(`git apply "${tmpFile}"`, {
+    execFileSync('git', ['apply', tmpFile], {
       cwd: workspaceRoot,
       stdio: 'pipe',
     });

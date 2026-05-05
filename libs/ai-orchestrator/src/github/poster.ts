@@ -52,11 +52,12 @@ export interface MeshStalematePayload {
   lastMessage: string;
   /**
    * GitHub username of the issue author to @mention in the stalemate comment.
-   * The mention is intentionally broken with a zero-width space so the
-   * GitHub UI does not fire a notification for automated posts, but the
-   * username remains readable for the human reviewer.
+   * A real @mention is posted (no zero-width space) so the author receives a
+   * GitHub notification and can review the stalemate promptly.
    */
   issueAuthor: string;
+  /** The configured jump limit (MeshRouterConfig.maxMeshLoops). */
+  maxMeshLoops: number;
 }
 
 // ── Formatting helpers ────────────────────────────────────────────────────────
@@ -202,9 +203,8 @@ export async function postRefinementLoopComment(
 /**
  * Build the Markdown body for a mesh stalemate notification comment.
  *
- * The issueAuthor @mention is broken with a zero-width space (same technique
- * as sanitizeLlmText) so automated posts don't fire GitHub notifications while
- * still being identifiable by a human reviewer.
+ * A real @mention is posted for the issue author so they receive a GitHub
+ * notification and can review the stalemate promptly.
  *
  * The lastMessage excerpt is passed through sanitizeLlmText to neutralize any
  * @mentions embedded in LLM-produced content and collapse newlines to keep the
@@ -213,27 +213,26 @@ export async function postRefinementLoopComment(
 export function buildStalemateCommentBody(
   payload: MeshStalematePayload,
 ): string {
-  // Prepend @ then break it with a zero-width space — same technique as sanitizeLlmText.
-  // issueAuthor is stored without a leading @, so we add it here and immediately insert
-  // the zero-width space to prevent GitHub from firing a notification.
-  const safeAuthor = `@\u200b${payload.issueAuthor.replace(/@/g, '')}`;
+  // Real @mention for the issue author so they receive a GitHub notification.
+  const authorMention = `@${payload.issueAuthor.replace(/@/g, '')}`;
   const safeOrigin = payload.originPersona
     ? `\`@isolate-${payload.originPersona}\``
     : '_unknown_';
+  const originId = payload.originPersona ?? 'po';
   const safeLastMessage = sanitizeLlmText(payload.lastMessage);
 
   const sections: string[] = [
     '## 🔴 Ambiguity Mesh — Stalemate',
     '',
     `> ⚠️ **Human review required** — the mesh router reached its jump limit.`,
-    `> **Notifying:** ${safeAuthor}`,
+    `> **Notifying:** ${authorMention}`,
     '',
     '### Summary',
     '',
     `| Field | Value |`,
     `|-------|-------|`,
     `| Mesh jumps | ${payload.meshLoopCount} |`,
-    `| Jump limit | ${payload.meshLoopCount} |`,
+    `| Jump limit | ${payload.maxMeshLoops} |`,
     `| Diversion point | ${safeOrigin} |`,
     '',
     '### Last Message That Triggered the Stalemate',
@@ -243,9 +242,9 @@ export function buildStalemateCommentBody(
     '### How to Resume',
     '',
     '1. Review the conversation context and resolve the ambiguity manually.',
-    '2. Re-invoke the orchestrator with the same `thread_id`.',
-    `3. Set \`next_recipient\` to the intended persona (suggested: ${safeOrigin}).`,
-    '4. The `human_review` node will route the workflow back to the diversion point.',
+    '2. Re-invoke the orchestrator with the same `thread_id`, passing an initial',
+    `   state where \`next_recipient\` is set to the persona ID \`"${originId}"\`.`,
+    '3. The workflow will resume from the diversion point.',
   ];
 
   return sections.join('\n');

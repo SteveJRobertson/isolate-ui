@@ -234,6 +234,7 @@ describe('buildStalemateCommentBody', () => {
     owner: 'SteveJRobertson',
     repo: 'isolate-ui',
     meshLoopCount: 6,
+    maxMeshLoops: 10,
     originPersona: 'qa',
     lastMessage: '@isolate-po can you clarify the token?',
     issueAuthor: 'SteveJRobertson',
@@ -254,23 +255,27 @@ describe('buildStalemateCommentBody', () => {
     expect(body).toContain('6');
   });
 
+  it('includes the configured jump limit in the summary table', () => {
+    const body = buildStalemateCommentBody(stalematePayload);
+    expect(body).toContain('10');
+  });
+
   it('includes the origin persona in the summary table', () => {
     const body = buildStalemateCommentBody(stalematePayload);
     expect(body).toContain('@isolate-qa');
   });
 
-  it('breaks the @mention in issueAuthor with a zero-width space', () => {
+  it('posts a real @mention for issueAuthor (no zero-width space)', () => {
     const body = buildStalemateCommentBody(stalematePayload);
-    // Must NOT contain a raw @SteveJRobertson (would fire a notification)
-    expect(body).not.toContain('@SteveJRobertson');
-    // Must contain the broken form
-    expect(body).toContain('@\u200bSteveJRobertson');
+    // Must contain a real @mention so the author receives a notification
+    expect(body).toContain('@SteveJRobertson');
+    // Must NOT contain the zero-width-space broken form
+    expect(body).not.toContain('@\u200bSteveJRobertson');
   });
 
   it('sanitizes @mentions embedded in lastMessage', () => {
     const body = buildStalemateCommentBody(stalematePayload);
-    // The @isolate-po in lastMessage should be broken
-    expect(body).not.toMatch(/@isolate-po/);
+    // The @isolate-po in lastMessage should be broken in the blockquote
     expect(body).toContain('@\u200bisolate-po');
   });
 
@@ -307,6 +312,7 @@ describe('postMeshStalemateComment', () => {
     owner: 'SteveJRobertson',
     repo: 'isolate-ui',
     meshLoopCount: 6,
+    maxMeshLoops: 10,
     originPersona: 'qa',
     lastMessage: 'some message',
     issueAuthor: 'SteveJRobertson',

@@ -182,55 +182,12 @@ export class OrchestratorGraph {
     const meshRouterFn = createMeshRouterNode(this.meshConfig);
     stateGraph.addNode('mesh_router', meshRouterFn);
 
-    // Add the human_review node — a minimal logging node.
-    // The graph pauses BEFORE this node executes when compiled with
-    // interruptBefore: ['human_review'] (LangGraph v0.1.x interrupt pattern).
-    //
-    // Resumption contract:
-    //   1. MeshStalemateError is thrown by mesh_router at the loop limit.
-    //   2. run() catches it, posts the stalemate GitHub comment, and re-throws.
-    //   3. The caller handles human review externally.
-    //   4. To resume, the caller re-invokes with the same thread_id and
-    //      next_recipient set to 'human_review' (cast as any if needed).
-    //   5. interruptBefore pauses before this node, allowing a final checkpoint
-    //      review before resuming the deterministic workflow.
-    //   6. On a subsequent re-invoke the node runs: it sets next_recipient to
-    //      mesh_origin so the graph continues from the diversion point.
-    stateGraph.addNode(
-      'human_review',
-      (state: AgentState): Partial<AgentState> => {
-        console.log(
-          `[ai-orchestrator] human_review node: resuming workflow from mesh_origin="${state.mesh_origin}"`,
-        );
-        return {
-          next_recipient: state.mesh_origin ?? null,
-        };
-      },
-    );
-
-    // Routing function for START and human_review — routes directly to persona nodes.
-    // Does not include human_review so that the initial dispatch and post-human-review
-    // routing bypass the mesh_router (avoiding spurious re-detection on old messages).
+    // Single routing function shared by START and mesh_router output.
+    // Routes to a persona node when next_recipient is a known persona ID,
+    // otherwise terminates the graph (__end__).
     const routeByRecipient = (state: AgentState): string => {
       const next = state.next_recipient;
       return !next ? '__end__' : personaIds.includes(next) ? next : '__end__';
-    };
-
-    // Routing function for mesh_router output.
-    // Extends routeByRecipient with a human_review target, which is reached when
-    // a caller explicitly sets next_recipient to 'human_review' to trigger the
-    // interruptBefore pause (e.g. after catching MeshStalemateError externally).
-    const routeAfterMesh = (state: AgentState): string => {
-      const next = state.next_recipient as string;
-      if (!next) return '__end__';
-      if (next === 'human_review') return 'human_review';
-      return personaIds.includes(
-        next as AgentState['next_recipient'] extends string
-          ? AgentState['next_recipient']
-          : never,
-      )
-        ? next
-        : '__end__';
     };
 
     // START → persona nodes (direct dispatch — bypasses mesh_router on initial entry)
@@ -251,22 +208,10 @@ export class OrchestratorGraph {
       stateGraph.addEdge(personaId as any, 'mesh_router' as any);
     });
 
-    // mesh_router → persona nodes | human_review | __end__ (conditional)
-    stateGraph.addConditionalEdges('mesh_router' as any, routeAfterMesh, {
-      po: 'po',
-      architect: 'architect',
-      dev: 'dev',
-      a11y: 'a11y',
-      qa: 'qa',
-      docs: 'docs',
-      human_review: 'human_review',
-      __end__: '__end__',
-    } as any);
-
-    // human_review → persona nodes | __end__ (conditional, bypasses mesh_router)
-    // Routing directly to the persona avoids the mesh_router re-analysing the
-    // same message that originally triggered the stalemate.
-    stateGraph.addConditionalEdges('human_review' as any, routeByRecipient, {
+    // mesh_router → persona nodes | __end__ (conditional)
+    // When MeshStalemateError is thrown the graph terminates; run() catches it,
+    // posts the stalemate GitHub comment, and re-throws to the caller.
+    stateGraph.addConditionalEdges('mesh_router' as any, routeByRecipient, {
       po: 'po',
       architect: 'architect',
       dev: 'dev',
@@ -276,13 +221,9 @@ export class OrchestratorGraph {
       __end__: '__end__',
     } as any);
 
-    // Compile with interruptBefore: ['human_review'] so the graph pauses before
-    // executing human_review, allowing a human to review the stalemate context
-    // before the workflow is allowed to resume.
     return stateGraph.compile({
       checkpointer: this.checkpointer as any,
       recursionLimit: limit,
-      interruptBefore: ['human_review'],
     } as any);
   }
 
@@ -472,6 +413,7 @@ export class OrchestratorGraph {
       owner: this.githubOwner,
       repo: this.githubRepo,
       meshLoopCount: error.meshLoopCount,
+      maxMeshLoops: this.meshConfig.maxMeshLoops,
       originPersona: error.originPersona,
       lastMessage,
       issueAuthor,

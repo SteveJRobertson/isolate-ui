@@ -182,22 +182,16 @@ export async function analyzeMeshQuery(
  * 3. Mesh jump — when a target persona is detected AND it differs from the
  *    current next_recipient:
  *    - Sets next_recipient to the detected target.
- *    - Records mesh_origin as the pre-jump next_recipient (used by
- *      human_review to resume the deterministic flow after human approval).
+ *    - Records mesh_origin as the pre-jump next_recipient.
  *    - Increments mesh_loop_count.
- *    - Throws MeshStalemateError when mesh_loop_count > maxMeshLoops,
- *      signalling the graph to route to the human_review interrupt node.
+ *    - Throws MeshStalemateError when mesh_loop_count > maxMeshLoops.
+ *      Callers (e.g. OrchestratorGraph.run) catch this error, post a
+ *      stalemate GitHub comment, and surface the error to the consumer.
  * 4. Deterministic fallback — when no cross-persona query is detected,
  *    returns an empty partial state so next_recipient flows through unchanged.
  *
  * The node NEVER modifies code_buffer or messages — full context is always
  * preserved across mesh jumps.
- *
- * Resumption contract (v0.1.x interruptBefore pattern):
- * The graph is compiled with interruptBefore: ['human_review']. After a
- * human approves, the caller re-invokes with the same thread_id. The
- * human_review node then reads mesh_origin and sets next_recipient back to
- * it, continuing the deterministic workflow from the diversion point.
  *
  * @param config - Mesh router configuration. Defaults to DEFAULT_MESH_CONFIG.
  *                 Inject config.llmClient in tests to avoid API calls.
@@ -278,5 +272,8 @@ function createDefaultMeshClient(): BaseChatModel {
     apiKey: env.OPENAI_API_KEY,
     temperature: 0,
     maxTokens: 64,
+    // JSON mode ensures the model always returns a valid JSON object,
+    // reducing parse failures and making routing more deterministic.
+    modelKwargs: { response_format: { type: 'json_object' } },
   }) as unknown as BaseChatModel;
 }
