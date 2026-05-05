@@ -8,6 +8,16 @@ import {
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { LangGraphSqliteSaver } from '../persistence';
 import { validateAgentsConfig, findWorkspaceRoot } from '../config';
+import {
+  RefinementConfig,
+  DEFAULT_REFINEMENT_CONFIG,
+  RefinementIterationLimitError,
+  createRefinementNode,
+} from './refinement-loop';
+import {
+  postRefinementLoopComment,
+  type RefinementCommentPayload,
+} from '../github/poster';
 
 /**
  * Node function signature for LangGraph nodes.
@@ -45,6 +55,14 @@ export class OrchestratorGraph {
   private dbPath: string;
   private nodes: Map<string, AgentNodeFn> = new Map();
   private maxStepsLimit = 500;
+  private refinementConfig: RefinementConfig = DEFAULT_REFINEMENT_CONFIG;
+
+  /**
+   * GitHub repo coordinates used when posting refinement loop comments.
+   * Defaults to SteveJRobertson/isolate-ui; override via setGitHubRepo().
+   */
+  private githubOwner = 'SteveJRobertson';
+  private githubRepo = 'isolate-ui';
 
   constructor(dbPath?: string, agentsMdPath?: string) {
     this.dbPath =
@@ -111,6 +129,22 @@ export class OrchestratorGraph {
           value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => 0,
         },
+        rejectionCount: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => 0,
+        },
+        rejectionReason: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => '',
+        },
+        lastApprovedBy: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => null,
+        },
+        signoffs: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => ({}),
+        },
       },
     });
 
@@ -163,6 +197,47 @@ export class OrchestratorGraph {
   }
 
   /**
+   * Configure the refinement loop for the PO → Dev → QA sequence.
+   * Must be called before invoke() / run() to take effect.
+   *
+   * @param config - Partial overrides merged with DEFAULT_REFINEMENT_CONFIG
+   */
+  public configureRefinement(config: Partial<RefinementConfig>): void {
+    this.refinementConfig = { ...DEFAULT_REFINEMENT_CONFIG, ...config };
+  }
+
+  /**
+   * Set the GitHub repo coordinates used when posting refinement loop comments.
+   * Defaults to 'SteveJRobertson/isolate-ui'.
+   */
+  public setGitHubRepo(owner: string, repo: string): void {
+    this.githubOwner = owner;
+    this.githubRepo = repo;
+  }
+
+  /**
+   * Wrap a persona node with refinement loop logic (approval/rejection routing,
+   * iteration counting, and iteration-limit interrupts).
+   *
+   * Use this instead of registerNode() for personas that participate in the
+   * Definition of Ready refinement loop (po, dev, qa).
+   *
+   * @param personaId - Persona to wrap (must be in refinementConfig.baseSequence)
+   * @param fn        - The underlying node implementation
+   */
+  public registerRefinementNode(personaId: string, fn: AgentNodeFn): void {
+    if (!this.refinementConfig.baseSequence.includes(personaId)) {
+      throw new Error(
+        `Cannot register refinement node for "${personaId}": ` +
+          `persona is not in the refinement sequence (${this.refinementConfig.baseSequence.join(' → ')}). ` +
+          `Use registerNode() for personas outside the refinement loop.`,
+      );
+    }
+    const wrapped = createRefinementNode(personaId, this.refinementConfig, fn);
+    this.registerNode(personaId, wrapped);
+  }
+
+  /**
    * Register (or replace) a node implementation for a persona.
    *
    * @param personaId - e.g. 'po', 'architect', 'dev'
@@ -190,6 +265,7 @@ export class OrchestratorGraph {
     // Build a local graph with per-run recursionLimit to avoid mutating shared
     // instance state (which would race under concurrent run() calls).
     const localGraph = this.buildGraph(maxSteps);
+    const githubToken = process.env['GITHUB_TOKEN'];
 
     try {
       const result = await this.invokeWithGraph(
@@ -199,8 +275,51 @@ export class OrchestratorGraph {
         { configurable: { thread_id: threadId } },
       );
 
+      // Post GitHub comment only when the full refinement loop completed:
+      // next_recipient is null AND every persona in the sequence has signed off.
+      const allSignedOff =
+        result.finalState.next_recipient === null &&
+        this.refinementConfig.baseSequence.every(
+          (id) => result.finalState.signoffs?.[id] === true,
+        );
+      if (allSignedOff) {
+        await this.tryPostComment(
+          result.finalState,
+          threadId,
+          githubToken,
+          undefined,
+        );
+      }
+
       return result;
     } catch (error) {
+      // On iteration limit: post the human-review comment then re-throw
+      if (error instanceof RefinementIterationLimitError) {
+        // The node threw before returning its state update, so the last
+        // checkpoint is stale. Compose a synthetic state that merges the
+        // checkpointed fields with the final rejection values from the error.
+        const lastState = this.getState(threadId);
+        if (lastState) {
+          const syntheticState: AgentState = {
+            ...lastState,
+            rejectionReason: error.rejectionReason,
+            rejectionCount: error.rejectionCount,
+            // Clear signoffs intentionally: the node threw before returning its
+            // state update, so lastState.signoffs reflects the state before the
+            // final rejection. The node would have cleared them had it returned
+            // normally — clearing here keeps the posted report consistent with
+            // what any non-limit rejection would have produced.
+            signoffs: {},
+          };
+          await this.tryPostComment(
+            syntheticState,
+            threadId,
+            githubToken,
+            error.rejectionReason || error.message,
+          );
+        }
+        throw error;
+      }
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
         throw new Error(
@@ -208,6 +327,53 @@ export class OrchestratorGraph {
         );
       }
       throw error;
+    }
+  }
+
+  /**
+   * Build and post a refinement loop comment to GitHub.
+   * Silently no-ops when GITHUB_TOKEN is absent or posting fails (non-critical).
+   */
+  private async tryPostComment(
+    state: AgentState,
+    threadId: string,
+    token: string | undefined,
+    rejectionReason: string | undefined,
+  ): Promise<void> {
+    if (!token) return;
+
+    // Require an explicit github_issue_id in metadata — do not derive from
+    // threadId by stripping digits, as that can post to the wrong issue.
+    const issueNumber = Number(state.metadata?.['github_issue_id']);
+    if (!issueNumber || isNaN(issueNumber)) return;
+
+    const payload: RefinementCommentPayload = {
+      issueNumber,
+      owner: this.githubOwner,
+      repo: this.githubRepo,
+      technicalSpec: Array.isArray(state.metadata?.['technicalSpec'])
+        ? (state.metadata[
+            'technicalSpec'
+          ] as RefinementCommentPayload['technicalSpec'])
+        : [],
+      edgeCases: ['Loading', 'Error', 'Empty', 'Disabled', 'A11y'],
+      signoffs: state.signoffs ?? {},
+      previewUrl: state.metadata?.['previewUrl'] as string | undefined,
+      rejectionReason,
+    };
+
+    try {
+      const result = await postRefinementLoopComment(payload, token);
+      if (result) {
+        console.log(
+          `[ai-orchestrator] GitHub comment posted: ${result.commentUrl}`,
+        );
+      }
+    } catch (err) {
+      // Non-fatal — log and continue
+      console.warn(
+        `[ai-orchestrator] Failed to post GitHub comment: ${String(err)}`,
+      );
     }
   }
 

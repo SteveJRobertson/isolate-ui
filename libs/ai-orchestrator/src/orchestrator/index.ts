@@ -11,3 +11,14 @@ export {
   type AgentNodeFn as AgentNodeFnLangGraph,
   type OrchestratorRunResult as OrchestratorRunResultLangGraph,
 } from './langgraph';
+
+// Refinement loop
+export {
+  createRefinementNode,
+  parseDecision,
+  getNextInSequence,
+  RefinementIterationLimitError,
+  DEFAULT_REFINEMENT_CONFIG,
+  type RefinementConfig,
+  type RefinementDecision,
+} from './refinement-loop';

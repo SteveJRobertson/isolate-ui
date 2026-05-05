@@ -191,7 +191,8 @@ nx connect
 {
   "paths": {
     "@isolate-ui/button": ["libs/react/button/src/index.ts"],
-    "@isolate-ui/utils": ["libs/utils/src/index.ts"]
+    "@isolate-ui/utils": ["libs/utils/src/index.ts"],
+    "@isolate-ui/utils/ai": ["libs/utils/src/lib/ai/index.ts"]
   }
 }
 ```
@@ -606,11 +607,12 @@ pnpm nx affected -t lint test typecheck --base=origin/main
 - **Vitest**: 3.2.4
 - **Playwright**: 1.58.2
 - **@axe-core/playwright**: 4.11.1
+- **@octokit/rest**: 22.0.1
 - **Node.js**: 22.x
 
 ---
 
-_Last updated: May 3, 2026_
+_Last updated: May 5, 2026_
 
 ---
 
@@ -635,7 +637,8 @@ before implementation begins.
 
 Implements TypeScript/React components with Panda CSS styling. Follows "The Blueprint"
 component pattern and produces production-ready code based on the product owner's
-specification and architect's approval.
+specification and architect's approval. Uses `checkTokenExists()` from
+`@isolate-ui/utils/ai` to validate design token references before finalising a spec.
 
 ### @isolate-a11y (Accessibility Specialist)
 
@@ -652,3 +655,31 @@ all error paths are tested, and component behaviour is verified under edge cases
 
 Generates Storybook Component Story Format (CSF) stories and README artifacts. Documents
 all prop interfaces, variants, and accessibility features for developer consumption.
+
+### Refinement Loop
+
+The PO, Dev, and QA personas participate in a **Definition of Ready** consensus loop
+before component implementation begins.
+
+- Each persona ends its response with `APPROVED` or `REJECTED: <reason>`.
+- A rejection resets the loop to `@isolate-po` and increments the rejection counter.
+- After **5 consecutive rejections** the loop throws `RefinementIterationLimitError` and
+  pauses for human review.
+- On success (or interruption) the orchestrator posts a structured GitHub comment to the
+  triggering issue, containing a Technical Spec Table, Edge Case List, and Persona Sign-offs.
+
+See [libs/ai-orchestrator/README.md](libs/ai-orchestrator/README.md) for the full API reference.
+
+#### Token Validation
+
+The `@isolate-ui/utils/ai` entry point exports `checkTokenExists()` — a helper that
+validates whether a dot-notation token path (e.g. `color.primary.500`) exists in the
+live `@isolate-ui/tokens` registry. Agents use this to catch invalid token references
+before producing a specification.
+
+```typescript
+import { checkTokenExists } from '@isolate-ui/utils/ai';
+
+const result = checkTokenExists('color.primary.500');
+// { exists: true, value: '#3b82f6', path: 'color.primary.500' }
+```

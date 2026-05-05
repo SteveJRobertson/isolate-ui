@@ -23,4 +23,7 @@ export * from './llm';
 // Orchestrator graph
 export * from './orchestrator';
 
+// GitHub integration
+export * from './github';
+
 export const AI_ORCHESTRATOR_VERSION = '0.1.0';

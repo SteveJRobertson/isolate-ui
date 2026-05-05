@@ -1,0 +1,16 @@
+{
+  "primitives": {
+    "button": {
+      "name": "Button",
+      "arkPrimitive": "Button",
+      "parts": ["root"],
+      "accessibility": {
+        "role": "button",
+        "ariaLabel": "optional",
+        "ariaPressed": "optional",
+        "ariaDisabled": "optional"
+      },
+      "description": "A fundamental interactive component that triggers actions or events when activated by users"
+    }
+  }
+}

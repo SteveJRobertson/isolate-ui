@@ -12,20 +12,21 @@
     }
   },
   "dependencies": {
-    "tslib": "^2.3.0",
-    "zod": "^3.23.0",
-    "better-sqlite3": "^12.9.0",
+    "@langchain/anthropic": "^0.2.0",
+    "@langchain/core": "^0.2.0",
     "@langchain/langgraph": "^0.1.0",
     "@langchain/openai": "^0.2.0",
-    "@langchain/anthropic": "^0.2.0",
-    "@langchain/core": "^0.2.0"
+    "@octokit/rest": "^22.0.1",
+    "better-sqlite3": "^12.9.0",
+    "tslib": "^2.3.0",
+    "zod": "^3.23.0"
   },
   "devDependencies": {
     "@nx/js": "^22.5.4",
     "@nx/vite": "^22.5.4",
     "@nx/vitest": "^22.5.4",
-    "vitest": "^3.2.4",
+    "@types/better-sqlite3": "^7.6.13",
     "typescript": "^5.5.0",
-    "@types/better-sqlite3": "^7.6.13"
+    "vitest": "^3.2.4"
   }
 }
