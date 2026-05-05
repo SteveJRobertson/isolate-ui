@@ -36,15 +36,29 @@ export type RefinementDecision = 'APPROVED' | 'REJECTED' | 'PENDING';
  * Returns 'PENDING' when the last message is absent or contains neither token,
  * which causes the refinement wrapper to defer to whatever `next_recipient` the
  * inner node function set directly.
+ *
+ * Matching rules:
+ * - Only the final non-empty line of the message content is examined.
+ * - REJECTED is tested before APPROVED to avoid misclassifying a message such
+ *   as "REJECTED: not approved" as APPROVED.
+ * - Both tokens are matched as whole words (\bTOKEN\b) to tolerate optional
+ *   reason text or punctuation on the same line (e.g. "APPROVED ✓" or
+ *   "REJECTED: missing token").
  */
 export function parseDecision(state: Partial<AgentState>): RefinementDecision {
   const messages = state.messages ?? [];
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage?.content) return 'PENDING';
 
-  const upper = lastMessage.content.toUpperCase();
-  if (upper.includes('APPROVED')) return 'APPROVED';
-  if (upper.includes('REJECTED')) return 'REJECTED';
+  const lastLine =
+    lastMessage.content
+      .split('\n')
+      .map((l) => l.trim())
+      .filter(Boolean)
+      .at(-1) ?? '';
+
+  if (/\bREJECTED\b/i.test(lastLine)) return 'REJECTED';
+  if (/\bAPPROVED\b/i.test(lastLine)) return 'APPROVED';
   return 'PENDING';
 }
 
@@ -59,9 +73,13 @@ export class RefinementIterationLimitError extends Error {
   public readonly rejectionCount: number;
   public readonly threadId: string;
 
-  constructor(rejectionCount: number, threadId: string) {
+  constructor(
+    rejectionCount: number,
+    threadId: string,
+    maxIterations?: number,
+  ) {
     super(
-      `Refinement loop paused: ${rejectionCount} rejections reached the maximum of ${rejectionCount}. Human review required.`,
+      `Refinement loop paused: ${rejectionCount} rejections reached the maximum of ${maxIterations ?? rejectionCount}. Human review required.`,
     );
     this.name = 'RefinementIterationLimitError';
     this.rejectionCount = rejectionCount;
@@ -123,7 +141,11 @@ export function createRefinementNode(
       const threadId = String(state.metadata?.['github_issue_id'] ?? '');
 
       if (newRejectionCount >= config.maxIterations) {
-        throw new RefinementIterationLimitError(newRejectionCount, threadId);
+        throw new RefinementIterationLimitError(
+          newRejectionCount,
+          threadId,
+          config.maxIterations,
+        );
       }
 
       // Capture the rejection reason from the last message
@@ -137,7 +159,8 @@ export function createRefinementNode(
         next_recipient: config.baseSequence[0] as AgentState['next_recipient'],
         rejectionCount: newRejectionCount,
         rejectionReason: reason,
-        // Clear all signoffs — the loop starts over
+        // Clear all approval progress metadata — the loop starts over
+        lastApprovedBy: null,
         signoffs: {},
       };
     }

@@ -164,7 +164,7 @@ graph.registerRefinementNode('dev', myDevFn);
 graph.registerRefinementNode('qa', myQaFn);
 
 try {
-  const result = await graph.run(initialState, threadId, token);
+  const result = await graph.run(threadId, initialState);
 } catch (err) {
   if (err instanceof RefinementIterationLimitError) {
     // Loop paused — err.rejectionCount, err.threadId available
@@ -197,8 +197,8 @@ posts a structured comment to the triggering GitHub Issue containing:
 - **Edge Case List** — accessibility, keyboard, dark mode, loading/error states
 - **Persona Sign-offs** — `- [x] @isolate-po`, `- [x] @isolate-dev`, `- [x] @isolate-qa`
 
-A `GITHUB_TOKEN` environment variable is required to post comments. If absent the comment is
-skipped silently and a warning is logged.
+A `GITHUB_TOKEN` environment variable is required to post comments. If absent, the comment is
+skipped.
 
 ```typescript
 // GitHub repo coordinates (default: SteveJRobertson/isolate-ui)
@@ -217,7 +217,7 @@ const result = checkTokenExists('color.primary.500');
 // { exists: true, value: '#3b82f6', path: 'color.primary.500' }
 
 const missing = checkTokenExists('color.brand.unknown');
-// { exists: false, path: 'color.brand.unknown', closestMatch: 'color.brand.500' }
+// { exists: false, path: 'color.brand.unknown' }
 ```
 
 ## Persistence

@@ -185,7 +185,7 @@ Constraints:
 - Require tests for all error paths
 - Test both happy path and edge cases
 - Output test coverage report and quality assessment
-- Verify all edge cases listed in docs/ark-ui-reference.json (Loading, Error, Empty, Disabled, A11y)
+- Verify standard edge cases: Loading, Error, Empty, Disabled, and A11y
 
 Ensure production-ready quality standards.
 

@@ -226,6 +226,13 @@ export class OrchestratorGraph {
    * @param fn        - The underlying node implementation
    */
   public registerRefinementNode(personaId: string, fn: AgentNodeFn): void {
+    if (!this.refinementConfig.baseSequence.includes(personaId)) {
+      throw new Error(
+        `Cannot register refinement node for "${personaId}": ` +
+          `persona is not in the refinement sequence (${this.refinementConfig.baseSequence.join(' → ')}). ` +
+          `Use registerNode() for personas outside the refinement loop.`,
+      );
+    }
     const wrapped = createRefinementNode(personaId, this.refinementConfig, fn);
     this.registerNode(personaId, wrapped);
   }
@@ -268,13 +275,21 @@ export class OrchestratorGraph {
         { configurable: { thread_id: threadId } },
       );
 
-      // Post GitHub comment on successful loop completion (all signoffs present)
-      await this.tryPostComment(
-        result.finalState,
-        threadId,
-        githubToken,
-        undefined,
-      );
+      // Post GitHub comment only when the full refinement loop completed:
+      // next_recipient is null AND every persona in the sequence has signed off.
+      const allSignedOff =
+        result.finalState.next_recipient === null &&
+        this.refinementConfig.baseSequence.every(
+          (id) => result.finalState.signoffs?.[id] === true,
+        );
+      if (allSignedOff) {
+        await this.tryPostComment(
+          result.finalState,
+          threadId,
+          githubToken,
+          undefined,
+        );
+      }
 
       return result;
     } catch (error) {
@@ -315,9 +330,9 @@ export class OrchestratorGraph {
   ): Promise<void> {
     if (!token) return;
 
-    const issueNumber = Number(
-      state.metadata?.['github_issue_id'] ?? threadId.replace(/\D/g, ''),
-    );
+    // Require an explicit github_issue_id in metadata — do not derive from
+    // threadId by stripping digits, as that can post to the wrong issue.
+    const issueNumber = Number(state.metadata?.['github_issue_id']);
     if (!issueNumber || isNaN(issueNumber)) return;
 
     const payload: RefinementCommentPayload = {
