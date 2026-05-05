@@ -295,13 +295,24 @@ export class OrchestratorGraph {
     } catch (error) {
       // On iteration limit: post the human-review comment then re-throw
       if (error instanceof RefinementIterationLimitError) {
-        // Use the reason carried on the error itself — the final rejection
-        // state update was never returned/checkpointed before the throw,
-        // so getState() would return a stale snapshot without it.
+        // The node threw before returning its state update, so the last
+        // checkpoint is stale. Compose a synthetic state that merges the
+        // checkpointed fields with the final rejection values from the error.
         const lastState = this.getState(threadId);
         if (lastState) {
+          const syntheticState: AgentState = {
+            ...lastState,
+            rejectionReason: error.rejectionReason,
+            rejectionCount: error.rejectionCount,
+            // Clear signoffs intentionally: the node threw before returning its
+            // state update, so lastState.signoffs reflects the state before the
+            // final rejection. The node would have cleared them had it returned
+            // normally — clearing here keeps the posted report consistent with
+            // what any non-limit rejection would have produced.
+            signoffs: {},
+          };
           await this.tryPostComment(
-            lastState,
+            syntheticState,
             threadId,
             githubToken,
             error.rejectionReason || error.message,

@@ -23,6 +23,26 @@ import { findWorkspaceRoot } from '../config';
 
 const AGENTS_MD_PATH = path.join(findWorkspaceRoot(process.cwd()), 'AGENTS.md');
 
+// Detect whether the native better-sqlite3 binary is available.
+// If it is not (e.g. in a CI runner where the binary wasn't rebuilt),
+// skip these E2E tests gracefully rather than failing with a native error.
+function detectSqlite(): boolean {
+  try {
+    // Attempt a full require() load so that a missing or ABI-incompatible
+    // native binary is caught here rather than surfacing as a runtime error
+    // inside OrchestratorGraph construction.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    require('better-sqlite3');
+    return true;
+  } catch {
+    // Any failure (missing package, missing native binary, ABI mismatch, etc.)
+    // means better-sqlite3 is not usable — skip the E2E tests gracefully.
+    return false;
+  }
+}
+
+const sqliteAvailable = detectSqlite();
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function tempDbPath(): string {
@@ -55,7 +75,7 @@ function rejectionNode(personaId: string, reason: string) {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe('Refinement Loop — E2E', () => {
+describe.skipIf(!sqliteAvailable)('Refinement Loop — E2E', () => {
   const graphs: OrchestratorGraph[] = [];
   const tempFiles: string[] = [];
 

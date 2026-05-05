@@ -167,7 +167,7 @@ try {
   const result = await graph.run(threadId, initialState);
 } catch (err) {
   if (err instanceof RefinementIterationLimitError) {
-    // Loop paused — err.rejectionCount, err.threadId available
+    // Loop paused — err.rejectionCount, err.issueId available
   }
 }
 ```

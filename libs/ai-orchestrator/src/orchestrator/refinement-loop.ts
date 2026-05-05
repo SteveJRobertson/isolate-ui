@@ -38,27 +38,28 @@ export type RefinementDecision = 'APPROVED' | 'REJECTED' | 'PENDING';
  * inner node function set directly.
  *
  * Matching rules:
- * - Only the final non-empty line of the message content is examined.
- * - REJECTED is tested before APPROVED to avoid misclassifying a message such
- *   as "REJECTED: not approved" as APPROVED.
- * - Both tokens are matched as whole words (\bTOKEN\b) to tolerate optional
- *   reason text or punctuation on the same line (e.g. "APPROVED ✓" or
- *   "REJECTED: missing token").
+ * - Only the final non-empty line of the message content is examined,
+ *   trimmed of leading/trailing whitespace before matching.
+ * - REJECTED is tested before APPROVED.
+ * - Both tokens must appear at the START of the last line (^TOKEN\b) so that
+ *   a phrase like "this is not approved" is never misclassified. Reason text
+ *   or punctuation may follow (e.g. "APPROVED ✓" or "REJECTED: missing token"
+ *   both match; "not approved" does not).
  */
 export function parseDecision(state: Partial<AgentState>): RefinementDecision {
   const messages = state.messages ?? [];
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage?.content) return 'PENDING';
 
-  const lastLine =
+  const lastLine = (
     lastMessage.content
       .split('\n')
-      .map((l) => l.trim())
-      .filter(Boolean)
-      .slice(-1)[0] ?? '';
+      .filter((l) => l.trim())
+      .slice(-1)[0] ?? ''
+  ).trim();
 
-  if (/\bREJECTED\b/i.test(lastLine)) return 'REJECTED';
-  if (/\bAPPROVED\b/i.test(lastLine)) return 'APPROVED';
+  if (/^REJECTED\b/i.test(lastLine)) return 'REJECTED';
+  if (/^APPROVED\b/i.test(lastLine)) return 'APPROVED';
   return 'PENDING';
 }
 
@@ -71,12 +72,13 @@ export function parseDecision(state: Partial<AgentState>): RefinementDecision {
  */
 export class RefinementIterationLimitError extends Error {
   public readonly rejectionCount: number;
-  public readonly threadId: string;
+  /** The GitHub issue ID that triggered this loop (from metadata.github_issue_id). */
+  public readonly issueId: string;
   public readonly rejectionReason: string;
 
   constructor(
     rejectionCount: number,
-    threadId: string,
+    issueId: string,
     maxIterations?: number,
     rejectionReason = '',
   ) {
@@ -85,7 +87,7 @@ export class RefinementIterationLimitError extends Error {
     );
     this.name = 'RefinementIterationLimitError';
     this.rejectionCount = rejectionCount;
-    this.threadId = threadId;
+    this.issueId = issueId;
     this.rejectionReason = rejectionReason;
     // Maintain prototype chain for instanceof checks in TypeScript
     Object.setPrototypeOf(this, new.target.prototype);
@@ -141,7 +143,7 @@ export function createRefinementNode(
 
     if (decision === 'REJECTED') {
       const newRejectionCount = (state.rejectionCount ?? 0) + 1;
-      const threadId = String(state.metadata?.['github_issue_id'] ?? '');
+      const issueId = String(state.metadata?.['github_issue_id'] ?? '');
 
       // Capture reason first so it is available on the error and in state
       const reason =
@@ -149,9 +151,12 @@ export function createRefinementNode(
         'No reason provided';
 
       if (newRejectionCount >= config.maxIterations) {
+        // TODO: replace throw with LangGraph interrupt() for resumable pause
+        // (tracked in backlog — interrupt() will allow the thread to be resumed
+        // after human review rather than terminating the graph entirely).
         throw new RefinementIterationLimitError(
           newRejectionCount,
-          threadId,
+          issueId,
           config.maxIterations,
           reason,
         );

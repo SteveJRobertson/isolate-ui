@@ -67,6 +67,58 @@ describe('parseDecision', () => {
     });
     expect(parseDecision(state)).toBe('REJECTED');
   });
+
+  // ── Strict start-of-line matching (^TOKEN\b) ───────────────────────────────
+
+  it('returns PENDING for "not approved" — token not at line start', () => {
+    const state = makeState({
+      messages: [makeMessage('this is not approved')],
+    });
+    expect(parseDecision(state)).toBe('PENDING');
+  });
+
+  it('returns PENDING for "was rejected" — token not at line start', () => {
+    const state = makeState({
+      messages: [makeMessage('the spec was rejected before')],
+    });
+    expect(parseDecision(state)).toBe('PENDING');
+  });
+
+  it('returns PENDING for token buried mid-sentence', () => {
+    const state = makeState({
+      messages: [makeMessage('I think the component is approved by the team')],
+    });
+    expect(parseDecision(state)).toBe('PENDING');
+  });
+
+  it('returns APPROVED when token has leading whitespace (trimmed before matching)', () => {
+    // The final line is trimmed via .trim() before the regex runs
+    const state = makeState({ messages: [makeMessage('  APPROVED  ')] });
+    expect(parseDecision(state)).toBe('APPROVED');
+  });
+
+  it('returns APPROVED for lowercase "approved" at line start', () => {
+    const state = makeState({
+      messages: [makeMessage('approved — looks good')],
+    });
+    expect(parseDecision(state)).toBe('APPROVED');
+  });
+
+  it('returns REJECTED when REJECTED appears on last line after prose', () => {
+    const state = makeState({
+      messages: [makeMessage('Some analysis here.\n\nREJECTED: missing token')],
+    });
+    expect(parseDecision(state)).toBe('REJECTED');
+  });
+
+  it('returns PENDING when APPROVED appears only on an earlier line', () => {
+    const state = makeState({
+      messages: [
+        makeMessage('APPROVED\n\nActually, on reflection I need more info.'),
+      ],
+    });
+    expect(parseDecision(state)).toBe('PENDING');
+  });
 });
 
 // ── getNextInSequence ─────────────────────────────────────────────────────────
@@ -185,7 +237,7 @@ describe('createRefinementNode', () => {
     await expect(node(state)).rejects.toThrow(RefinementIterationLimitError);
   });
 
-  it('RefinementIterationLimitError carries correct rejectionCount and threadId', async () => {
+  it('RefinementIterationLimitError carries correct rejectionCount and issueId', async () => {
     const inner = vi.fn().mockResolvedValue({
       messages: [makeMessage('REJECTED')],
     });
@@ -202,7 +254,7 @@ describe('createRefinementNode', () => {
       expect(err).toBeInstanceOf(RefinementIterationLimitError);
       const limitErr = err as RefinementIterationLimitError;
       expect(limitErr.rejectionCount).toBe(5);
-      expect(limitErr.threadId).toBe('42');
+      expect(limitErr.issueId).toBe('42');
     }
   });
 
@@ -274,10 +326,10 @@ describe('RefinementIterationLimitError', () => {
     expect(err.name).toBe('RefinementIterationLimitError');
   });
 
-  it('exposes rejectionCount and threadId', () => {
+  it('exposes rejectionCount and issueId', () => {
     const err = new RefinementIterationLimitError(5, 'issue-19');
     expect(err.rejectionCount).toBe(5);
-    expect(err.threadId).toBe('issue-19');
+    expect(err.issueId).toBe('issue-19');
   });
 });
 

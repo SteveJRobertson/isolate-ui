@@ -37,6 +37,27 @@ export interface PostCommentResult {
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
 /**
+ * Sanitize untrusted LLM-produced text for safe embedding in GitHub Markdown.
+ * Neutralizes @mentions and collapses newlines.
+ */
+function sanitizeLlmText(text: string): string {
+  const safe = text ?? '';
+  return safe
+    .replace(/@/g, '@\u200b') // insert zero-width space between @ and username to break mention parsing
+    .replace(/\r?\n|\r/g, ' ') // collapse newlines
+    .trim();
+}
+
+/**
+ * Sanitize a string for embedding inside a Markdown table cell.
+ * Builds on sanitizeLlmText and additionally escapes pipe characters,
+ * which would break the table structure.
+ */
+function sanitizeTableCell(text: string): string {
+  return sanitizeLlmText(text).replace(/\|/g, '\\|');
+}
+
+/**
  * Render the technical specification as a Markdown table.
  */
 export function formatTechnicalSpecTable(rows: TechnicalSpecRow[]): string {
@@ -46,7 +67,10 @@ export function formatTechnicalSpecTable(rows: TechnicalSpecRow[]): string {
   const header = '| Slot | Primitive | Tokens |';
   const divider = '|------|-----------|--------|';
   const body = rows
-    .map((r) => `| ${r.slot} | ${r.primitive} | ${r.tokens} |`)
+    .map(
+      (r) =>
+        `| ${sanitizeTableCell(r.slot)} | ${sanitizeTableCell(r.primitive)} | ${sanitizeTableCell(r.tokens)} |`,
+    )
     .join('\n');
   return [header, divider, body].join('\n');
 }
@@ -83,12 +107,7 @@ export function buildCommentBody(payload: RefinementCommentPayload): string {
   ];
 
   if (payload.rejectionReason) {
-    // Sanitize LLM output: neutralise @mentions and strip newlines to prevent
-    // unexpected GitHub notifications or Markdown injection.
-    const safeReason = payload.rejectionReason
-      .replace(/@/g, '\u0040\u200b') // zero-width space after @ breaks mention
-      .replace(/\r?\n|\r/g, ' ') // collapse newlines to a single space
-      .trim();
+    const safeReason = sanitizeLlmText(payload.rejectionReason);
     sections.push(
       '> ⚠️ **Human review required** — iteration limit reached.',
       `> **Last rejection reason:** ${safeReason}`,
@@ -111,7 +130,9 @@ export function buildCommentBody(payload: RefinementCommentPayload): string {
   );
 
   if (payload.previewUrl) {
-    sections.push('', `**Preview:** ${payload.previewUrl}`);
+    // Strip newlines to prevent header injection or table breakage.
+    const safeUrl = payload.previewUrl.replace(/\r?\n|\r/g, '').trim();
+    sections.push('', `**Preview:** ${safeUrl}`);
   }
 
   return sections.join('\n');
