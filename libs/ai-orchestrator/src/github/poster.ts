@@ -203,8 +203,10 @@ export async function postRefinementLoopComment(
 /**
  * Build the Markdown body for a mesh stalemate notification comment.
  *
- * A real @mention is posted for the issue author so they receive a GitHub
- * notification and can review the stalemate promptly.
+ * When `issueAuthor` is known, a real @mention is posted so the author
+ * receives a GitHub notification. The username is sanitized to GitHub-safe
+ * characters (alphanumeric + hyphens, max 39 chars) to prevent injection.
+ * When `issueAuthor` is empty the notification line is omitted entirely.
  *
  * The lastMessage excerpt is passed through sanitizeLlmText to neutralize any
  * @mentions embedded in LLM-produced content and collapse newlines to keep the
@@ -213,19 +215,31 @@ export async function postRefinementLoopComment(
 export function buildStalemateCommentBody(
   payload: MeshStalematePayload,
 ): string {
-  // Real @mention for the issue author so they receive a GitHub notification.
-  const authorMention = `@${payload.issueAuthor.replace(/@/g, '')}`;
+  // Sanitize issueAuthor to GitHub-safe chars (alphanumeric + hyphens, max 39).
+  // This prevents injection of extra @mentions or newlines from crafted metadata.
+  const safeUsername = payload.issueAuthor
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, '')
+    .slice(0, 39);
+  // Only emit a real @mention when we have a valid username; skip the line otherwise.
+  const authorMention = safeUsername ? `@${safeUsername}` : '';
+
   const safeOrigin = payload.originPersona
     ? `\`@isolate-${payload.originPersona}\``
     : '_unknown_';
-  const originId = payload.originPersona ?? 'po';
   const safeLastMessage = sanitizeLlmText(payload.lastMessage);
 
   const sections: string[] = [
     '## 🔴 Ambiguity Mesh — Stalemate',
     '',
     `> ⚠️ **Human review required** — the mesh router reached its jump limit.`,
-    `> **Notifying:** ${authorMention}`,
+  ];
+
+  if (authorMention) {
+    sections.push(`> **Notifying:** ${authorMention}`);
+  }
+
+  sections.push(
     '',
     '### Summary',
     '',
@@ -243,9 +257,11 @@ export function buildStalemateCommentBody(
     '',
     '1. Review the conversation context and resolve the ambiguity manually.',
     '2. Re-invoke the orchestrator with the same `thread_id`, passing an initial',
-    `   state where \`next_recipient\` is set to the persona ID \`"${originId}"\`.`,
+    payload.originPersona
+      ? `   state where \`next_recipient\` is set to \`"${payload.originPersona}"\`.`
+      : `   state where \`next_recipient\` is set to the persona recorded in \`mesh_origin\` from your checkpoint.`,
     '3. The workflow will resume from the diversion point.',
-  ];
+  );
 
   return sections.join('\n');
 }

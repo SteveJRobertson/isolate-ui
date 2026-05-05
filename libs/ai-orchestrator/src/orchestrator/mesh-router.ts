@@ -18,8 +18,9 @@ type PersonaId = (typeof PERSONA_IDS)[number];
  */
 export interface MeshRouterConfig {
   /**
-   * Maximum number of non-linear mesh jumps permitted before the graph routes
-   * to the human_review node and pauses via interruptBefore.
+   * Maximum number of non-linear mesh jumps permitted before
+   * MeshStalemateError is thrown. Callers (e.g. OrchestratorGraph.run)
+   * catch the error and are responsible for posting the stalemate comment.
    * Defaults to 5.
    */
   maxMeshLoops: number;
@@ -48,8 +49,8 @@ export interface MeshQueryResult {
 
 /**
  * Thrown when the mesh loop count exceeds MeshRouterConfig.maxMeshLoops.
- * Callers should catch this to trigger the human_review interrupt and post a
- * GitHub stalemate comment before requesting manual review.
+ * Callers should catch this, post a stalemate GitHub comment, and surface
+ * the error for manual review.
  */
 export class MeshStalemateError extends Error {
   public readonly meshLoopCount: number;
@@ -57,8 +58,8 @@ export class MeshStalemateError extends Error {
   public readonly issueId: string;
   /**
    * The next_recipient value before the final mesh jump was attempted — i.e.
-   * the point in the deterministic workflow that was diverted from. The
-   * human_review node resumes from this origin after human approval.
+   * the point in the deterministic workflow that was diverted from.
+   * Useful for instructing the caller which persona to resume from.
    */
   public readonly originPersona: string | null;
 
@@ -242,8 +243,8 @@ export function createMeshRouterNode(
 
     return {
       next_recipient: target,
-      // Record where the deterministic sequence was heading before this jump,
-      // so human_review can resume the workflow from the correct point.
+      // Record where the deterministic sequence was heading before this jump
+      // so callers can surface the diversion point in a stalemate comment.
       mesh_origin: state.next_recipient ?? null,
       mesh_loop_count: newMeshLoopCount,
     };

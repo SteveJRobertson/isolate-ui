@@ -1,7 +1,10 @@
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
-import { execFileSync } from 'child_process';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
+
+const execFileAsync = promisify(execFile);
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -59,10 +62,10 @@ export type ApplyCodeBufferResult =
  * }
  * ```
  *
- * Security note: the diff is written to a temp file and passed as a path
- * argument to `git apply`. The cwd is set explicitly to workspaceRoot so the
- * command cannot be redirected. The diff content itself is treated as data,
- * not as a shell command, so injection via diff content is not possible.
+ * Security note: the diff is written to a file inside a securely created
+ * temporary directory (`fs.promises.mkdtemp` with a random suffix). The path
+ * is passed as an argument to `execFile` (no shell expansion), so neither the
+ * diff content nor the path can inject shell commands.
  *
  * @param codeBuffer    - Git diff string (output of `git diff` or similar)
  * @param workspaceRoot - Absolute path to the workspace root (git repo root)
@@ -76,18 +79,18 @@ export async function applyCodeBuffer(
     return { success: true, code_buffer: '' };
   }
 
-  // Write diff to a temp file to avoid shell injection through diff content
-  const tmpFile = path.join(
-    os.tmpdir(),
-    `isolate-mesh-patch-${Date.now()}.diff`,
+  // Create a secure, randomly-named temp directory to avoid predictable paths
+  // and symlink/race attacks on shared tmp directories.
+  const tmpDir = await fs.promises.mkdtemp(
+    path.join(os.tmpdir(), 'isolate-mesh-'),
   );
+  const tmpFile = path.join(tmpDir, 'patch.diff');
 
   try {
-    fs.writeFileSync(tmpFile, codeBuffer, 'utf8');
+    await fs.promises.writeFile(tmpFile, codeBuffer, 'utf8');
 
-    execFileSync('git', ['apply', tmpFile], {
+    await execFileAsync('git', ['apply', tmpFile], {
       cwd: workspaceRoot,
-      stdio: 'pipe',
     });
 
     return { success: true, code_buffer: '' };
@@ -95,7 +98,7 @@ export async function applyCodeBuffer(
     const errorMessage = err instanceof Error ? err.message : String(err);
 
     // Capture file snapshots for paths referenced in the diff as a fallback
-    const snapshots = captureFileSnapshots(codeBuffer, workspaceRoot);
+    const snapshots = await captureFileSnapshots(codeBuffer, workspaceRoot);
 
     return {
       success: false,
@@ -103,11 +106,16 @@ export async function applyCodeBuffer(
       file_snapshots: snapshots,
     };
   } finally {
-    // Always clean up the temp file
+    // Always clean up the temp directory and its contents
     try {
-      fs.unlinkSync(tmpFile);
+      await fs.promises.unlink(tmpFile);
     } catch {
-      // Ignore cleanup errors — the OS will reclaim temp files eventually
+      // File may not exist if writeFile failed
+    }
+    try {
+      await fs.promises.rmdir(tmpDir);
+    } catch {
+      // Ignore cleanup errors
     }
   }
 }
@@ -126,10 +134,10 @@ export async function applyCodeBuffer(
  * @param workspaceRoot - Absolute path to the workspace root
  * @returns Record mapping workspace-relative paths to current file content
  */
-function captureFileSnapshots(
+async function captureFileSnapshots(
   diff: string,
   workspaceRoot: string,
-): Record<string, string> {
+): Promise<Record<string, string>> {
   const snapshots: Record<string, string> = {};
   const pathPattern = /^(?:---|\+\+\+) (?:a|b)\/(.+)$/gm;
   const seen = new Set<string>();
@@ -142,7 +150,7 @@ function captureFileSnapshots(
 
     const absPath = path.join(workspaceRoot, relativePath);
     try {
-      snapshots[relativePath] = fs.readFileSync(absPath, 'utf8');
+      snapshots[relativePath] = await fs.promises.readFile(absPath, 'utf8');
     } catch {
       // File doesn't exist or isn't readable — skip silently
     }

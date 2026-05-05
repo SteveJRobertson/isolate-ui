@@ -239,7 +239,10 @@ export class OrchestratorGraph {
 
   /**
    * Configure the Ambiguity Mesh Router.
-   * Must be called before invoke() / run() to take effect.
+   *
+   * Affects `run()`, which rebuilds the graph on every call.
+   * For `invoke()` (which uses the graph compiled at construction time),
+   * call this method before the very first `invoke()` call.
    *
    * Key options:
    * - maxMeshLoops: max non-linear jumps before MeshStalemateError (default 5)
@@ -405,7 +408,7 @@ export class OrchestratorGraph {
     const lastMessage =
       lastState?.messages?.[lastState.messages.length - 1]?.content ?? '';
     const issueAuthor = String(
-      lastState?.metadata?.['github_issue_author'] ?? 'reviewer',
+      lastState?.metadata?.['github_issue_author'] ?? '',
     );
 
     const payload: MeshStalematePayload = {
