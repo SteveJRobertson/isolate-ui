@@ -96,6 +96,26 @@ export const AgentStateSchema = z.object({
    * Reset to {} when a rejection causes the loop to restart from the beginning.
    */
   signoffs: z.record(z.string(), z.boolean()).default(() => ({})),
+
+  // ── Ambiguity Mesh fields ─────────────────────────────────────────────────
+
+  /**
+   * Number of non-linear (mesh) jumps performed during the current workflow.
+   * Independent of rejectionCount. When this exceeds MeshRouterConfig.maxMeshLoops
+   * the graph routes to the human_review node and pauses via interruptBefore.
+   */
+  mesh_loop_count: z.number().default(0),
+
+  /**
+   * The persona ID that was active (i.e. had just produced a message) when an
+   * ambiguity-driven mesh jump was triggered. Used by the human_review node to
+   * resume the graph at the correct origin after human approval.
+   * Null when no mesh jump is in-flight.
+   */
+  mesh_origin: z
+    .enum(['po', 'architect', 'dev', 'a11y', 'qa', 'docs'])
+    .nullable()
+    .default(null),
 });
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
@@ -115,6 +135,8 @@ export const DEFAULT_AGENT_STATE: AgentState = {
   rejectionReason: '',
   lastApprovedBy: null,
   signoffs: {},
+  mesh_loop_count: 0,
+  mesh_origin: null,
 };
 
 /**
@@ -135,5 +157,7 @@ export function createDefaultAgentState(): AgentState {
     rejectionReason: '',
     lastApprovedBy: null,
     signoffs: {},
+    mesh_loop_count: 0,
+    mesh_origin: null,
   };
 }

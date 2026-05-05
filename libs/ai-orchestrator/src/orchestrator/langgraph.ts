@@ -145,6 +145,14 @@ export class OrchestratorGraph {
           value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => ({}),
         },
+        mesh_loop_count: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => 0,
+        },
+        mesh_origin: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => null,
+        },
       },
     });
 
