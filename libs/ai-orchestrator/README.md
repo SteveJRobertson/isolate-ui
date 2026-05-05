@@ -27,10 +27,9 @@ The AI Orchestrator acts as the "Brain" of Isolate UI development, managing a st
 ```typescript
 {
   messages: Array<{
-    // Serialized conversation history
-    type: string; //   LangChain message type (human/ai/tool)
-    content: string; //   Message text
-    id?: string; //   Optional message ID
+    type: string; // LangChain message type (human/ai/tool)
+    content: string; // Message text
+    id?: string;
     additional_kwargs?: Record<string, unknown>;
   }>;
   next_recipient: 'po' | 'architect' | 'dev' | 'a11y' | 'qa' | 'docs' | null;
@@ -38,6 +37,12 @@ The AI Orchestrator acts as the "Brain" of Isolate UI development, managing a st
   a11y_report: string; // Accessibility audit feedback
   arch_approval: boolean; // Monorepo consistency gate
   metadata: Record<string, any>; // Iteration tracking
+
+  // Refinement loop channels
+  rejectionCount: number; // Increments on each persona rejection
+  rejectionReason: string; // Last rejection message content
+  lastApprovedBy: string | null; // Persona ID of last approver
+  signoffs: Record<string, boolean>; // Per-persona approval booleans
 }
 ```
 
@@ -129,6 +134,92 @@ The orchestrator uses in-code persona definitions and validates them against the
 - Creates README artifacts
 - Documents API surfaces
 
+## Refinement Loop
+
+The orchestrator implements a **Definition of Ready** refinement loop that routes a component
+request through a 3-agent (PO → Dev → QA) consensus sequence before implementation begins.
+
+### How It Works
+
+1. Each persona ends its LLM response with `APPROVED` or `REJECTED: <reason>`.
+2. On **APPROVED** the loop advances to the next persona and records the signoff.
+3. On **REJECTED** the loop resets to the first persona (`po`), increments `rejectionCount`,
+   clears all signoffs, and stores the rejection reason.
+4. At **iteration 5** the loop throws `RefinementIterationLimitError` and pauses for human
+   review.
+
+### Key API
+
+```typescript
+import { createRefinementNode, parseDecision, getNextInSequence, RefinementIterationLimitError, DEFAULT_REFINEMENT_CONFIG } from '@isolate-ui/ai-orchestrator';
+
+// Wrap a persona node function with refinement routing
+const wrappedNode = createRefinementNode('po', DEFAULT_REFINEMENT_CONFIG, myPoFn);
+
+// Or configure the orchestrator graph directly
+const graph = new OrchestratorGraph();
+graph.configureRefinement({ maxIterations: 3 });
+graph.registerRefinementNode('po', myPoFn);
+graph.registerRefinementNode('dev', myDevFn);
+graph.registerRefinementNode('qa', myQaFn);
+
+try {
+  const result = await graph.run(initialState, threadId, token);
+} catch (err) {
+  if (err instanceof RefinementIterationLimitError) {
+    // Loop paused — err.rejectionCount, err.threadId available
+  }
+}
+```
+
+### Sequence Configuration
+
+```typescript
+// Default: po → dev → qa
+const DEFAULT_REFINEMENT_CONFIG = {
+  baseSequence: ['po', 'dev', 'qa'],
+  maxIterations: 5,
+};
+
+// Custom sequence (e.g. skip dev for documentation tasks)
+graph.configureRefinement({
+  baseSequence: ['po', 'qa'],
+  maxIterations: 3,
+});
+```
+
+### GitHub Comment
+
+When the loop completes successfully (or is interrupted at the iteration limit), the orchestrator
+posts a structured comment to the triggering GitHub Issue containing:
+
+- **Technical Spec Table** — component name, Ark UI primitive, tokens, variants
+- **Edge Case List** — accessibility, keyboard, dark mode, loading/error states
+- **Persona Sign-offs** — `- [x] @isolate-po`, `- [x] @isolate-dev`, `- [x] @isolate-qa`
+
+A `GITHUB_TOKEN` environment variable is required to post comments. If absent the comment is
+skipped silently and a warning is logged.
+
+```typescript
+// GitHub repo coordinates (default: SteveJRobertson/isolate-ui)
+graph.setGitHubRepo('my-org', 'my-repo');
+```
+
+### Token Validation Helper
+
+The Dev persona has access to `checkTokenExists()` from `@isolate-ui/utils/ai` to validate
+that design token references exist in the live token registry:
+
+```typescript
+import { checkTokenExists } from '@isolate-ui/utils/ai';
+
+const result = checkTokenExists('color.primary.500');
+// { exists: true, value: '#3b82f6', path: 'color.primary.500' }
+
+const missing = checkTokenExists('color.brand.unknown');
+// { exists: false, path: 'color.brand.unknown', closestMatch: 'color.brand.500' }
+```
+
 ## Persistence
 
 State is persisted to SQLite:
@@ -159,17 +250,12 @@ If validation fails, the orchestrator throws a hard error during initialization.
 
 ## Dependencies
 
-Currently installed:
-
 - `zod` - Runtime schema validation
 - `better-sqlite3` - Persistent state storage
-
-Planned (not yet installed — LangGraph.js integration is part of the target architecture
-but the packages are not required by the current implementation):
-
-- `@langchain/langgraph` - Multi-agent orchestration
+- `@langchain/langgraph` - Multi-agent orchestration graph
 - `@langchain/openai` - GPT-4o integration
 - `@langchain/anthropic` - Claude 3.5 Sonnet integration
+- `@octokit/rest` - GitHub API client for posting refinement loop comments
 
 ## Testing
 
@@ -179,9 +265,15 @@ Tests verify:
 - [x] All 6 personas detected correctly in AGENTS.md
 - [x] State persists to SQLite and resumes via thread_id
 - [x] GitHub Copilot can summarize persona constraints
+- [x] `parseDecision` extracts APPROVED / REJECTED / PENDING from LLM responses
+- [x] `createRefinementNode` advances, backtracks, and enforces the iteration limit
+- [x] `RefinementIterationLimitError` carries `rejectionCount` and `threadId`
+- [x] GitHub comment formatter renders Technical Spec Table, Edge Case List, and Sign-offs
+- [x] Full PO → Dev → QA E2E consensus loop via `OrchestratorGraph`
 
 ## Related Issues
 
+- #19 - Implement Definition of Ready Refinement Loop
 - #23 - Establish Agent Personas and Governance (this project)
 - #18 - Setup Agent Environment (Node.js + LangGraph.js)
 - #20 - Build the "Ambiguity Mesh" Router
