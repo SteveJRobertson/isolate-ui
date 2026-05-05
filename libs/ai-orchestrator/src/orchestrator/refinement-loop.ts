@@ -55,7 +55,7 @@ export function parseDecision(state: Partial<AgentState>): RefinementDecision {
       .split('\n')
       .map((l) => l.trim())
       .filter(Boolean)
-      .at(-1) ?? '';
+      .slice(-1)[0] ?? '';
 
   if (/\bREJECTED\b/i.test(lastLine)) return 'REJECTED';
   if (/\bAPPROVED\b/i.test(lastLine)) return 'APPROVED';
@@ -72,11 +72,13 @@ export function parseDecision(state: Partial<AgentState>): RefinementDecision {
 export class RefinementIterationLimitError extends Error {
   public readonly rejectionCount: number;
   public readonly threadId: string;
+  public readonly rejectionReason: string;
 
   constructor(
     rejectionCount: number,
     threadId: string,
     maxIterations?: number,
+    rejectionReason = '',
   ) {
     super(
       `Refinement loop paused: ${rejectionCount} rejections reached the maximum of ${maxIterations ?? rejectionCount}. Human review required.`,
@@ -84,6 +86,7 @@ export class RefinementIterationLimitError extends Error {
     this.name = 'RefinementIterationLimitError';
     this.rejectionCount = rejectionCount;
     this.threadId = threadId;
+    this.rejectionReason = rejectionReason;
     // Maintain prototype chain for instanceof checks in TypeScript
     Object.setPrototypeOf(this, new.target.prototype);
   }
@@ -140,18 +143,19 @@ export function createRefinementNode(
       const newRejectionCount = (state.rejectionCount ?? 0) + 1;
       const threadId = String(state.metadata?.['github_issue_id'] ?? '');
 
+      // Capture reason first so it is available on the error and in state
+      const reason =
+        mergedMessages[mergedMessages.length - 1]?.content ??
+        'No reason provided';
+
       if (newRejectionCount >= config.maxIterations) {
         throw new RefinementIterationLimitError(
           newRejectionCount,
           threadId,
           config.maxIterations,
+          reason,
         );
       }
-
-      // Capture the rejection reason from the last message
-      const allMessages = mergedMessages;
-      const reason =
-        allMessages[allMessages.length - 1]?.content ?? 'No reason provided';
 
       return {
         ...innerResult,

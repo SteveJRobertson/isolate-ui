@@ -61,15 +61,15 @@ export function formatEdgeCaseList(edgeCases: string[]): string {
 
 /**
  * Render the persona sign-off list as a Markdown task list.
- * Checked (✅) = approved; unchecked = pending/rejected.
+ * Always renders all three refinement-loop personas (po, dev, qa) in order.
+ * Checked = approved; unchecked = pending or not yet reached.
  */
 export function formatPersonaSignoffs(
   signoffs: Record<string, boolean>,
+  personas = ['po', 'dev', 'qa'],
 ): string {
-  const entries = Object.entries(signoffs);
-  if (entries.length === 0) return '_No sign-offs recorded._';
-  return entries
-    .map(([id, approved]) => `- [${approved ? 'x' : ' '}] @isolate-${id}`)
+  return personas
+    .map((id) => `- [${signoffs[id] ? 'x' : ' '}] @isolate-${id}`)
     .join('\n');
 }
 
@@ -83,9 +83,15 @@ export function buildCommentBody(payload: RefinementCommentPayload): string {
   ];
 
   if (payload.rejectionReason) {
+    // Sanitize LLM output: neutralise @mentions and strip newlines to prevent
+    // unexpected GitHub notifications or Markdown injection.
+    const safeReason = payload.rejectionReason
+      .replace(/@/g, '\u0040\u200b') // zero-width space after @ breaks mention
+      .replace(/\r?\n|\r/g, ' ') // collapse newlines to a single space
+      .trim();
     sections.push(
       '> ⚠️ **Human review required** — iteration limit reached.',
-      `> **Last rejection reason:** ${payload.rejectionReason}`,
+      `> **Last rejection reason:** ${safeReason}`,
       '',
     );
   }

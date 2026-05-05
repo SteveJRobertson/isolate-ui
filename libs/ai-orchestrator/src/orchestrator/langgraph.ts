@@ -295,15 +295,16 @@ export class OrchestratorGraph {
     } catch (error) {
       // On iteration limit: post the human-review comment then re-throw
       if (error instanceof RefinementIterationLimitError) {
-        // We don't have finalState here, so build a minimal comment payload
-        // using the last persisted checkpoint state
+        // Use the reason carried on the error itself — the final rejection
+        // state update was never returned/checkpointed before the throw,
+        // so getState() would return a stale snapshot without it.
         const lastState = this.getState(threadId);
         if (lastState) {
           await this.tryPostComment(
             lastState,
             threadId,
             githubToken,
-            lastState.rejectionReason || error.message,
+            error.rejectionReason || error.message,
           );
         }
         throw error;

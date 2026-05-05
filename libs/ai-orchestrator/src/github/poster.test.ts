@@ -93,18 +93,25 @@ describe('formatEdgeCaseList', () => {
 // ── formatPersonaSignoffs ─────────────────────────────────────────────────────
 
 describe('formatPersonaSignoffs', () => {
-  it('renders empty message when no signoffs', () => {
-    expect(formatPersonaSignoffs({})).toBe('_No sign-offs recorded._');
+  it('renders all three personas unchecked when no signoffs', () => {
+    const result = formatPersonaSignoffs({});
+    expect(result).toContain('- [ ] @isolate-po');
+    expect(result).toContain('- [ ] @isolate-dev');
+    expect(result).toContain('- [ ] @isolate-qa');
   });
 
-  it('renders checked box for approved persona', () => {
+  it('renders checked box for approved persona (others unchecked)', () => {
     const result = formatPersonaSignoffs({ po: true });
-    expect(result).toBe('- [x] @isolate-po');
+    expect(result).toContain('- [x] @isolate-po');
+    expect(result).toContain('- [ ] @isolate-dev');
+    expect(result).toContain('- [ ] @isolate-qa');
   });
 
-  it('renders unchecked box for pending persona', () => {
+  it('renders unchecked box for pending persona (others unchecked)', () => {
     const result = formatPersonaSignoffs({ dev: false });
-    expect(result).toBe('- [ ] @isolate-dev');
+    expect(result).toContain('- [ ] @isolate-po');
+    expect(result).toContain('- [ ] @isolate-dev');
+    expect(result).toContain('- [ ] @isolate-qa');
   });
 
   it('renders mixed signoffs correctly', () => {
