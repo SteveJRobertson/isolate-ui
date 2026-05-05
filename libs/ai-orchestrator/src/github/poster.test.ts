@@ -174,7 +174,11 @@ describe('buildCommentBody', () => {
 
 describe('postRefinementLoopComment', () => {
   beforeEach(() => {
-    vi.resetAllMocks();
+    // Clear call history only — do NOT reset implementations (that removes the mock)
+    vi.clearAllMocks();
+    mockCreateComment.mockResolvedValue({
+      data: { html_url: '', id: 0 },
+    });
   });
 
   it('returns null when token is undefined', async () => {
