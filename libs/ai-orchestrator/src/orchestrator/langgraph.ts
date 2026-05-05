@@ -14,6 +14,10 @@ import {
   RefinementIterationLimitError,
   createRefinementNode,
 } from './refinement-loop';
+import {
+  postRefinementLoopComment,
+  type RefinementCommentPayload,
+} from '../github/poster';
 
 /**
  * Node function signature for LangGraph nodes.
@@ -52,6 +56,13 @@ export class OrchestratorGraph {
   private nodes: Map<string, AgentNodeFn> = new Map();
   private maxStepsLimit = 500;
   private refinementConfig: RefinementConfig = DEFAULT_REFINEMENT_CONFIG;
+
+  /**
+   * GitHub repo coordinates used when posting refinement loop comments.
+   * Defaults to SteveJRobertson/isolate-ui; override via setGitHubRepo().
+   */
+  private githubOwner = 'SteveJRobertson';
+  private githubRepo = 'isolate-ui';
 
   constructor(dbPath?: string, agentsMdPath?: string) {
     this.dbPath =
@@ -196,6 +207,15 @@ export class OrchestratorGraph {
   }
 
   /**
+   * Set the GitHub repo coordinates used when posting refinement loop comments.
+   * Defaults to 'SteveJRobertson/isolate-ui'.
+   */
+  public setGitHubRepo(owner: string, repo: string): void {
+    this.githubOwner = owner;
+    this.githubRepo = repo;
+  }
+
+  /**
    * Wrap a persona node with refinement loop logic (approval/rejection routing,
    * iteration counting, and iteration-limit interrupts).
    *
@@ -238,6 +258,7 @@ export class OrchestratorGraph {
     // Build a local graph with per-run recursionLimit to avoid mutating shared
     // instance state (which would race under concurrent run() calls).
     const localGraph = this.buildGraph(maxSteps);
+    const githubToken = process.env['GITHUB_TOKEN'];
 
     try {
       const result = await this.invokeWithGraph(
@@ -247,10 +268,31 @@ export class OrchestratorGraph {
         { configurable: { thread_id: threadId } },
       );
 
+      // Post GitHub comment on successful loop completion (all signoffs present)
+      await this.tryPostComment(
+        result.finalState,
+        threadId,
+        githubToken,
+        undefined,
+      );
+
       return result;
     } catch (error) {
-      // Re-throw refinement iteration limit errors — callers must handle them
-      if (error instanceof RefinementIterationLimitError) throw error;
+      // On iteration limit: post the human-review comment then re-throw
+      if (error instanceof RefinementIterationLimitError) {
+        // We don't have finalState here, so build a minimal comment payload
+        // using the last persisted checkpoint state
+        const lastState = this.getState(threadId);
+        if (lastState) {
+          await this.tryPostComment(
+            lastState,
+            threadId,
+            githubToken,
+            lastState.rejectionReason || error.message,
+          );
+        }
+        throw error;
+      }
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
         throw new Error(
@@ -258,6 +300,53 @@ export class OrchestratorGraph {
         );
       }
       throw error;
+    }
+  }
+
+  /**
+   * Build and post a refinement loop comment to GitHub.
+   * Silently no-ops when GITHUB_TOKEN is absent or posting fails (non-critical).
+   */
+  private async tryPostComment(
+    state: AgentState,
+    threadId: string,
+    token: string | undefined,
+    rejectionReason: string | undefined,
+  ): Promise<void> {
+    if (!token) return;
+
+    const issueNumber = Number(
+      state.metadata?.['github_issue_id'] ?? threadId.replace(/\D/g, ''),
+    );
+    if (!issueNumber || isNaN(issueNumber)) return;
+
+    const payload: RefinementCommentPayload = {
+      issueNumber,
+      owner: this.githubOwner,
+      repo: this.githubRepo,
+      technicalSpec: Array.isArray(state.metadata?.['technicalSpec'])
+        ? (state.metadata[
+            'technicalSpec'
+          ] as RefinementCommentPayload['technicalSpec'])
+        : [],
+      edgeCases: ['Loading', 'Error', 'Empty', 'Disabled', 'A11y'],
+      signoffs: state.signoffs ?? {},
+      previewUrl: state.metadata?.['previewUrl'] as string | undefined,
+      rejectionReason,
+    };
+
+    try {
+      const result = await postRefinementLoopComment(payload, token);
+      if (result) {
+        console.log(
+          `[ai-orchestrator] GitHub comment posted: ${result.commentUrl}`,
+        );
+      }
+    } catch (err) {
+      // Non-fatal — log and continue
+      console.warn(
+        `[ai-orchestrator] Failed to post GitHub comment: ${String(err)}`,
+      );
     }
   }
 
