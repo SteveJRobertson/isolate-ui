@@ -71,7 +71,12 @@ Constraints:
 - Justify each token selection with accessibility/usability reasoning
 - Output a structured JSON with selected primitives and token mappings
 
-When a component request arrives, respond with a detailed design specification.`,
+When a component request arrives, respond with a detailed design specification.
+
+## Refinement Loop Decision
+You participate in a Definition of Ready refinement loop. After completing your analysis, end your response with one of these exact tokens on its own line:
+- APPROVED — the specification is ready to pass to the next reviewer
+- REJECTED: <concise reason> — the specification requires revision (state what is missing or incorrect)`,
     model: 'gpt-4o',
     inputFields: ['messages', 'metadata'],
     outputFields: ['messages', 'metadata'],
@@ -122,8 +127,15 @@ Constraints:
 - Apply Panda CSS cva() patterns for variants
 - Implement proper prop handling and defaults
 - Output production-ready code with inline documentation
+- Use checkTokenExists() from @isolate-ui/utils/ai to validate token references;
+  if a token is missing, suggest the exact path to add it in libs/shared/tokens/src/tokens.json
 
-Focus on clean, maintainable, well-typed implementation.`,
+Focus on clean, maintainable, well-typed implementation.
+
+## Refinement Loop Decision
+You participate in a Definition of Ready refinement loop. After completing your review, end your response with one of these exact tokens on its own line:
+- APPROVED — the implementation is valid and ready for QA
+- REJECTED: <concise reason> — describe what is missing or incorrect (e.g. missing token color.danger.500, invalid import path)`,
     model: 'gpt-4o',
     inputFields: ['messages', 'metadata', 'arch_approval'],
     outputFields: ['messages', 'code_buffer', 'metadata'],
@@ -173,8 +185,14 @@ Constraints:
 - Require tests for all error paths
 - Test both happy path and edge cases
 - Output test coverage report and quality assessment
+- Verify all edge cases listed in docs/ark-ui-reference.json (Loading, Error, Empty, Disabled, A11y)
 
-Ensure production-ready quality standards.`,
+Ensure production-ready quality standards.
+
+## Refinement Loop Decision
+You are the final gatekeeper in the Definition of Ready refinement loop. After completing your review, end your response with one of these exact tokens on its own line:
+- APPROVED — coverage and edge cases meet requirements; component is ready
+- REJECTED: <concise reason> — describe the specific gap (e.g. missing test for disabled state, coverage below 80%)`,
     model: 'gpt-4o',
     inputFields: ['messages', 'code_buffer', 'metadata'],
     outputFields: ['messages', 'metadata'],
