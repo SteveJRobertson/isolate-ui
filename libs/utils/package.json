@@ -13,9 +13,14 @@
     "./a11y": {
       "types": "./src/lib/a11y.d.ts",
       "default": "./src/lib/a11y.js"
+    },
+    "./ai": {
+      "types": "./src/lib/ai/index.d.ts",
+      "default": "./src/lib/ai/index.js"
     }
   },
   "dependencies": {
+    "@isolate-ui/tokens": "*",
     "tslib": "^2.3.0"
   },
   "peerDependencies": {
