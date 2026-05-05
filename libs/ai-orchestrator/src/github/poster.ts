@@ -34,6 +34,32 @@ export interface PostCommentResult {
   commentId: number;
 }
 
+export interface MeshStalematePayload {
+  /** GitHub issue number to post the comment on. */
+  issueNumber: number;
+  /** GitHub repo owner (e.g. 'SteveJRobertson'). */
+  owner: string;
+  /** GitHub repo name (e.g. 'isolate-ui'). */
+  repo: string;
+  /** Number of mesh jumps that triggered the stalemate. */
+  meshLoopCount: number;
+  /**
+   * The persona that was the active next_recipient when the final mesh jump
+   * was attempted — i.e. the diversion point in the deterministic workflow.
+   */
+  originPersona: string | null;
+  /** Raw content of the last agent message that triggered the mesh jump. */
+  lastMessage: string;
+  /**
+   * GitHub username of the issue author to @mention in the stalemate comment.
+   * A real @mention is posted (no zero-width space) so the author receives a
+   * GitHub notification and can review the stalemate promptly.
+   */
+  issueAuthor: string;
+  /** The configured jump limit (MeshRouterConfig.maxMeshLoops). */
+  maxMeshLoops: number;
+}
+
 // ── Formatting helpers ────────────────────────────────────────────────────────
 
 /**
@@ -158,6 +184,106 @@ export async function postRefinementLoopComment(
 
   const octokit = new Octokit({ auth: token });
   const body = buildCommentBody(payload);
+
+  const response = await octokit.rest.issues.createComment({
+    owner: payload.owner,
+    repo: payload.repo,
+    issue_number: payload.issueNumber,
+    body,
+  });
+
+  return {
+    commentUrl: response.data.html_url,
+    commentId: response.data.id,
+  };
+}
+
+// ── Mesh stalemate comment ────────────────────────────────────────────────────
+
+/**
+ * Build the Markdown body for a mesh stalemate notification comment.
+ *
+ * When `issueAuthor` is known, a real @mention is posted so the author
+ * receives a GitHub notification. The username is sanitized to GitHub-safe
+ * characters (alphanumeric + hyphens, max 39 chars) to prevent injection.
+ * When `issueAuthor` is empty the notification line is omitted entirely.
+ *
+ * The lastMessage excerpt is passed through sanitizeLlmText to neutralize any
+ * @mentions embedded in LLM-produced content and collapse newlines to keep the
+ * blockquote single-line.
+ */
+export function buildStalemateCommentBody(
+  payload: MeshStalematePayload,
+): string {
+  // Sanitize issueAuthor to GitHub-safe chars (alphanumeric + hyphens, max 39).
+  // This prevents injection of extra @mentions or newlines from crafted metadata.
+  const safeUsername = payload.issueAuthor
+    .trim()
+    .replace(/[^a-zA-Z0-9-]/g, '')
+    .slice(0, 39);
+  // Only emit a real @mention when we have a valid username; skip the line otherwise.
+  const authorMention = safeUsername ? `@${safeUsername}` : '';
+
+  const safeOrigin = payload.originPersona
+    ? `\`@isolate-${payload.originPersona}\``
+    : '_unknown_';
+  const safeLastMessage = sanitizeLlmText(payload.lastMessage);
+
+  const sections: string[] = [
+    '## 🔴 Ambiguity Mesh — Stalemate',
+    '',
+    `> ⚠️ **Human review required** — the mesh router reached its jump limit.`,
+  ];
+
+  if (authorMention) {
+    sections.push(`> **Notifying:** ${authorMention}`);
+  }
+
+  sections.push(
+    '',
+    '### Summary',
+    '',
+    `| Field | Value |`,
+    `|-------|-------|`,
+    `| Mesh jumps | ${payload.meshLoopCount} |`,
+    `| Jump limit | ${payload.maxMeshLoops} |`,
+    `| Diversion point | ${safeOrigin} |`,
+    '',
+    '### Last Message That Triggered the Stalemate',
+    '',
+    `> ${safeLastMessage}`,
+    '',
+    '### How to Resume',
+    '',
+    '1. Review the conversation context and resolve the ambiguity manually.',
+    '2. Re-invoke the orchestrator with the same `thread_id`, passing an initial',
+    payload.originPersona
+      ? `   state where \`next_recipient\` is set to \`"${payload.originPersona}"\`.`
+      : `   state where \`next_recipient\` is set to the persona recorded in \`mesh_origin\` from your checkpoint.`,
+    '3. The workflow will resume from the diversion point.',
+  );
+
+  return sections.join('\n');
+}
+
+/**
+ * Post a mesh stalemate notification as a GitHub issue comment.
+ *
+ * Requires a valid GITHUB_TOKEN with `repo` scope.
+ * Silently skips posting and returns null when token is absent.
+ *
+ * @param payload - Stalemate comment data
+ * @param token   - GitHub personal access token (GITHUB_TOKEN)
+ * @returns PostCommentResult on success, null when token is absent
+ */
+export async function postMeshStalemateComment(
+  payload: MeshStalematePayload,
+  token: string | undefined,
+): Promise<PostCommentResult | null> {
+  if (!token) return null;
+
+  const octokit = new Octokit({ auth: token });
+  const body = buildStalemateCommentBody(payload);
 
   const response = await octokit.rest.issues.createComment({
     owner: payload.owner,

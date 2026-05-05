@@ -15,8 +15,16 @@ import {
   createRefinementNode,
 } from './refinement-loop';
 import {
+  MeshRouterConfig,
+  DEFAULT_MESH_CONFIG,
+  MeshStalemateError,
+  createMeshRouterNode,
+} from './mesh-router';
+import {
   postRefinementLoopComment,
+  postMeshStalemateComment,
   type RefinementCommentPayload,
+  type MeshStalematePayload,
 } from '../github/poster';
 
 /**
@@ -56,6 +64,7 @@ export class OrchestratorGraph {
   private nodes: Map<string, AgentNodeFn> = new Map();
   private maxStepsLimit = 500;
   private refinementConfig: RefinementConfig = DEFAULT_REFINEMENT_CONFIG;
+  private meshConfig: MeshRouterConfig = DEFAULT_MESH_CONFIG;
 
   /**
    * GitHub repo coordinates used when posting refinement loop comments.
@@ -145,6 +154,14 @@ export class OrchestratorGraph {
           value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => ({}),
         },
+        mesh_loop_count: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => 0,
+        },
+        mesh_origin: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => null,
+        },
       },
     });
 
@@ -159,13 +176,21 @@ export class OrchestratorGraph {
       });
     });
 
-    // Conditional router function
+    // Add the Ambiguity Mesh Router node.
+    // Inserted after every persona node via a deterministic edge.
+    // Detects cross-persona queries and performs non-linear mesh jumps.
+    const meshRouterFn = createMeshRouterNode(this.meshConfig);
+    stateGraph.addNode('mesh_router', meshRouterFn);
+
+    // Single routing function shared by START and mesh_router output.
+    // Routes to a persona node when next_recipient is a known persona ID,
+    // otherwise terminates the graph (__end__).
     const routeByRecipient = (state: AgentState): string => {
       const next = state.next_recipient;
       return !next ? '__end__' : personaIds.includes(next) ? next : '__end__';
     };
 
-    // Add conditional edges from START
+    // START → persona nodes (direct dispatch — bypasses mesh_router on initial entry)
     stateGraph.addConditionalEdges(START, routeByRecipient, {
       po: 'po',
       architect: 'architect',
@@ -176,20 +201,26 @@ export class OrchestratorGraph {
       __end__: '__end__',
     } as any);
 
-    // Add conditional edges from each persona node
+    // Persona nodes → mesh_router (deterministic)
+    // Every persona output is inspected by the mesh router before the next
+    // routing decision is made.
     personaIds.forEach((personaId) => {
-      stateGraph.addConditionalEdges(personaId as any, routeByRecipient, {
-        po: 'po',
-        architect: 'architect',
-        dev: 'dev',
-        a11y: 'a11y',
-        qa: 'qa',
-        docs: 'docs',
-        __end__: '__end__',
-      } as any);
+      stateGraph.addEdge(personaId as any, 'mesh_router' as any);
     });
 
-    // Compile with the provided recursion limit
+    // mesh_router → persona nodes | __end__ (conditional)
+    // When MeshStalemateError is thrown the graph terminates; run() catches it,
+    // posts the stalemate GitHub comment, and re-throws to the caller.
+    stateGraph.addConditionalEdges('mesh_router' as any, routeByRecipient, {
+      po: 'po',
+      architect: 'architect',
+      dev: 'dev',
+      a11y: 'a11y',
+      qa: 'qa',
+      docs: 'docs',
+      __end__: '__end__',
+    } as any);
+
     return stateGraph.compile({
       checkpointer: this.checkpointer as any,
       recursionLimit: limit,
@@ -204,6 +235,23 @@ export class OrchestratorGraph {
    */
   public configureRefinement(config: Partial<RefinementConfig>): void {
     this.refinementConfig = { ...DEFAULT_REFINEMENT_CONFIG, ...config };
+  }
+
+  /**
+   * Configure the Ambiguity Mesh Router.
+   *
+   * Affects `run()`, which rebuilds the graph on every call.
+   * For `invoke()` (which uses the graph compiled at construction time),
+   * call this method before the very first `invoke()` call.
+   *
+   * Key options:
+   * - maxMeshLoops: max non-linear jumps before MeshStalemateError (default 5)
+   * - llmClient: inject a mock client for testing (avoids API calls)
+   *
+   * @param config - Partial overrides merged with DEFAULT_MESH_CONFIG
+   */
+  public configureMesh(config: Partial<MeshRouterConfig>): void {
+    this.meshConfig = { ...DEFAULT_MESH_CONFIG, ...config };
   }
 
   /**
@@ -293,6 +341,14 @@ export class OrchestratorGraph {
 
       return result;
     } catch (error) {
+      // On mesh stalemate: post the stalemate comment then re-throw.
+      // The caller is responsible for handling human review and re-invoking
+      // the graph (with next_recipient set to 'human_review' or mesh_origin)
+      // once a human has approved resumption.
+      if (error instanceof MeshStalemateError) {
+        await this.tryPostStalemateComment(threadId, githubToken, error);
+        throw error;
+      }
       // On iteration limit: post the human-review comment then re-throw
       if (error instanceof RefinementIterationLimitError) {
         // The node threw before returning its state update, so the last
@@ -327,6 +383,57 @@ export class OrchestratorGraph {
         );
       }
       throw error;
+    }
+  }
+
+  /**
+   * Build and post a mesh stalemate comment to GitHub.
+   * Silently no-ops when GITHUB_TOKEN is absent or posting fails (non-critical).
+   *
+   * The issueAuthor is read from metadata.github_issue_author when present.
+   * Falls back to a generic placeholder so posting always succeeds even if
+   * the metadata was not populated by the caller.
+   */
+  private async tryPostStalemateComment(
+    threadId: string,
+    token: string | undefined,
+    error: MeshStalemateError,
+  ): Promise<void> {
+    if (!token) return;
+
+    const lastState = this.getState(threadId);
+    const issueNumber = Number(lastState?.metadata?.['github_issue_id'] ?? NaN);
+    if (!issueNumber || isNaN(issueNumber)) return;
+
+    const lastMessage =
+      lastState?.messages?.[lastState.messages.length - 1]?.content ?? '';
+    const issueAuthor = String(
+      lastState?.metadata?.['github_issue_author'] ?? '',
+    );
+
+    const payload: MeshStalematePayload = {
+      issueNumber,
+      owner: this.githubOwner,
+      repo: this.githubRepo,
+      meshLoopCount: error.meshLoopCount,
+      maxMeshLoops: this.meshConfig.maxMeshLoops,
+      originPersona: error.originPersona,
+      lastMessage,
+      issueAuthor,
+    };
+
+    try {
+      const result = await postMeshStalemateComment(payload, token);
+      if (result) {
+        console.log(
+          `[ai-orchestrator] Mesh stalemate comment posted: ${result.commentUrl}`,
+        );
+      }
+    } catch (err) {
+      // Non-fatal — log and continue
+      console.warn(
+        `[ai-orchestrator] Failed to post mesh stalemate comment: ${String(err)}`,
+      );
     }
   }
 
