@@ -32,3 +32,11 @@ export {
   type MeshRouterConfig,
   type MeshQueryResult,
 } from './mesh-router';
+
+// Git utilities (code buffer lifecycle)
+export {
+  applyCodeBuffer,
+  type ApplyCodeBufferResult,
+  type ApplyCodeBufferSuccess,
+  type ApplyCodeBufferFailure,
+} from './git-utils';
