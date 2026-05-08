@@ -132,7 +132,11 @@ export async function resolveHtmlTag(
     const ref = JSON.parse(raw) as ArkRef;
     const entry = ref.primitives?.[componentName.toLowerCase()];
     if (entry?.htmlTag) {
-      return entry.htmlTag;
+      const normalised = entry.htmlTag.toLowerCase();
+      if (VALID_HTML_TAGS.has(normalised)) {
+        return normalised;
+      }
+      // Invalid htmlTag value in JSON — fall through to next strategy.
     }
   } catch {
     // File unreadable or JSON parse failure — fall through to next strategy.
@@ -160,13 +164,9 @@ export async function introspectGoldenSample(
   const libBase =
     goldenSamplePath ??
     path.join(workspaceRoot, 'libs', 'react', 'button', 'src', 'lib');
-  const projectJson = path.join(
-    workspaceRoot,
-    'libs',
-    'react',
-    'button',
-    'project.json',
-  );
+  // Derive projectJson relative to libBase (which is at src/lib level).
+  // This correctly handles both the default button path and any goldenSamplePath override.
+  const projectJson = path.join(libBase, '..', '..', 'project.json');
 
   const requiredFiles = [
     path.join(libBase, 'button.tsx'),
@@ -245,10 +245,10 @@ export async function writeComponentFile(
   dir: string,
   componentName: string,
   tagName: string,
-  slots: string[],
+  _slots: string[],
 ): Promise<void> {
   const pascal = toPascal(componentName);
-  void slots; // slots inform recipe structure; component renders root + label
+  // 'root' and 'label' are always normalized into slots by createDevBoilerplateNode.
 
   const content = [
     `import type { HTMLArkProps } from '@ark-ui/react';`,
@@ -299,8 +299,23 @@ export async function writeRecipeFile(
   const slotsArray = slots.map((s) => `'${s}'`).join(', ');
   const defaultVariant = variants[0] ?? 'default';
 
+  const baseEntries = slots
+    .map((slot) => {
+      if (slot === 'root') {
+        return `    root: {\n      display: 'inline-flex',\n      alignItems: 'center',\n    },`;
+      }
+      if (slot === 'label') {
+        return `    label: {\n      lineHeight: 'normal',\n    },`;
+      }
+      return `    ${slot}: {},`;
+    })
+    .join('\n');
+
   const variantEntries = variants
-    .map((v) => `      ${v}: {\n        root: {},\n      },`)
+    .map((v) => {
+      const slotEntries = slots.map((s) => `        ${s}: {},`).join('\n');
+      return `      ${v}: {\n${slotEntries}\n      },`;
+    })
     .join('\n');
 
   const content = [
@@ -310,13 +325,7 @@ export async function writeRecipeFile(
     `  className: '${componentName}',`,
     `  slots: [${slotsArray}],`,
     `  base: {`,
-    `    root: {`,
-    `      display: 'inline-flex',`,
-    `      alignItems: 'center',`,
-    `    },`,
-    `    label: {`,
-    `      lineHeight: 'normal',`,
-    `    },`,
+    baseEntries,
     `  },`,
     `  variants: {`,
     `    variant: {`,
@@ -504,7 +513,19 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
       };
     }
 
-    const slots = state.parts.length > 0 ? state.parts : ['root', 'label'];
+    // Validate componentName to prevent path traversal from untrusted metadata.
+    const nameError = validateComponentName(
+      componentName,
+      config.workspaceRoot,
+    );
+    if (nameError) {
+      return {
+        messages: [...state.messages, makeMessage(nameError)],
+      };
+    }
+
+    // Normalize slots — root and label are always required by the component template.
+    const slots = Array.from(new Set(['root', 'label', ...state.parts]));
 
     // 1. Validate golden sample
     let patterns: GoldenSamplePatterns;
@@ -556,6 +577,21 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
       'src',
       'lib',
     );
+    // Build a reviewable text summary for downstream personas (a11y/qa/docs).
+    // code_buffer carries content that agents can inspect, not a filesystem path.
+    const codeBuffer = [
+      `Generated component: \`${componentName}\``,
+      ``,
+      `Files created:`,
+      `- libs/react/${componentName}/src/lib/${componentName}.tsx`,
+      `- libs/react/${componentName}/src/lib/${componentName}.recipe.ts`,
+      `- libs/react/${componentName}/src/lib/${componentName}.stories.tsx`,
+      `- libs/react/${componentName}/src/lib/${componentName}.ct.tsx`,
+      ``,
+      `Slots: ${slots.join(', ')}`,
+      `Variants: ${variants.join(', ')}`,
+      `HTML tag: ${tagName}`,
+    ].join('\n');
     try {
       await writeComponentFile(dir, componentName, tagName, slots);
       await writeRecipeFile(dir, componentName, slots, variants);
@@ -578,7 +614,7 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
     );
     if (buildResult.success) {
       return {
-        code_buffer: dir,
+        code_buffer: codeBuffer,
         messages: [
           ...state.messages,
           makeMessage(
@@ -601,7 +637,7 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
       );
       if (retryResult.success) {
         return {
-          code_buffer: dir,
+          code_buffer: codeBuffer,
           messages: [
             ...state.messages,
             makeMessage(
@@ -620,6 +656,33 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
 }
 
 // ── Private Helpers ───────────────────────────────────────────────────────────
+
+const COMPONENT_NAME_RE = /^[a-z][a-z0-9-]*$/;
+
+/**
+ * Validates componentName to prevent path traversal from untrusted metadata.
+ * Returns an error string (starting with 'REJECTED:') if invalid, null if valid.
+ */
+function validateComponentName(
+  componentName: string,
+  workspaceRoot: string,
+): string | null {
+  if (!COMPONENT_NAME_RE.test(componentName)) {
+    return 'REJECTED: component_name must match ^[a-z][a-z0-9-]*$';
+  }
+  const resolvedDir = path.resolve(
+    workspaceRoot,
+    'libs',
+    'react',
+    componentName,
+  );
+  const expectedPrefix =
+    path.resolve(workspaceRoot, 'libs', 'react') + path.sep;
+  if (!resolvedDir.startsWith(expectedPrefix)) {
+    return 'REJECTED: component_name would resolve outside libs/react';
+  }
+  return null;
+}
 
 function escalate(
   state: AgentState,

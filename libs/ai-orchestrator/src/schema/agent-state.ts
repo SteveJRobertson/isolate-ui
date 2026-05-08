@@ -134,8 +134,8 @@ export const AgentStateSchema = z.object({
 
   /**
    * Component slot names to generate for the new component.
-   * Populated by the dev node from the incoming request or defaulted to
-   * ['root', 'label'] when absent. Used to drive recipe and boilerplate generation.
+   * Set by callers before invoking the dev node. When empty, the dev node
+   * falls back to ['root', 'label']. Used to drive recipe and boilerplate generation.
    */
   parts: z.array(z.string()).default(() => []),
 });

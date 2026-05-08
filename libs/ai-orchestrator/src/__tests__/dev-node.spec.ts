@@ -134,6 +134,27 @@ describe('resolveHtmlTag', () => {
     const tag = await resolveHtmlTag('datepicker', ARK_REF_PATH);
     expect(tag).toBe('div');
   });
+
+  it('falls back to next strategy when htmlTag in JSON is not a valid HTML element', async () => {
+    mockReadFile.mockResolvedValueOnce(
+      JSON.stringify({
+        primitives: { widget: { htmlTag: 'not-an-html-tag' } },
+      }) as never,
+    );
+    // 'widget' is also not a valid HTML tag, so falls back to 'div'
+    const tag = await resolveHtmlTag('widget', ARK_REF_PATH);
+    expect(tag).toBe('div');
+  });
+
+  it('normalises htmlTag from JSON to lowercase', async () => {
+    mockReadFile.mockResolvedValueOnce(
+      JSON.stringify({
+        primitives: { button: { htmlTag: 'BUTTON' } },
+      }) as never,
+    );
+    const tag = await resolveHtmlTag('button', ARK_REF_PATH);
+    expect(tag).toBe('button');
+  });
 });
 
 // ── introspectGoldenSample ────────────────────────────────────────────────────
@@ -179,6 +200,19 @@ describe('introspectGoldenSample', () => {
 
     const patterns = await introspectGoldenSample(WORKSPACE);
     expect(patterns.variants).toEqual(['solid', 'outline', 'ghost']);
+  });
+
+  it('derives projectJson path from goldenSamplePath override', async () => {
+    const customPath = '/custom/workspace/libs/react/custom/src/lib';
+    mockAccess.mockResolvedValue(undefined as never);
+    mockReadFile.mockResolvedValueOnce(makeRecipeContent() as never);
+
+    await introspectGoldenSample(WORKSPACE, customPath);
+
+    // project.json should be resolved two levels up from src/lib: custom/project.json
+    expect(mockAccess).toHaveBeenCalledWith(
+      expect.stringContaining('custom/project.json'),
+    );
   });
 });
 
@@ -421,7 +455,9 @@ describe('createDevBoilerplateNode', () => {
 
     const lastMessage = result.messages?.[result.messages.length - 1];
     expect(lastMessage?.content).toMatch(/APPROVED/);
-    expect(result.code_buffer).toBeTruthy();
+    expect(result.code_buffer).toContain('Generated component: `checkbox`');
+    expect(result.code_buffer).toContain('Slots:');
+    expect(result.code_buffer).toContain('Variants:');
   });
 
   it('build fails, auto-fix succeeds: returns APPROVED after retry', async () => {
@@ -490,6 +526,34 @@ describe('createDevBoilerplateNode', () => {
     const lastMessage = result.messages?.[result.messages.length - 1];
     expect(lastMessage?.content).toMatch(/REJECTED: missing component_name/);
     expect(result.next_recipient).toBeUndefined();
+  });
+
+  it('invalid component_name format: returns REJECTED', async () => {
+    const node = createDevBoilerplateNode(config);
+    const result = await node(makeState({ component_name: 'Invalid_Name!' }));
+
+    const lastMessage = result.messages?.[result.messages.length - 1];
+    expect(lastMessage?.content).toMatch(/REJECTED: component_name must match/);
+    expect(result.next_recipient).toBeUndefined();
+  });
+
+  it('path-traversal component_name: returns REJECTED', async () => {
+    const node = createDevBoilerplateNode(config);
+    const result = await node(makeState({ component_name: '../../../etc' }));
+
+    const lastMessage = result.messages?.[result.messages.length - 1];
+    expect(lastMessage?.content).toMatch(/REJECTED:/);
+    expect(result.next_recipient).toBeUndefined();
+  });
+
+  it('normalizes slots to always include root and label', async () => {
+    setupHappyPath();
+
+    const node = createDevBoilerplateNode(config);
+    const state = { ...makeState(), parts: ['icon'] };
+    const result = await node(state);
+
+    expect(result.code_buffer).toContain('Slots: root, label, icon');
   });
 
   it('golden sample missing a file: returns REJECTED message', async () => {
