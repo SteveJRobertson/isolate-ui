@@ -666,8 +666,12 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
       return escalate(componentName, retryResult.errorLog);
     }
 
-    // 7. Escalate: auto-fix itself failed
-    return escalate(componentName, buildResult.errorLog);
+    // 7. Escalate: auto-fix itself failed — include both the build error and
+    // the codegen failure so human_review has the full picture.
+    const combinedLog =
+      `Build error:\n${buildResult.errorLog}\n\n` +
+      `Auto-fix (panda codegen) error:\n${fixResult.errorLog}`;
+    return escalate(componentName, combinedLog);
   };
 }
 

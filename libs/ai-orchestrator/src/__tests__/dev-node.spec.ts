@@ -515,7 +515,7 @@ describe('createDevBoilerplateNode', () => {
     expect(lastMessage?.content).toMatch(/APPROVED/);
   });
 
-  it('build fails, auto-fix also fails: escalates to human_review', async () => {
+  it('build fails, auto-fix also fails: escalates to human_review with both error logs', async () => {
     mockAccess.mockResolvedValue(undefined as never);
     mockReadFile
       .mockResolvedValueOnce(makeRecipeContent() as never)
@@ -532,6 +532,10 @@ describe('createDevBoilerplateNode', () => {
     expect(result.next_recipient).toBe('human_review');
     expect(result.pause_context).toBe('mesh_stalemate');
     expect(result.mesh_origin).toBe('dev');
+    // Escalation message must include both the original build error and the codegen error.
+    const lastMessage = result.messages?.[result.messages.length - 1];
+    expect(lastMessage?.content).toContain('build fail');
+    expect(lastMessage?.content).toContain('panda fail');
   });
 
   it('build fails, auto-fix runs but retry build also fails: escalates to human_review', async () => {
