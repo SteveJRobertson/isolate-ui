@@ -269,6 +269,21 @@ Run the local pre-PR reviewer **at the end of every phase of work** — not only
 
 See [`.github/prompts/pre-pr-review.prompt.md`](.github/prompts/pre-pr-review.prompt.md) for the prompt definition.
 
+### Opening a PR (mandatory)
+
+Every PR **must** use the PR template at [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). GitHub inserts it automatically when creating a PR via the web UI or `gh pr create`. **Do not delete or skip sections** — CI runs a `check-pr-template` job that fails the build if:
+
+- Any of the four required sections (`## Summary`, `## Changes`, `## Copilot Review Triage`, `## Deferred follow-ups`) is missing, or
+- Any triage checkbox is left unchecked (`- [ ]`).
+
+**Workflow before opening the PR:**
+
+1. Run `#pre-pr-review` in VS Code Copilot Chat.
+2. Resolve all findings (fix Blockers/Majors; track Minors as issues; rationale for Nits).
+3. Open the PR — GitHub fills in the template automatically.
+4. Tick triage checkboxes only for the tiers you have verified are clean.
+5. Link any deferred follow-up issues in the `## Deferred follow-ups` section.
+
 ## PR Review Triage Policy
 
 This policy applies to all Copilot (and human) review comments. Its purpose is to prevent endless review cycles by giving every comment a clear, bounded resolution path.

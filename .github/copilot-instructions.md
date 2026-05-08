@@ -114,3 +114,11 @@ db.exec(`SELECT * FROM deliveries WHERE id = '${deliveryId}'`);
 
 - All imports between Nx projects must use the workspace aliases defined in `tsconfig.base.json` (e.g. `@isolate-ui/utils`, `@isolate-ui/tokens`). Never use relative paths that cross project boundaries.
 - Generated or build-output directories (`styled-system/`, `dist/`, `playwright/.cache/`) must never be committed or imported from source.
+
+---
+
+## PR Workflow
+
+- **Run the pre-PR reviewer before opening or updating a PR.** In VS Code Copilot Chat, run `#pre-pr-review` and work through all findings. Do not open the PR until Blocker and Major findings are resolved.
+- **Always use the PR template.** Every PR must include the four required sections: `## Summary`, `## Changes`, `## Copilot Review Triage`, and `## Deferred follow-ups`. CI will fail if any section is missing.
+- **Never pre-check triage boxes.** Only mark a triage checkbox as `[x]` after the pre-PR review confirms that category is clean. Leaving boxes unchecked causes CI to fail — this is intentional: it means the review was not completed.
