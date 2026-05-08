@@ -94,13 +94,25 @@ export async function runStartupSync(
           }
         }
 
+        // The `since` parameter uses `updated_at` semantics in GitHub's API,
+        // so edited comments can appear even if they were originally created
+        // before the window. Skip edits (updated_at !== created_at) to match
+        // the live webhook handler's `action === 'created'` guard.
+        if (comment.updated_at !== comment.created_at) {
+          continue;
+        }
+
         const deliveryId = `startup-sync-${comment.id}`;
 
-        // Skip already-processed comments
-        const existing = db
-          .prepare('SELECT 1 FROM deliveries WHERE delivery_id = ?')
-          .get(deliveryId);
-        if (existing) continue;
+        // Claim the delivery ID first (INSERT before dispatch) so that a crash
+        // after a successful handler but before the INSERT doesn't replay the
+        // same command on the next restart. Mirrors the webhook route semantics.
+        const inserted = db
+          .prepare('INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)')
+          .run(deliveryId);
+        if (inserted.changes === 0) {
+          continue; // already processed in a prior startup
+        }
 
         const commentBody = (comment.body ?? '').trim();
         const username = comment.user?.login ?? 'unknown';
@@ -138,22 +150,19 @@ export async function runStartupSync(
             continue; // not a bot command
           }
         } catch (handlerErr) {
-          // Handler threw (and already posted an error reply). Skip the
-          // deliveries INSERT so the next startup can retry this command.
+          // Handler threw (and already posted an error reply). Delete the
+          // claimed delivery row so the next startup can retry this command.
+          db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+            deliveryId,
+          );
           console.warn(
             `[webhook-listener] Startup sync: handler failed for comment ${comment.id}: ${String(handlerErr)}`,
           );
           continue;
         }
 
-        // Mark as processed so we don't replay if the server restarts again
-        db.prepare(
-          'INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)',
-        ).run(deliveryId);
-
-        // Advance the cursor to the latest processed comment's timestamp so
-        // we never skip a comment created in the window between fetching and
-        // writing the cursor (as would happen if we advanced to `now`).
+        // Mark the claimed delivery as processed (INSERT was done above).
+        // Advance the cursor to the latest processed comment's timestamp.
         if (comment.created_at) {
           if (!latestProcessedAt || comment.created_at > latestProcessedAt) {
             latestProcessedAt = comment.created_at;

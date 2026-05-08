@@ -22,7 +22,7 @@ export async function postErrorReply(
 ): Promise<void> {
   const { octokit, owner, repo, issueNumber, username } = ctx;
   try {
-    await octokit.issues.createComment({
+    await octokit.rest.issues.createComment({
       owner,
       repo,
       issue_number: issueNumber,

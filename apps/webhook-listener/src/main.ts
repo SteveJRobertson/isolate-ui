@@ -61,4 +61,7 @@ async function start() {
   });
 }
 
-start();
+start().catch((err) => {
+  console.error('[webhook-listener] Fatal startup error:', err);
+  process.exit(1);
+});

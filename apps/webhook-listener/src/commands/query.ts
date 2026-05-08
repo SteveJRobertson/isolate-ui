@@ -49,8 +49,12 @@ export async function handleQuery(
     // The LLM classifier determines the target persona from the question content.
     // Explicitly set next_recipient so the graph re-enters at a real persona
     // rather than routing immediately to __end__ when the thread is paused.
+    // Clear pause_context so that /approve and /fix behave correctly after a
+    // /query: leaving it set would make the thread appear still-paused and
+    // those commands would return an error reply.
     await graph.invoke(threadId, {
       next_recipient: nextRecipient as any,
+      pause_context: null,
       messages: [{ type: 'human', content: `@isolate- ${trimmed}` }],
     });
   } catch (err) {

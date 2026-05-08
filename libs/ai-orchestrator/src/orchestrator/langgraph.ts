@@ -230,7 +230,7 @@ export class OrchestratorGraph {
           // without GITHUB_TOKEN) are unaffected.
           const { Octokit } = await import('@octokit/rest');
           const octokit = new Octokit({ auth: githubToken });
-          await octokit.issues.createComment({
+          await octokit.rest.issues.createComment({
             owner: this.githubOwner,
             repo: this.githubRepo,
             issue_number: issueNumber,

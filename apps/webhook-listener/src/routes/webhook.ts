@@ -118,8 +118,8 @@ export async function webhookRoute(
       const threadId = `issue-${issueNumber}`;
 
       // Authorization check: only repo collaborators and above may run commands.
-      // Rejecting here (before any DB write) keeps the delivery row so that
-      // if the same delivery is somehow replayed it is still treated as seen.
+      // The delivery row was claimed in step 5 (before this check); release it
+      // now so unauthorized comments do not permanently occupy a dedup slot.
       if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
         // Release the delivery claim — unauthorized comments are not commands
         // and should not permanently occupy a dedup slot.

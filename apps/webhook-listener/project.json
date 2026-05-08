@@ -80,6 +80,19 @@
           "buildTarget": "webhook-listener:build:production"
         }
       }
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["apps/webhook-listener/**/*.ts"]
+      }
+    },
+    "typecheck": {
+      "executor": "nx:run-commands",
+      "options": {
+        "command": "tsc --noEmit -p apps/webhook-listener/tsconfig.app.json"
+      }
     }
   },
   "tags": []
