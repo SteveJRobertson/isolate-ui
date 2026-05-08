@@ -131,6 +131,13 @@ export const AgentStateSchema = z.object({
     .enum(['refinement_limit', 'mesh_stalemate'])
     .nullable()
     .default(null),
+
+  /**
+   * Component slot names to generate for the new component.
+   * Populated by the dev node from the incoming request or defaulted to
+   * ['root', 'label'] when absent. Used to drive recipe and boilerplate generation.
+   */
+  parts: z.array(z.string()).default(() => []),
 });
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
@@ -153,6 +160,7 @@ export const DEFAULT_AGENT_STATE: AgentState = {
   mesh_loop_count: 0,
   mesh_origin: null,
   pause_context: null,
+  parts: [],
 };
 
 /**
@@ -176,5 +184,6 @@ export function createDefaultAgentState(): AgentState {
     mesh_loop_count: 0,
     mesh_origin: null,
     pause_context: null,
+    parts: [],
   };
 }

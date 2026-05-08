@@ -162,6 +162,10 @@ export class OrchestratorGraph {
           value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => null,
         },
+        parts: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => [],
+        },
       },
     });
 
