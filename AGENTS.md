@@ -218,6 +218,21 @@ nx run-many -t typecheck
 nx run-many -t lint
 ```
 
+### Starting an Issue
+
+At the start of every issue, create a new branch from `main`:
+
+```bash
+# Ensure main is up to date
+git checkout main && git pull
+
+# Create a branch named after the issue number and a short slug
+git checkout -b <issue-number>-<short-description>
+# e.g. git checkout -b 65-copilot-review-loop
+```
+
+All work for the issue happens on this branch. Open the PR against `main` when the final phase is complete and the pre-PR reviewer has been run.
+
 ### Daily Development
 
 ```bash
@@ -236,6 +251,62 @@ nx build react-button
 # Run all tasks for affected projects
 nx affected -t test lint typecheck build
 ```
+
+### Pre-PR Review (mandatory, phase-gated)
+
+The pre-PR reviewer **must run at the end of every phase of work** — not only before opening a PR. This is not optional and must not wait for a human to remember to trigger it.
+
+- **AI agents**: run `#pre-pr-review` automatically as part of phase completion, before reporting back or starting the next phase.
+- **Humans**: open the VS Code Copilot Chat panel and run `#pre-pr-review`.
+
+**Before starting the next phase:**
+
+- Fix all **Blocker** and **Major** findings.
+- For **Minor** findings: either fix inline or open a follow-up GitHub issue.
+- For **Nit** findings: resolve with a written rationale — no code change required.
+- Nothing opens a PR until the reviewer has been run on the final phase output.
+
+See [`.github/prompts/pre-pr-review.prompt.md`](.github/prompts/pre-pr-review.prompt.md) for the prompt definition.
+
+### Opening a PR (mandatory)
+
+Every PR **must** use the PR template at [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). GitHub inserts it automatically when creating a PR via the web UI or `gh pr create`. **Do not delete or skip sections** — CI runs a `check-pr-template` job that fails the build if:
+
+- Any of the four required sections (`## Summary`, `## Changes`, `## Copilot Review Triage`, `## Deferred follow-ups`) is missing, or
+- Any of the four triage tiers (Blocker, Major, Minor, Nit) is missing or unchecked (`[x]`) in the Copilot Review Triage section.
+
+**Workflow before opening the PR:**
+
+1. Run `#pre-pr-review` in VS Code Copilot Chat.
+2. Resolve all findings (fix Blockers/Majors; track Minors as issues; rationale for Nits).
+3. Open the PR — GitHub fills in the template automatically.
+4. Tick triage checkboxes only for the tiers you have verified are clean.
+5. Link any deferred follow-up issues in the `## Deferred follow-ups` section.
+
+## PR Review Triage Policy
+
+This policy applies to all Copilot (and human) review comments. Its purpose is to prevent endless review cycles by giving every comment a clear, bounded resolution path.
+
+### Severity Tiers
+
+| Tier                                  | Examples                                                                                             | Resolution                                                                                                                                                |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Blocker** (Security / Correctness)  | HMAC bypass, unhandled promise rejection, auth check after business logic, secrets in logs           | Fix before merge — no exceptions.                                                                                                                         |
+| **Major** (Correctness / Reliability) | Missing error handler, incorrect async pattern, broken edge case, type unsafety at a public boundary | Fix in the same PR if low-effort. If out of scope, open a follow-up issue and link it in the PR description before merging.                               |
+| **Minor** (Coverage / Completeness)   | Missing test for an error path, uncovered edge case, missing Zod schema on a new I/O boundary        | Open a follow-up issue. Resolve the review thread with `tracked as #N`.                                                                                   |
+| **Nit** (Style / Naming)              | Variable naming, comment wording, minor formatting deviation                                         | Resolve the thread with a one-sentence written rationale (e.g. "intentional: consistent with existing pattern in `webhook.ts`"). No code change required. |
+
+### Resolution without a code change
+
+For Minor and Nit items: post a reply on the review thread explaining the decision, then resolve the thread. A commit is **not** required. This prevents the commit → re-review spiral.
+
+### Deferred follow-ups
+
+Any Major or Minor item deferred to a follow-up issue **must** be linked in the PR description before the PR is merged. Use the "Deferred follow-ups" section of the PR template.
+
+### No hard round limit
+
+There is no fixed maximum number of review cycles. Use the triage table to bound each comment individually. If a review cycle is generating many Blocker/Major findings, that signals a quality gap — run the pre-PR reviewer earlier in the next phase of work.
 
 ## Commit Message Guidelines
 

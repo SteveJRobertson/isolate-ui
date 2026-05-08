@@ -46,6 +46,68 @@ jobs:
       - name: Typecheck affected
         run: pnpm nx affected -t typecheck --base=origin/main
 
+  check-pr-template:
+    name: Check PR Template
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate PR body
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          node - <<'EOF'
+          const body = process.env.PR_BODY ?? '';
+
+          const requiredSections = [
+            '## Summary',
+            '## Changes',
+            '## Copilot Review Triage',
+            '## Deferred follow-ups',
+          ];
+
+          const missingSections = requiredSections.filter(
+            (s) => !body.includes(s)
+          );
+
+          if (missingSections.length > 0) {
+            console.error('PR body is missing required sections:');
+            missingSections.forEach((s) => console.error('  ' + s));
+            console.error(
+              'Use the PR template (.github/PULL_REQUEST_TEMPLATE.md) when opening a PR.'
+            );
+            process.exit(1);
+          }
+
+          // Each of the four required triage tiers must be explicitly checked [x].
+          // Matching per-tier name (Blocker/Major/Minor/Nit) prevents bypassing by
+          // adding arbitrary [x] tokens or deleting/renaming checkbox lines.
+          const triageStart = body.indexOf('## Copilot Review Triage');
+          const triageEnd = body.indexOf('## Deferred follow-ups');
+          const triageSection = triageStart !== -1 && triageEnd !== -1
+            ? body.slice(triageStart, triageEnd)
+            : '';
+
+          const requiredTiers = ['Blocker', 'Major', 'Minor', 'Nit'];
+          const uncheckedTiers = requiredTiers.filter(
+            (tier) => !new RegExp(`\\[x\\][^\\n]*\\b${tier}\\b`, 'i').test(triageSection)
+          );
+
+          if (uncheckedTiers.length > 0) {
+            console.error('The following triage items are missing or unchecked in the PR:');
+            uncheckedTiers.forEach((t) => console.error('  ' + t));
+            console.error(
+              'Run #pre-pr-review in VS Code Copilot Chat and tick every triage checkbox before opening the PR.'
+            );
+            process.exit(1);
+          }
+
+          console.log('PR template check passed.');
+          EOF
+
   check-version-plan:
     name: Check Version Plan
     runs-on: ubuntu-latest
