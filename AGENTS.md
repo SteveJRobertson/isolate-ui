@@ -273,7 +273,7 @@ See [`.github/prompts/pre-pr-review.prompt.md`](.github/prompts/pre-pr-review.pr
 Every PR **must** use the PR template at [`.github/PULL_REQUEST_TEMPLATE.md`](.github/PULL_REQUEST_TEMPLATE.md). GitHub inserts it automatically when creating a PR via the web UI or `gh pr create`. **Do not delete or skip sections** — CI runs a `check-pr-template` job that fails the build if:
 
 - Any of the four required sections (`## Summary`, `## Changes`, `## Copilot Review Triage`, `## Deferred follow-ups`) is missing, or
-- Any triage checkbox is left unchecked (`- [ ]`).
+- Any of the four triage tiers (Blocker, Major, Minor, Nit) is missing or unchecked (`[x]`) in the Copilot Review Triage section.
 
 **Workflow before opening the PR:**
 

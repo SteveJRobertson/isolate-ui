@@ -8,7 +8,7 @@
 
 ## Copilot Review Triage
 
-Before requesting review, confirm each tier has been addressed:
+Before opening the PR, confirm each tier has been addressed:
 
 - [ ] **Blocker** — All security and correctness issues fixed
 - [ ] **Major** — All correctness/reliability issues fixed in this PR, or tracked as follow-up issues (linked below)

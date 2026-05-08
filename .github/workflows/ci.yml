@@ -50,6 +50,11 @@ jobs:
     name: Check PR Template
     runs-on: ubuntu-latest
     steps:
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
       - name: Validate PR body
         env:
           PR_BODY: ${{ github.event.pull_request.body }}
@@ -77,20 +82,23 @@ jobs:
             process.exit(1);
           }
 
-          // All four triage checkboxes must be checked [x].
-          // Requiring exactly 4 checked boxes is robust against list-marker
-          // variations (- vs * vs +) and prevents bypassing by deleting lines.
+          // Each of the four required triage tiers must be explicitly checked [x].
+          // Matching per-tier name (Blocker/Major/Minor/Nit) prevents bypassing by
+          // adding arbitrary [x] tokens or deleting/renaming checkbox lines.
           const triageStart = body.indexOf('## Copilot Review Triage');
           const triageEnd = body.indexOf('## Deferred follow-ups');
           const triageSection = triageStart !== -1 && triageEnd !== -1
             ? body.slice(triageStart, triageEnd)
             : '';
 
-          const checkedBoxes = (triageSection.match(/\[x\]/gi) ?? []).length;
-          if (checkedBoxes < 4) {
-            console.error(
-              `PR triage section has ${checkedBoxes} checked box(es) — all 4 are required.`
-            );
+          const requiredTiers = ['Blocker', 'Major', 'Minor', 'Nit'];
+          const uncheckedTiers = requiredTiers.filter(
+            (tier) => !new RegExp(`\\[x\\][^\\n]*\\b${tier}\\b`, 'i').test(triageSection)
+          );
+
+          if (uncheckedTiers.length > 0) {
+            console.error('The following triage items are missing or unchecked in the PR:');
+            uncheckedTiers.forEach((t) => console.error('  ' + t));
             console.error(
               'Run #pre-pr-review in VS Code Copilot Chat and tick every triage checkbox before opening the PR.'
             );
