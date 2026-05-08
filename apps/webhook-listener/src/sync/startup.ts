@@ -34,9 +34,17 @@ export async function runStartupSync(
     .prepare('SELECT value FROM webhook_sync WHERE key = ?')
     .get(SYNC_KEY) as { value: string } | undefined;
 
-  const syncWindowMs = process.env['STARTUP_SYNC_WINDOW_MS']
-    ? Number(process.env['STARTUP_SYNC_WINDOW_MS'])
-    : DEFAULT_SYNC_WINDOW_MS;
+  const rawSyncWindow = process.env['STARTUP_SYNC_WINDOW_MS'];
+  const parsedSyncWindow = rawSyncWindow ? Number(rawSyncWindow) : NaN;
+  const syncWindowMs =
+    Number.isFinite(parsedSyncWindow) && parsedSyncWindow > 0
+      ? parsedSyncWindow
+      : DEFAULT_SYNC_WINDOW_MS;
+  if (rawSyncWindow && syncWindowMs === DEFAULT_SYNC_WINDOW_MS) {
+    console.warn(
+      `[webhook-listener] Startup sync: STARTUP_SYNC_WINDOW_MS="${rawSyncWindow}" is not a valid positive number — using default ${DEFAULT_SYNC_WINDOW_MS}ms.`,
+    );
+  }
 
   const since = row?.value ?? new Date(Date.now() - syncWindowMs).toISOString();
 
@@ -122,6 +130,11 @@ export async function runStartupSync(
         // Without this, any GitHub user whose command falls in the scan window
         // would be processed during a restart.
         if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
+          // Release the claimed delivery row so the dedup table doesn't fill
+          // with comments from unauthorized users.
+          db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+            deliveryId,
+          );
           continue;
         }
 
@@ -147,7 +160,12 @@ export async function runStartupSync(
           } else if (command === '/query') {
             await handleQuery(ctx, args);
           } else {
-            continue; // not a bot command
+            // Not a recognized command — release the claimed row so the dedup
+            // table doesn't fill with non-command comments (mirrors webhook route).
+            db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+              deliveryId,
+            );
+            continue;
           }
         } catch (handlerErr) {
           // Handler threw (and already posted an error reply). Delete the

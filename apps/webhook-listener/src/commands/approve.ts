@@ -47,6 +47,8 @@ export async function handleApprove(ctx: CommandContext): Promise<void> {
     await graph.invoke(threadId, {
       next_recipient: resumeTarget as any,
       rejectionCount: 0,
+      rejectionReason: '',
+      lastApprovedBy: null,
       mesh_loop_count: 0,
       signoffs: {},
       pause_context: null,

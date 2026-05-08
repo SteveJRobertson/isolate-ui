@@ -46,6 +46,8 @@ export async function handleFix(
     await graph.invoke(threadId, {
       next_recipient: 'po' as any,
       rejectionCount: 0,
+      rejectionReason: '',
+      lastApprovedBy: null,
       mesh_loop_count: 0,
       signoffs: {},
       pause_context: null,
