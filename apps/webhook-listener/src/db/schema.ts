@@ -1,30 +1,45 @@
+import * as fs from 'fs';
 import * as path from 'path';
 import Database from 'better-sqlite3';
 
 /**
+ * Walk up from startDir until a directory containing nx.json is found.
+ * Mirrors the implementation in libs/ai-orchestrator/src/config/agent-parser.ts
+ * so the resolution is consistent across runtimes and build output layouts.
+ */
+function findWorkspaceRoot(startDir: string): string {
+  let dir = startDir;
+  while (dir !== path.dirname(dir)) {
+    if (fs.existsSync(path.join(dir, 'nx.json'))) {
+      return dir;
+    }
+    dir = path.dirname(dir);
+  }
+  throw new Error(
+    `Could not locate workspace root (no nx.json found). Started from: ${startDir}`,
+  );
+}
+
+/**
  * Resolve the SQLite database path.
  *
- * Uses DATABASE_PATH env var when set; otherwise falls back to the path used
- * by OrchestratorGraph's own default (libs/ai-orchestrator/data/state.db)
- * derived from the workspace root. Exporting this function lets main.ts
- * compute the path once and pass it to both openDb() and new OrchestratorGraph()
- * so both always use the same file.
+ * Uses DATABASE_PATH env var when set; otherwise walks up from __dirname to
+ * find the workspace root (via nx.json marker) and derives the default path
+ * from there — robust across compiled (dist/apps/webhook-listener/...) and
+ * development (src/db/schema.ts) layouts.
  */
 export function resolveDbPath(): string {
   if (process.env['DATABASE_PATH']) {
     return process.env['DATABASE_PATH'];
   }
-  // Walk up to the workspace root from this file's location in dist/
-  // by looking for the nx.json marker, mirroring OrchestratorGraph's approach.
-  // At runtime the compiled file is at dist/apps/webhook-listener/main.js;
-  // the workspace root is 3 levels up from that.
-  const candidates = [
-    // Runtime (compiled): dist/apps/webhook-listener/src/db/schema.js → root is ../../../../
-    path.resolve(__dirname, '../../../../libs/ai-orchestrator/data/state.db'),
-    // Development (ts-node / nx serve): src/db/schema.ts → root is ../../../../
-    path.resolve(__dirname, '../../../../libs/ai-orchestrator/data/state.db'),
-  ];
-  return candidates[0];
+  const workspaceRoot = findWorkspaceRoot(__dirname);
+  return path.join(
+    workspaceRoot,
+    'libs',
+    'ai-orchestrator',
+    'data',
+    'state.db',
+  );
 }
 
 /**

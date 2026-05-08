@@ -11,6 +11,16 @@ const port = process.env.PORT ? Number(process.env.PORT) : 8080;
 const owner = process.env.GITHUB_OWNER ?? 'SteveJRobertson';
 const repo = process.env.GITHUB_REPO ?? 'isolate-ui';
 
+// GITHUB_TOKEN is required: startup sync and all error replies depend on it.
+// Fail immediately with a clear message so misconfiguration is obvious.
+if (!process.env['GITHUB_TOKEN']) {
+  console.error(
+    '[webhook-listener] GITHUB_TOKEN is not set. ' +
+      'Set it to a PAT with `repo` scope before starting the service.',
+  );
+  process.exit(1);
+}
+
 async function start() {
   const server = Fastify({ logger: true });
 

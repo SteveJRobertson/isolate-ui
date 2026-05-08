@@ -69,15 +69,19 @@ export async function webhookRoute(
         return reply.status(401).send({ error: 'Invalid signature' });
       }
 
-      // Step 3: deduplication
+      // Step 3: deduplication — claim the delivery ID up-front.
+      // INSERT OR IGNORE before dispatching ensures that two concurrent
+      // identical deliveries never both execute the command. Only the
+      // request whose INSERT actually changed a row proceeds; the other
+      // returns 200 immediately.
       const deliveryId = request.headers['x-github-delivery'] as
         | string
         | undefined;
       if (deliveryId) {
-        const existing = db
-          .prepare('SELECT 1 FROM deliveries WHERE delivery_id = ?')
-          .get(deliveryId);
-        if (existing) {
+        const inserted = db
+          .prepare('INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)')
+          .run(deliveryId);
+        if (inserted.changes === 0) {
           return reply.status(200).send({ ok: true, duplicate: true });
         }
       }
@@ -119,14 +123,7 @@ export async function webhookRoute(
         return reply.status(200).send({ ok: true, skipped: true });
       }
 
-      // Step 6: mark delivery as processed
-      if (deliveryId) {
-        db.prepare(
-          'INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)',
-        ).run(deliveryId);
-      }
-
-      // Step 7: reply 200
+      // Step 6: reply 200 (delivery already claimed in step 3)
       return reply.status(200).send({ ok: true });
     },
   );

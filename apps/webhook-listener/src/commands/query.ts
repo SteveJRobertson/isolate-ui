@@ -35,10 +35,22 @@ export async function handleQuery(
     return;
   }
 
+  // If the graph is paused at human_review, its next_recipient is null,
+  // so graph.invoke() would immediately route START → __end__ and the mesh
+  // router would never run. Fall back to 'po' so the question is processed
+  // by at least one persona before the mesh router classifies the target.
+  const nextRecipient =
+    checkpoint.next_recipient && checkpoint.next_recipient !== 'human_review'
+      ? checkpoint.next_recipient
+      : 'po';
+
   try {
     // The '@isolate- ' prefix triggers the mesh router heuristic gate.
     // The LLM classifier determines the target persona from the question content.
+    // Explicitly set next_recipient so the graph re-enters at a real persona
+    // rather than routing immediately to __end__ when the thread is paused.
     await graph.invoke(threadId, {
+      next_recipient: nextRecipient as any,
       messages: [{ type: 'human', content: `@isolate- ${trimmed}` }],
     });
   } catch (err) {

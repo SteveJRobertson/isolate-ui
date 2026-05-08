@@ -207,8 +207,8 @@ export function createMeshRouterNode(
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
     // The human_review node is a terminal HITL pause — never escape it via a
-    // mesh jump. Return {} to pass through unchanged so the graph routes to
-    // __end__ as intended without any LLM classification overhead.
+    // mesh jump. Return {} to preserve the existing recipient so the graph
+    // continues to human_review without any LLM classification overhead.
     if (state.next_recipient === 'human_review') {
       return {};
     }
