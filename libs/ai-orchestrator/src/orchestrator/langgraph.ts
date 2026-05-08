@@ -223,6 +223,11 @@ export class OrchestratorGraph {
           'Reply with `/approve` to resume, or `/fix [feedback]` to inject guidance and restart.',
         ].join('\n');
         try {
+          // Dynamic import: @octokit/rest is a runtime dependency of the whole
+          // project but keeping the import dynamic here means the ai-orchestrator
+          // library itself doesn't hard-require a GitHub token at module load
+          // time. Environments that never reach human_review (e.g., unit tests
+          // without GITHUB_TOKEN) are unaffected.
           const { Octokit } = await import('@octokit/rest');
           const octokit = new Octokit({ auth: githubToken });
           await octokit.issues.createComment({
@@ -238,6 +243,12 @@ export class OrchestratorGraph {
           );
         }
       }
+      // Intentionally omit pause_context from the return value.
+      // LangGraph's reducer treats `undefined` as "no update", so the
+      // pause_context written by the refinement-loop or mesh-router node is
+      // preserved in the checkpoint. Webhook command handlers read it to
+      // determine the correct resume target. If we returned `pause_context`
+      // here it would be overwritten and lost before the webhook can read it.
       return {
         next_recipient: null,
         signoffs: state.signoffs,
@@ -245,7 +256,7 @@ export class OrchestratorGraph {
       };
     });
 
-    // START → persona nodes | human_review | human_review (direct dispatch — bypasses mesh_router on initial entry)
+    // START → persona nodes | human_review | __end__ (direct dispatch — bypasses mesh_router on initial entry)
     stateGraph.addConditionalEdges(START, routeByRecipient, {
       po: 'po',
       architect: 'architect',

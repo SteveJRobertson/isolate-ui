@@ -23,11 +23,6 @@ export async function handleApprove(ctx: CommandContext): Promise<void> {
     return;
   }
 
-  const resumeTarget =
-    checkpoint.pause_context === 'mesh_stalemate' && checkpoint.mesh_origin
-      ? checkpoint.mesh_origin
-      : 'po';
-
   if (!checkpoint.pause_context) {
     await postErrorReply(
       ctx,
@@ -35,6 +30,18 @@ export async function handleApprove(ctx: CommandContext): Promise<void> {
     );
     return;
   }
+
+  // resumeTarget is computed after the null-guard so it only runs when the
+  // thread is confirmed paused. For mesh_stalemate we return to mesh_origin
+  // (the persona the stalemate diverted from); for refinement_limit we restart
+  // the refinement loop at 'po'.
+  // Resetting rejectionCount + signoffs on stalemate resume is intentional:
+  // the stale counters would immediately re-trigger a limit if left intact,
+  // even though the human has approved continuing.
+  const resumeTarget =
+    checkpoint.pause_context === 'mesh_stalemate' && checkpoint.mesh_origin
+      ? checkpoint.mesh_origin
+      : 'po';
 
   try {
     await graph.invoke(threadId, {

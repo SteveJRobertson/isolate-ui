@@ -7,7 +7,14 @@ import { handleQuery } from '../commands/query';
 import { CommandContext } from '../commands/context';
 
 const SYNC_KEY = 'last_sync_time';
-const ONE_HOUR_MS = 3_600_000;
+// Default fallback window. Override with STARTUP_SYNC_WINDOW_MS env var so
+// operators can widen the window when the server may be offline for longer
+// periods. If the server was down longer than this window, a warning is logged.
+const DEFAULT_SYNC_WINDOW_MS = 3_600_000; // 1 hour
+
+// Minimum association required to run /approve, /fix, /query during startup sync.
+// Must match the check in routes/webhook.ts.
+const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
 /**
  * On server startup, poll GitHub for any issue_comment events that arrived
@@ -27,7 +34,21 @@ export async function runStartupSync(
     .prepare('SELECT value FROM webhook_sync WHERE key = ?')
     .get(SYNC_KEY) as { value: string } | undefined;
 
-  const since = row?.value ?? new Date(Date.now() - ONE_HOUR_MS).toISOString();
+  const syncWindowMs = process.env['STARTUP_SYNC_WINDOW_MS']
+    ? Number(process.env['STARTUP_SYNC_WINDOW_MS'])
+    : DEFAULT_SYNC_WINDOW_MS;
+
+  const since = row?.value ?? new Date(Date.now() - syncWindowMs).toISOString();
+
+  // Warn when falling back to the default window so operators know they may
+  // have missed commands from a longer outage.
+  if (!row?.value) {
+    console.warn(
+      `[webhook-listener] Startup sync: no cursor found — defaulting to ${syncWindowMs}ms window. ` +
+        'Commands posted before this window may have been missed. ' +
+        'Set STARTUP_SYNC_WINDOW_MS to widen the window if needed.',
+    );
+  }
 
   console.log(
     `[webhook-listener] Startup sync: checking comments since ${since}`,
@@ -83,6 +104,15 @@ export async function runStartupSync(
 
         const commentBody = (comment.body ?? '').trim();
         const username = comment.user?.login ?? 'unknown';
+        const authorAssociation = comment.author_association ?? '';
+
+        // Apply the same authorization check as the live webhook route.
+        // Without this, any GitHub user whose command falls in the scan window
+        // would be processed during a restart.
+        if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
+          continue;
+        }
+
         const ctx: CommandContext = {
           db,
           graph,
