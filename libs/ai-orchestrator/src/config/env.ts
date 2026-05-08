@@ -14,7 +14,7 @@ const OrchestratorEnvSchema = z.object({
     .optional(),
   LANGCHAIN_TRACING_V2: z.enum(['true', 'false']).optional(),
   LANGCHAIN_API_KEY: z.string().optional(),
-  WEBHOOK_SECRET: z.string().optional(),
+  WEBHOOK_SECRET: z.string().min(32).optional(),
   TAILSCALE_HOSTNAME: z.string().optional(),
 });
 

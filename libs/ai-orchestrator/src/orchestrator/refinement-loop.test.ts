@@ -223,7 +223,7 @@ describe('createRefinementNode', () => {
     expect(result.rejectionCount).toBe(3);
   });
 
-  it('throws RefinementIterationLimitError at maxIterations', async () => {
+  it('routes to human_review at maxIterations', async () => {
     const inner = vi.fn().mockResolvedValue({
       messages: [makeMessage('REJECTED: iteration 5')],
     });
@@ -234,10 +234,12 @@ describe('createRefinementNode', () => {
       metadata: { github_issue_id: '19' },
     });
 
-    await expect(node(state)).rejects.toThrow(RefinementIterationLimitError);
+    const result = await node(state);
+    expect(result.next_recipient).toBe('human_review');
+    expect(result.pause_context).toBe('refinement_limit');
   });
 
-  it('RefinementIterationLimitError carries correct rejectionCount and issueId', async () => {
+  it('human_review result carries correct rejectionCount on limit', async () => {
     const inner = vi.fn().mockResolvedValue({
       messages: [makeMessage('REJECTED')],
     });
@@ -247,15 +249,11 @@ describe('createRefinementNode', () => {
       metadata: { github_issue_id: '42' },
     });
 
-    try {
-      await node(state);
-      expect.fail('should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(RefinementIterationLimitError);
-      const limitErr = err as RefinementIterationLimitError;
-      expect(limitErr.rejectionCount).toBe(5);
-      expect(limitErr.issueId).toBe('42');
-    }
+    const result = await node(state);
+    expect(result.next_recipient).toBe('human_review');
+    expect(result.pause_context).toBe('refinement_limit');
+    expect(result.rejectionCount).toBe(5);
+    expect(result.signoffs).toEqual({});
   });
 
   // ── PENDING passthrough ────────────────────────────────────────────────────
@@ -288,7 +286,9 @@ describe('createRefinementNode', () => {
     const node = createRefinementNode('po', strictConfig, inner);
     const state = makeState({ rejectionCount: 1 }); // 1 + 1 = 2 = maxIterations
 
-    await expect(node(state)).rejects.toThrow(RefinementIterationLimitError);
+    const result = await node(state);
+    expect(result.next_recipient).toBe('human_review');
+    expect(result.pause_context).toBe('refinement_limit');
   });
 
   it('respects a custom baseSequence', async () => {

@@ -25,9 +25,11 @@ export const AgentStateSchema = z.object({
    * Validated as a known persona ID or null; invalid values are rejected at schema parse time.
    *
    * When null, the workflow has completed or the next recipient has not yet been set.
+   * 'human_review' is a special terminal node that posts a GitHub pause comment
+   * and routes the graph to __end__, preserving the checkpoint for webhook resumption.
    */
   next_recipient: z
-    .enum(['po', 'architect', 'dev', 'a11y', 'qa', 'docs'])
+    .enum(['po', 'architect', 'dev', 'a11y', 'qa', 'docs', 'human_review'])
     .nullable()
     .default(null),
 
@@ -117,6 +119,18 @@ export const AgentStateSchema = z.object({
     .enum(['po', 'architect', 'dev', 'a11y', 'qa', 'docs'])
     .nullable()
     .default(null),
+
+  /**
+   * The reason the graph was routed to the human_review node.
+   * Used by the webhook listener to determine the correct resume target:
+   * - 'refinement_limit': resume at 'po' (restart the refinement loop)
+   * - 'mesh_stalemate': resume at mesh_origin (return to interrupted sequence)
+   * Null when the graph is not in a human-review pause.
+   */
+  pause_context: z
+    .enum(['refinement_limit', 'mesh_stalemate'])
+    .nullable()
+    .default(null),
 });
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
@@ -138,6 +152,7 @@ export const DEFAULT_AGENT_STATE: AgentState = {
   signoffs: {},
   mesh_loop_count: 0,
   mesh_origin: null,
+  pause_context: null,
 };
 
 /**
@@ -160,5 +175,6 @@ export function createDefaultAgentState(): AgentState {
     signoffs: {},
     mesh_loop_count: 0,
     mesh_origin: null,
+    pause_context: null,
   };
 }

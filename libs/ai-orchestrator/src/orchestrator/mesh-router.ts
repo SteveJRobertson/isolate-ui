@@ -233,12 +233,16 @@ export function createMeshRouterNode(
     const issueId = String(state.metadata?.['github_issue_id'] ?? '');
 
     if (newMeshLoopCount > config.maxMeshLoops) {
-      throw new MeshStalemateError(
-        newMeshLoopCount,
-        issueId,
-        state.next_recipient ?? null,
-        config.maxMeshLoops,
-      );
+      // Route to the human_review node instead of throwing. The human_review
+      // node posts a GitHub pause comment and terminates the graph cleanly,
+      // preserving the checkpoint for webhook-based resumption via /approve or /fix.
+      // mesh_origin is already set in state — preserve it so the webhook can
+      // determine the correct resume target on /approve.
+      return {
+        next_recipient: 'human_review' as const,
+        pause_context: 'mesh_stalemate' as const,
+        mesh_loop_count: newMeshLoopCount,
+      };
     }
 
     return {
