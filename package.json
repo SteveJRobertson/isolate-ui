@@ -6,7 +6,8 @@
     "prepare": "husky && node libs/shared/tokens/build.mjs && pnpm exec panda codegen",
     "local-registry": "verdaccio --config .verdaccio/config.yml",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "lint:pr-title": "node scripts/lint-pr-title.mjs"
   },
   "private": true,
   "devDependencies": {
