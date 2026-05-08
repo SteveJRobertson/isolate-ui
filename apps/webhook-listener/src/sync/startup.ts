@@ -28,11 +28,17 @@ export async function runStartupSync(
     .get(SYNC_KEY) as { value: string } | undefined;
 
   const since = row?.value ?? new Date(Date.now() - ONE_HOUR_MS).toISOString();
-  const now = new Date().toISOString();
 
   console.log(
     `[webhook-listener] Startup sync: checking comments since ${since}`,
   );
+
+  // Track the latest processed comment timestamp across all threads so the
+  // cursor is advanced only to the point we know was fully processed.
+  // Using `now` (computed before fetching) can skip comments created after
+  // comments are fetched but before the cursor write. Using the latest
+  // processed comment timestamp avoids that window.
+  let latestProcessedAt: string | null = null;
 
   try {
     // Iterate all threads that have an active checkpoint in the DB
@@ -93,19 +99,34 @@ export async function runStartupSync(
         db.prepare(
           'INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)',
         ).run(deliveryId);
+
+        // Advance the cursor to the latest processed comment's timestamp so
+        // we never skip a comment created in the window between fetching and
+        // writing the cursor (as would happen if we advanced to `now`).
+        if (comment.created_at) {
+          if (!latestProcessedAt || comment.created_at > latestProcessedAt) {
+            latestProcessedAt = comment.created_at;
+          }
+        }
       }
     }
 
-    // Only advance the cursor after ALL threads are fully processed.
-    // Moving it inside the try block means a mid-run API failure leaves
-    // the cursor unchanged so the next startup re-scans the same window.
-    db.prepare(
-      'INSERT OR REPLACE INTO webhook_sync (key, value) VALUES (?, ?)',
-    ).run(SYNC_KEY, now);
+    // Only advance the cursor when at least one command was processed.
+    // Using the latest processed comment timestamp prevents skipping comments
+    // created after we fetched but before the cursor write.
+    if (latestProcessedAt) {
+      db.prepare(
+        'INSERT OR REPLACE INTO webhook_sync (key, value) VALUES (?, ?)',
+      ).run(SYNC_KEY, latestProcessedAt);
 
-    console.log(
-      `[webhook-listener] Startup sync complete. Next sync from ${now}`,
-    );
+      console.log(
+        `[webhook-listener] Startup sync complete. Next sync from ${latestProcessedAt}`,
+      );
+    } else {
+      console.log(
+        `[webhook-listener] Startup sync complete. No new commands processed.`,
+      );
+    }
   } catch (err) {
     // Non-fatal — log and continue server startup.
     // Cursor is intentionally NOT advanced so the next startup re-processes

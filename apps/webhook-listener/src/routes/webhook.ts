@@ -108,19 +108,36 @@ export async function webhookRoute(
         username,
       };
 
-      // Step 5: dispatch command
+      // Step 5: dispatch command.
+      // If dispatch fails, delete the delivery row so GitHub can retry.
+      // Keeping the row on failure would permanently drop the command.
       const [command, ...rest] = commentBody.split(/\s+/);
       const args = rest.join(' ');
 
-      if (command === '/approve') {
-        await handleApprove(ctx);
-      } else if (command === '/fix') {
-        await handleFix(ctx, args);
-      } else if (command === '/query') {
-        await handleQuery(ctx, args);
-      } else {
-        // Not a bot command — ignore silently
-        return reply.status(200).send({ ok: true, skipped: true });
+      try {
+        if (command === '/approve') {
+          await handleApprove(ctx);
+        } else if (command === '/fix') {
+          await handleFix(ctx, args);
+        } else if (command === '/query') {
+          await handleQuery(ctx, args);
+        } else {
+          // Not a bot command — release the delivery claim and ignore silently.
+          if (deliveryId) {
+            db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+              deliveryId,
+            );
+          }
+          return reply.status(200).send({ ok: true, skipped: true });
+        }
+      } catch (dispatchErr) {
+        // Delete the claimed delivery row so GitHub can retry successfully.
+        if (deliveryId) {
+          db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+            deliveryId,
+          );
+        }
+        throw dispatchErr;
       }
 
       // Step 6: reply 200 (delivery already claimed in step 3)

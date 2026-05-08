@@ -495,21 +495,21 @@ export class OrchestratorGraph {
     };
 
     // Parse input through schema for validation.
-    // When input is provided alongside an existing checkpoint, merge the
-    // checkpoint state first so that persistent fields are preserved.
-    // For array fields like `messages`, new input messages are APPENDED to
-    // the checkpoint history so prior context is never lost. Scalar overrides
-    // (next_recipient, counters, etc.) still win via the spread.
+    // When input is provided alongside an existing checkpoint, spread the
+    // checkpoint state first so that scalar fields (next_recipient, counters,
+    // etc.) from the checkpoint are preserved unless explicitly overridden.
+    //
+    // IMPORTANT — do NOT pre-merge messages here. LangGraph's `messages`
+    // channel reducer already appends input messages to the checkpoint history
+    // (reducer: (x, y) => [...(x||[]), ...(y||[])]). Pre-merging would pass
+    // the full checkpoint history as y, causing every resume to duplicate the
+    // existing messages. Pass only the new message deltas via input.messages
+    // and let the channel reducer handle the append exactly once.
     const baseState = existingCheckpoint ?? createDefaultAgentState();
     const parsedInput = input
       ? AgentStateSchema.parse({
           ...baseState,
           ...input,
-          // Append new messages to existing history rather than replacing it.
-          messages:
-            input.messages && baseState.messages?.length
-              ? [...baseState.messages, ...input.messages]
-              : (input.messages ?? baseState.messages),
         })
       : existingCheckpoint
         ? AgentStateSchema.parse(existingCheckpoint)

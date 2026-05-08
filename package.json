@@ -79,12 +79,9 @@
   },
   "dependencies": {
     "@ark-ui/react": "^5.34.1",
-    "@fastify/autoload": "~6.0.3",
-    "@fastify/sensible": "~6.0.2",
     "@octokit/rest": "^22.0.1",
     "better-sqlite3": "^12.9.0",
     "fastify": "~5.2.1",
-    "fastify-plugin": "~5.0.1",
     "fastify-raw-body": "^5.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
