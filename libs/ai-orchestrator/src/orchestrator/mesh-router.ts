@@ -247,9 +247,12 @@ export function createMeshRouterNode(
 
     return {
       next_recipient: target,
-      // Record where the deterministic sequence was heading before this jump
-      // so callers can surface the diversion point in a stalemate comment.
-      mesh_origin: state.next_recipient ?? null,
+      // Record where the deterministic sequence was heading before this jump.
+      // Exclude 'human_review' — it is never a valid origin persona.
+      mesh_origin:
+        state.next_recipient && state.next_recipient !== 'human_review'
+          ? state.next_recipient
+          : null,
       mesh_loop_count: newMeshLoopCount,
     };
   };

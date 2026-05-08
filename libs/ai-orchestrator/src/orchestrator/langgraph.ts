@@ -20,9 +20,7 @@ import {
 } from './mesh-router';
 import {
   postRefinementLoopComment,
-  postMeshStalemateComment,
   type RefinementCommentPayload,
-  type MeshStalematePayload,
 } from '../github/poster';
 
 /**
@@ -403,57 +401,6 @@ export class OrchestratorGraph {
         );
       }
       throw error;
-    }
-  }
-
-  /**
-   * Build and post a mesh stalemate comment to GitHub.
-   * Silently no-ops when GITHUB_TOKEN is absent or posting fails (non-critical).
-   *
-   * The issueAuthor is read from metadata.github_issue_author when present.
-   * Falls back to a generic placeholder so posting always succeeds even if
-   * the metadata was not populated by the caller.
-   */
-  private async tryPostStalemateComment(
-    threadId: string,
-    token: string | undefined,
-    error: MeshStalemateError,
-  ): Promise<void> {
-    if (!token) return;
-
-    const lastState = this.getState(threadId);
-    const issueNumber = Number(lastState?.metadata?.['github_issue_id'] ?? NaN);
-    if (!issueNumber || isNaN(issueNumber)) return;
-
-    const lastMessage =
-      lastState?.messages?.[lastState.messages.length - 1]?.content ?? '';
-    const issueAuthor = String(
-      lastState?.metadata?.['github_issue_author'] ?? '',
-    );
-
-    const payload: MeshStalematePayload = {
-      issueNumber,
-      owner: this.githubOwner,
-      repo: this.githubRepo,
-      meshLoopCount: error.meshLoopCount,
-      maxMeshLoops: this.meshConfig.maxMeshLoops,
-      originPersona: error.originPersona,
-      lastMessage,
-      issueAuthor,
-    };
-
-    try {
-      const result = await postMeshStalemateComment(payload, token);
-      if (result) {
-        console.log(
-          `[ai-orchestrator] Mesh stalemate comment posted: ${result.commentUrl}`,
-        );
-      }
-    } catch (err) {
-      // Non-fatal — log and continue
-      console.warn(
-        `[ai-orchestrator] Failed to post mesh stalemate comment: ${String(err)}`,
-      );
     }
   }
 
