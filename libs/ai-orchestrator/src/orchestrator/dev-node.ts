@@ -248,13 +248,14 @@ export async function writeComponentFile(
   _slots: string[],
 ): Promise<void> {
   const pascal = toPascal(componentName);
+  const camel = toCamel(componentName);
   // 'root' and 'label' are always normalized into slots by createDevBoilerplateNode.
 
   const content = [
     `import type { HTMLArkProps } from '@ark-ui/react';`,
     `import { ark } from '@ark-ui/react';`,
     `import { cx } from 'styled-system/css';`,
-    `import { ${componentName}Recipe, type ${pascal}RecipeVariants } from './${componentName}.recipe';`,
+    `import { ${camel}Recipe, type ${pascal}RecipeVariants } from './${componentName}.recipe';`,
     ``,
     `export type ${pascal}Props = HTMLArkProps<'${tagName}'> & {`,
     `  /** Visual style variant. */`,
@@ -267,7 +268,7 @@ export async function writeComponentFile(
     `  variant,`,
     `  ...props`,
     `}: ${pascal}Props) {`,
-    `  const styles = ${componentName}Recipe({ variant });`,
+    `  const styles = ${camel}Recipe({ variant });`,
     ``,
     `  return (`,
     `    <ark.${tagName}`,
@@ -296,6 +297,7 @@ export async function writeRecipeFile(
   variants: string[],
 ): Promise<void> {
   const pascal = toPascal(componentName);
+  const camel = toCamel(componentName);
   const slotsArray = slots.map((s) => `'${s}'`).join(', ');
   const defaultVariant = variants[0] ?? 'default';
 
@@ -321,7 +323,7 @@ export async function writeRecipeFile(
   const content = [
     `import { createSlotRecipe } from '@isolate-ui/utils';`,
     ``,
-    `export const ${componentName}Recipe = createSlotRecipe({`,
+    `export const ${camel}Recipe = createSlotRecipe({`,
     `  className: '${componentName}',`,
     `  slots: [${slotsArray}],`,
     `  base: {`,
@@ -338,7 +340,7 @@ export async function writeRecipeFile(
     `});`,
     ``,
     `export type ${pascal}RecipeVariants = NonNullable<`,
-    `  Parameters<typeof ${componentName}Recipe>[0]`,
+    `  Parameters<typeof ${camel}Recipe>[0]`,
     `>;`,
     ``,
   ].join('\n');
@@ -456,8 +458,11 @@ export async function runBuildAndTest(
     });
     return { success: true, errorLog: '' };
   } catch (err) {
-    const errorLog = err instanceof Error ? err.message : String(err);
-    return { success: false, errorLog };
+    const lines: string[] = [err instanceof Error ? err.message : String(err)];
+    const execErr = err as { stderr?: string; stdout?: string };
+    if (execErr.stderr) lines.push(`stderr:\n${execErr.stderr}`);
+    if (execErr.stdout) lines.push(`stdout:\n${execErr.stdout}`);
+    return { success: false, errorLog: lines.join('\n\n') };
   }
 }
 
@@ -476,8 +481,11 @@ export async function attemptAutoFix(
     });
     return { success: true, errorLog: '' };
   } catch (err) {
-    const errorLog = err instanceof Error ? err.message : String(err);
-    return { success: false, errorLog };
+    const lines: string[] = [err instanceof Error ? err.message : String(err)];
+    const execErr = err as { stderr?: string; stdout?: string };
+    if (execErr.stderr) lines.push(`stderr:\n${execErr.stderr}`);
+    if (execErr.stdout) lines.push(`stdout:\n${execErr.stdout}`);
+    return { success: false, errorLog: lines.join('\n\n') };
   }
 }
 
@@ -505,7 +513,6 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
     if (!componentName) {
       return {
         messages: [
-          ...state.messages,
           makeMessage(
             'Component generation skipped: no component_name in metadata.\n\nREJECTED: missing component_name',
           ),
@@ -520,12 +527,27 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
     );
     if (nameError) {
       return {
-        messages: [...state.messages, makeMessage(nameError)],
+        messages: [makeMessage(nameError)],
       };
     }
 
     // Normalize slots — root and label are always required by the component template.
     const slots = Array.from(new Set(['root', 'label', ...state.parts]));
+
+    // Validate that each slot name is a plain JS identifier (no hyphens or special chars).
+    // Slot names are used as unquoted object keys and dot-notation accessors in generated code.
+    const SLOT_NAME_RE = /^[a-z][a-z0-9]*$/;
+    const invalidSlot = slots.find((s) => !SLOT_NAME_RE.test(s));
+    if (invalidSlot) {
+      return {
+        messages: [
+          makeMessage(
+            `REJECTED: slot name '${invalidSlot}' is not a valid identifier. ` +
+              `Parts must match ^[a-z][a-z0-9]*$`,
+          ),
+        ],
+      };
+    }
 
     // 1. Validate golden sample
     let patterns: GoldenSamplePatterns;
@@ -541,7 +563,7 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
         ? reason
         : `REJECTED: ${reason}`;
       return {
-        messages: [...state.messages, makeMessage(message)],
+        messages: [makeMessage(message)],
       };
     }
 
@@ -562,7 +584,6 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
       const errorLog = err instanceof Error ? err.message : String(err);
       return {
         messages: [
-          ...state.messages,
           makeMessage(`Nx generator failed.\n\nREJECTED: ${errorLog}`),
         ],
       };
@@ -600,10 +621,7 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
     } catch (err) {
       const errorLog = err instanceof Error ? err.message : String(err);
       return {
-        messages: [
-          ...state.messages,
-          makeMessage(`File write failed.\n\nREJECTED: ${errorLog}`),
-        ],
+        messages: [makeMessage(`File write failed.\n\nREJECTED: ${errorLog}`)],
       };
     }
 
@@ -616,7 +634,6 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
       return {
         code_buffer: codeBuffer,
         messages: [
-          ...state.messages,
           makeMessage(
             `Component \`${componentName}\` generated and verified.\n\nAPPROVED`,
           ),
@@ -639,7 +656,6 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
         return {
           code_buffer: codeBuffer,
           messages: [
-            ...state.messages,
             makeMessage(
               `Component \`${componentName}\` generated and verified after auto-fix.\n\nAPPROVED`,
             ),
@@ -647,11 +663,11 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
         };
       }
       // Auto-fix ran but retry still failed — use retry's error log for escalation
-      return escalate(state, componentName, retryResult.errorLog);
+      return escalate(componentName, retryResult.errorLog);
     }
 
     // 7. Escalate: auto-fix itself failed
-    return escalate(state, componentName, buildResult.errorLog);
+    return escalate(componentName, buildResult.errorLog);
   };
 }
 
@@ -685,20 +701,22 @@ function validateComponentName(
 }
 
 function escalate(
-  state: AgentState,
   componentName: string,
   errorLog: string,
 ): Partial<AgentState> {
+  // Do NOT end with REJECTED/APPROVED — the refinement wrapper parses those
+  // markers and would override next_recipient. A neutral message lets the
+  // wrapper return PENDING and pass through the explicit next_recipient.
   return {
     next_recipient: 'human_review',
     pause_context: 'mesh_stalemate',
     mesh_origin: 'dev',
     messages: [
-      ...state.messages,
       makeMessage(
         `Component \`${componentName}\` generation failed after auto-fix attempt.\n\n` +
+          `Build errors could not be resolved automatically.\n\n` +
           `Error:\n${errorLog}\n\n` +
-          `REJECTED: auto-fix failed`,
+          `STALEMATE: escalating to human review`,
       ),
     ],
   };
@@ -709,6 +727,18 @@ function toPascal(name: string): string {
     .split(/[-_]/)
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join('');
+}
+
+/** Returns a camelCase identifier from a kebab/snake-case component name. */
+function toCamel(name: string): string {
+  const parts = name.split(/[-_]/);
+  return (
+    (parts[0] ?? '') +
+    parts
+      .slice(1)
+      .map((p) => p.charAt(0).toUpperCase() + p.slice(1))
+      .join('')
+  );
 }
 
 function makeMessage(content: string): SerializedMessage {

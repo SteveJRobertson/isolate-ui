@@ -270,6 +270,13 @@ describe('writeComponentFile', () => {
     expect(content).toContain('MyComponent');
   });
 
+  it('uses camelCase for the recipe identifier (kebab-case input)', async () => {
+    await writeComponentFile('/dir', 'my-component', 'div', ['root']);
+    const [, content] = mockWriteFile.mock.calls[0];
+    expect(content).toContain('myComponentRecipe');
+    expect(content).not.toContain('my-componentRecipe');
+  });
+
   it('rejects when writeFile rejects', async () => {
     mockWriteFile.mockRejectedValueOnce(new Error('EACCES') as never);
     await expect(
@@ -299,6 +306,14 @@ describe('writeRecipeFile', () => {
     expect(content).toContain("'root', 'label'");
     expect(content).toContain('solid');
     expect(content).toContain('outline');
+  });
+
+  it('uses camelCase identifier for recipe export (kebab-case name)', async () => {
+    await writeRecipeFile('/dir', 'my-component', ['root'], ['solid']);
+    const [, content] = mockWriteFile.mock.calls[0];
+    expect(content).toContain('export const myComponentRecipe');
+    expect(content).not.toContain('my-componentRecipe');
+    expect(content).toContain('Parameters<typeof myComponentRecipe>');
   });
 
   it('rejects when writeFile rejects', async () => {
@@ -384,6 +399,16 @@ describe('runBuildAndTest', () => {
     expect(result.errorLog).toContain('build error');
   });
 
+  it('includes stderr in errorLog when execFile attaches it', async () => {
+    const err = Object.assign(new Error('failed'), {
+      stderr: 'TS2304: Cannot find name',
+    });
+    mockExecFile.mockRejectedValueOnce(err as never);
+
+    const result = await runBuildAndTest(WORKSPACE, 'checkbox');
+    expect(result.errorLog).toContain('TS2304: Cannot find name');
+  });
+
   it('returns success: false with errorLog when test fails', async () => {
     mockExecFile
       .mockResolvedValueOnce({ stdout: '', stderr: '' } as never)
@@ -420,6 +445,16 @@ describe('attemptAutoFix', () => {
     const result = await attemptAutoFix(WORKSPACE, 'checkbox', 'build error');
     expect(result.success).toBe(false);
     expect(result.errorLog).toContain('codegen failed');
+  });
+
+  it('includes stderr in errorLog when panda codegen attaches it', async () => {
+    const err = Object.assign(new Error('panda failed'), {
+      stderr: 'Error: missing token',
+    });
+    mockExecFile.mockRejectedValueOnce(err as never);
+
+    const result = await attemptAutoFix(WORKSPACE, 'checkbox', 'build error');
+    expect(result.errorLog).toContain('Error: missing token');
   });
 });
 
@@ -554,6 +589,35 @@ describe('createDevBoilerplateNode', () => {
     const result = await node(state);
 
     expect(result.code_buffer).toContain('Slots: root, label, icon');
+  });
+
+  it('rejects invalid slot name containing hyphen', async () => {
+    const node = createDevBoilerplateNode(config);
+    const state = { ...makeState(), parts: ['icon-wrapper'] };
+    const result = await node(state);
+
+    const lastMessage = result.messages?.[result.messages.length - 1];
+    expect(lastMessage?.content).toMatch(/REJECTED: slot name/);
+    expect(lastMessage?.content).toContain('icon-wrapper');
+  });
+
+  it('escalation message uses STALEMATE not REJECTED to avoid refinement wrapper override', async () => {
+    mockAccess.mockResolvedValue(undefined as never);
+    mockReadFile
+      .mockResolvedValueOnce(makeRecipeContent() as never)
+      .mockResolvedValueOnce(makeArkRef() as never);
+    mockWriteFile.mockResolvedValue(undefined as never);
+    mockExecFile
+      .mockResolvedValueOnce({ stdout: '', stderr: '' } as never) // nx generate
+      .mockRejectedValueOnce(new Error('build fail') as never) // nx build
+      .mockRejectedValueOnce(new Error('panda fail') as never); // panda codegen
+
+    const node = createDevBoilerplateNode(config);
+    const result = await node(makeState());
+
+    const lastMessage = result.messages?.[result.messages.length - 1];
+    expect(lastMessage?.content).toContain('STALEMATE');
+    expect(lastMessage?.content).not.toMatch(/^REJECTED/m);
   });
 
   it('golden sample missing a file: returns REJECTED message', async () => {
