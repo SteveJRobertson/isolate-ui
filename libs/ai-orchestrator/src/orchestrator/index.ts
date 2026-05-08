@@ -40,3 +40,19 @@ export {
   type ApplyCodeBufferSuccess,
   type ApplyCodeBufferFailure,
 } from './git-utils';
+
+// Dev boilerplate node
+export {
+  createDevBoilerplateNode,
+  introspectGoldenSample,
+  resolveHtmlTag,
+  runNxGenerator,
+  writeComponentFile,
+  writeRecipeFile,
+  writeStoriesFile,
+  writeComponentTestFile,
+  runBuildAndTest,
+  attemptAutoFix,
+  type DevNodeConfig,
+  type GoldenSamplePatterns,
+} from './dev-node';
