@@ -3,6 +3,7 @@
     "button": {
       "name": "Button",
       "arkPrimitive": "Button",
+      "htmlTag": "button",
       "parts": ["root"],
       "accessibility": {
         "role": "button",
