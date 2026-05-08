@@ -151,15 +151,18 @@ export function createRefinementNode(
         'No reason provided';
 
       if (newRejectionCount >= config.maxIterations) {
-        // TODO: replace throw with LangGraph interrupt() for resumable pause
-        // (tracked in backlog — interrupt() will allow the thread to be resumed
-        // after human review rather than terminating the graph entirely).
-        throw new RefinementIterationLimitError(
-          newRejectionCount,
-          issueId,
-          config.maxIterations,
-          reason,
-        );
+        // Route to the human_review node instead of throwing. The human_review
+        // node posts a GitHub pause comment and terminates the graph cleanly,
+        // preserving the checkpoint for webhook-based resumption via /approve or /fix.
+        return {
+          ...innerResult,
+          next_recipient: 'human_review' as const,
+          pause_context: 'refinement_limit' as const,
+          rejectionCount: newRejectionCount,
+          rejectionReason: reason,
+          lastApprovedBy: null,
+          signoffs: {},
+        };
       }
 
       return {

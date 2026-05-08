@@ -217,7 +217,7 @@ describe('createMeshRouterNode', () => {
     expect(result).toEqual({});
   });
 
-  it('throws MeshStalemateError when mesh_loop_count exceeds maxMeshLoops', async () => {
+  it('routes to human_review when mesh_loop_count exceeds maxMeshLoops', async () => {
     const config: MeshRouterConfig = {
       maxMeshLoops: 3,
       llmClient: fakeClient('{"target": "po"}'),
@@ -230,10 +230,12 @@ describe('createMeshRouterNode', () => {
       metadata: { github_issue_id: '20' },
     });
 
-    await expect(node(state)).rejects.toThrow(MeshStalemateError);
+    const result = await node(state);
+    expect(result.next_recipient).toBe('human_review');
+    expect(result.pause_context).toBe('mesh_stalemate');
   });
 
-  it('MeshStalemateError carries correct meshLoopCount, issueId, originPersona', async () => {
+  it('human_review result carries correct mesh_loop_count on stalemate', async () => {
     const config: MeshRouterConfig = {
       maxMeshLoops: 2,
       llmClient: fakeClient('{"target": "qa"}'),
@@ -246,16 +248,10 @@ describe('createMeshRouterNode', () => {
       metadata: { github_issue_id: '20' },
     });
 
-    try {
-      await node(state);
-      expect.fail('should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(MeshStalemateError);
-      const stalemateErr = err as MeshStalemateError;
-      expect(stalemateErr.meshLoopCount).toBe(3);
-      expect(stalemateErr.issueId).toBe('20');
-      expect(stalemateErr.originPersona).toBe('architect');
-    }
+    const result = await node(state);
+    expect(result.next_recipient).toBe('human_review');
+    expect(result.pause_context).toBe('mesh_stalemate');
+    expect(result.mesh_loop_count).toBe(3);
   });
 
   it('never mutates code_buffer during a mesh jump', async () => {

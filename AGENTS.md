@@ -336,6 +336,26 @@ Update file.ts
 Initial plan
 ```
 
+### PR Title Rules
+
+The CI validates PR titles with the same commitlint rules as commit messages. The most common failure is starting the **subject** (the part after `type(scope): `) with an uppercase letter — even proper nouns like "GitHub".
+
+```bash
+# ❌ Subject starts with uppercase — fails subject-case rule
+feat(webhook-listener): GitHub webhook listener for remote review
+
+# ✅ Start with a lowercase verb; proper nouns are fine mid-sentence
+feat(webhook-listener): add GitHub webhook listener for remote review
+```
+
+**Validate locally before creating a PR:**
+
+```bash
+pnpm lint:pr-title "feat(react-button): add disabled state"
+```
+
+The script exits 0 for valid titles and non-zero (with commitlint's explanation) for invalid ones.
+
 ## Troubleshooting
 
 ### Clear Nx Cache

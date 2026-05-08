@@ -11,20 +11,16 @@ import { validateAgentsConfig, findWorkspaceRoot } from '../config';
 import {
   RefinementConfig,
   DEFAULT_REFINEMENT_CONFIG,
-  RefinementIterationLimitError,
   createRefinementNode,
 } from './refinement-loop';
 import {
   MeshRouterConfig,
   DEFAULT_MESH_CONFIG,
-  MeshStalemateError,
   createMeshRouterNode,
 } from './mesh-router';
 import {
   postRefinementLoopComment,
-  postMeshStalemateComment,
   type RefinementCommentPayload,
-  type MeshStalematePayload,
 } from '../github/poster';
 
 /**
@@ -162,6 +158,10 @@ export class OrchestratorGraph {
           value: (x: any, y: any) => (y !== undefined ? y : x),
           default: () => null,
         },
+        pause_context: {
+          value: (x: any, y: any) => (y !== undefined ? y : x),
+          default: () => null,
+        },
       },
     });
 
@@ -184,13 +184,79 @@ export class OrchestratorGraph {
 
     // Single routing function shared by START and mesh_router output.
     // Routes to a persona node when next_recipient is a known persona ID,
+    // 'human_review' for the HITL pause node,
     // otherwise terminates the graph (__end__).
     const routeByRecipient = (state: AgentState): string => {
       const next = state.next_recipient;
-      return !next ? '__end__' : personaIds.includes(next) ? next : '__end__';
+      if (!next) return '__end__';
+      if (next === 'human_review') return 'human_review';
+      return personaIds.includes(next) ? next : '__end__';
     };
 
-    // START → persona nodes (direct dispatch — bypasses mesh_router on initial entry)
+    // human_review node — terminal HITL pause point.
+    // Reached when refinement loop hits maxIterations (pause_context: 'refinement_limit')
+    // or mesh router hits maxMeshLoops (pause_context: 'mesh_stalemate').
+    // Posts a GitHub comment, then returns next_recipient: null so the graph
+    // routes to __end__ while the checkpoint is preserved for webhook resumption.
+    stateGraph.addNode('human_review', async (state: AgentState) => {
+      const githubToken = process.env['GITHUB_TOKEN'];
+      const issueNumber = Number(state.metadata?.['github_issue_id']);
+      if (githubToken && issueNumber && !isNaN(issueNumber)) {
+        const pauseReason =
+          state.pause_context === 'mesh_stalemate'
+            ? `Ambiguity Mesh stalemate after ${state.mesh_loop_count} jumps.`
+            : `Refinement loop reached the iteration limit (${state.rejectionCount} rejections).`;
+        // Sanitize issueAuthor to GitHub-safe characters (alphanumeric + hyphens,
+        // max 39 chars) to prevent injection of extra @mentions or formatting
+        // from caller-supplied metadata. Mirrors buildStalemateCommentBody in poster.ts.
+        const rawAuthor = String(state.metadata?.['github_issue_author'] ?? '');
+        const safeAuthor = rawAuthor
+          .trim()
+          .replace(/[^a-zA-Z0-9-]/g, '')
+          .slice(0, 39);
+        const mention = safeAuthor ? `@${safeAuthor} ` : '';
+        const body = [
+          `${mention}**Graph paused — human review required.**`,
+          '',
+          pauseReason,
+          '',
+          'Reply with `/approve` to resume, or `/fix [feedback]` to inject guidance and restart.',
+        ].join('\n');
+        try {
+          // Dynamic import: @octokit/rest is a runtime dependency of the whole
+          // project but keeping the import dynamic here means the ai-orchestrator
+          // library itself doesn't hard-require a GitHub token at module load
+          // time. Environments that never reach human_review (e.g., unit tests
+          // without GITHUB_TOKEN) are unaffected.
+          const { Octokit } = await import('@octokit/rest');
+          const octokit = new Octokit({ auth: githubToken });
+          await octokit.rest.issues.createComment({
+            owner: this.githubOwner,
+            repo: this.githubRepo,
+            issue_number: issueNumber,
+            body,
+          });
+        } catch (err) {
+          // Non-fatal — log and continue so the checkpoint is always saved.
+          console.warn(
+            `[ai-orchestrator] Failed to post human_review pause comment: ${String(err)}`,
+          );
+        }
+      }
+      // Intentionally omit pause_context from the return value.
+      // LangGraph's reducer treats `undefined` as "no update", so the
+      // pause_context written by the refinement-loop or mesh-router node is
+      // preserved in the checkpoint. Webhook command handlers read it to
+      // determine the correct resume target. If we returned `pause_context`
+      // here it would be overwritten and lost before the webhook can read it.
+      return {
+        next_recipient: null,
+        signoffs: state.signoffs,
+        metadata: state.metadata,
+      };
+    });
+
+    // START → persona nodes | human_review | __end__ (direct dispatch — bypasses mesh_router on initial entry)
     stateGraph.addConditionalEdges(START, routeByRecipient, {
       po: 'po',
       architect: 'architect',
@@ -198,6 +264,7 @@ export class OrchestratorGraph {
       a11y: 'a11y',
       qa: 'qa',
       docs: 'docs',
+      human_review: 'human_review',
       __end__: '__end__',
     } as any);
 
@@ -208,9 +275,7 @@ export class OrchestratorGraph {
       stateGraph.addEdge(personaId as any, 'mesh_router' as any);
     });
 
-    // mesh_router → persona nodes | __end__ (conditional)
-    // When MeshStalemateError is thrown the graph terminates; run() catches it,
-    // posts the stalemate GitHub comment, and re-throws to the caller.
+    // mesh_router → persona nodes | human_review | __end__ (conditional)
     stateGraph.addConditionalEdges('mesh_router' as any, routeByRecipient, {
       po: 'po',
       architect: 'architect',
@@ -218,8 +283,12 @@ export class OrchestratorGraph {
       a11y: 'a11y',
       qa: 'qa',
       docs: 'docs',
+      human_review: 'human_review',
       __end__: '__end__',
     } as any);
+
+    // human_review → __end__ (deterministic — always terminates after posting pause comment)
+    stateGraph.addEdge('human_review' as any, '__end__' as any);
 
     return stateGraph.compile({
       checkpointer: this.checkpointer as any,
@@ -341,41 +410,6 @@ export class OrchestratorGraph {
 
       return result;
     } catch (error) {
-      // On mesh stalemate: post the stalemate comment then re-throw.
-      // The caller is responsible for handling human review and re-invoking
-      // the graph (with next_recipient set to 'human_review' or mesh_origin)
-      // once a human has approved resumption.
-      if (error instanceof MeshStalemateError) {
-        await this.tryPostStalemateComment(threadId, githubToken, error);
-        throw error;
-      }
-      // On iteration limit: post the human-review comment then re-throw
-      if (error instanceof RefinementIterationLimitError) {
-        // The node threw before returning its state update, so the last
-        // checkpoint is stale. Compose a synthetic state that merges the
-        // checkpointed fields with the final rejection values from the error.
-        const lastState = this.getState(threadId);
-        if (lastState) {
-          const syntheticState: AgentState = {
-            ...lastState,
-            rejectionReason: error.rejectionReason,
-            rejectionCount: error.rejectionCount,
-            // Clear signoffs intentionally: the node threw before returning its
-            // state update, so lastState.signoffs reflects the state before the
-            // final rejection. The node would have cleared them had it returned
-            // normally — clearing here keeps the posted report consistent with
-            // what any non-limit rejection would have produced.
-            signoffs: {},
-          };
-          await this.tryPostComment(
-            syntheticState,
-            threadId,
-            githubToken,
-            error.rejectionReason || error.message,
-          );
-        }
-        throw error;
-      }
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
         throw new Error(
@@ -383,57 +417,6 @@ export class OrchestratorGraph {
         );
       }
       throw error;
-    }
-  }
-
-  /**
-   * Build and post a mesh stalemate comment to GitHub.
-   * Silently no-ops when GITHUB_TOKEN is absent or posting fails (non-critical).
-   *
-   * The issueAuthor is read from metadata.github_issue_author when present.
-   * Falls back to a generic placeholder so posting always succeeds even if
-   * the metadata was not populated by the caller.
-   */
-  private async tryPostStalemateComment(
-    threadId: string,
-    token: string | undefined,
-    error: MeshStalemateError,
-  ): Promise<void> {
-    if (!token) return;
-
-    const lastState = this.getState(threadId);
-    const issueNumber = Number(lastState?.metadata?.['github_issue_id'] ?? NaN);
-    if (!issueNumber || isNaN(issueNumber)) return;
-
-    const lastMessage =
-      lastState?.messages?.[lastState.messages.length - 1]?.content ?? '';
-    const issueAuthor = String(
-      lastState?.metadata?.['github_issue_author'] ?? '',
-    );
-
-    const payload: MeshStalematePayload = {
-      issueNumber,
-      owner: this.githubOwner,
-      repo: this.githubRepo,
-      meshLoopCount: error.meshLoopCount,
-      maxMeshLoops: this.meshConfig.maxMeshLoops,
-      originPersona: error.originPersona,
-      lastMessage,
-      issueAuthor,
-    };
-
-    try {
-      const result = await postMeshStalemateComment(payload, token);
-      if (result) {
-        console.log(
-          `[ai-orchestrator] Mesh stalemate comment posted: ${result.commentUrl}`,
-        );
-      }
-    } catch (err) {
-      // Non-fatal — log and continue
-      console.warn(
-        `[ai-orchestrator] Failed to post mesh stalemate comment: ${String(err)}`,
-      );
     }
   }
 
@@ -522,10 +505,21 @@ export class OrchestratorGraph {
       },
     };
 
-    // Parse input through schema for validation
+    // Parse input through schema for validation.
+    // When input is provided alongside an existing checkpoint, spread the
+    // checkpoint state first so that scalar fields (next_recipient, counters,
+    // etc.) from the checkpoint are preserved unless explicitly overridden.
+    //
+    // IMPORTANT — do NOT pre-merge messages here. LangGraph's `messages`
+    // channel reducer already appends input messages to the checkpoint history
+    // (reducer: (x, y) => [...(x||[]), ...(y||[])]). Pre-merging would pass
+    // the full checkpoint history as y, causing every resume to duplicate the
+    // existing messages. Pass only the new message deltas via input.messages
+    // and let the channel reducer handle the append exactly once.
+    const baseState = existingCheckpoint ?? createDefaultAgentState();
     const parsedInput = input
       ? AgentStateSchema.parse({
-          ...createDefaultAgentState(),
+          ...baseState,
           ...input,
         })
       : existingCheckpoint

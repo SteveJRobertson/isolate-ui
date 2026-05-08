@@ -17,7 +17,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as os from 'os';
 import { OrchestratorGraph } from '../orchestrator';
-import { RefinementIterationLimitError } from '../orchestrator/refinement-loop';
 import { AgentState } from '../schema';
 import { findWorkspaceRoot } from '../config';
 
@@ -243,9 +242,9 @@ describe.skipIf(!sqliteAvailable)('Refinement Loop — E2E', () => {
     expect(result.finalState.rejectionCount).toBe(1);
   });
 
-  // ── Iteration limit: throws RefinementIterationLimitError at maxIterations ─
+  // ── Iteration limit: routes to human_review at maxIterations ──────────────
 
-  it('throws RefinementIterationLimitError when rejectionCount reaches maxIterations', async () => {
+  it('routes to human_review when rejectionCount reaches maxIterations', async () => {
     const graph = makeGraph(3); // low limit for test speed
 
     // po always rejects
@@ -256,30 +255,26 @@ describe.skipIf(!sqliteAvailable)('Refinement Loop — E2E', () => {
     graph.registerRefinementNode('dev', approvalNode('dev'));
     graph.registerRefinementNode('qa', approvalNode('qa'));
 
-    await expect(
-      graph.run('issue-e2e-limit', {
-        metadata: { github_issue_id: 'e2e-limit' },
-      }),
-    ).rejects.toThrow(RefinementIterationLimitError);
+    const result = await graph.run('issue-e2e-limit', {
+      metadata: { github_issue_id: 'e2e-limit' },
+    });
+    expect(result.finalState.next_recipient).toBeNull();
+    expect(result.finalState.pause_context).toBe('refinement_limit');
+    expect(result.finalState.rejectionCount).toBe(3);
   });
 
-  it('RefinementIterationLimitError carries correct rejectionCount', async () => {
+  it('human_review result carries correct rejectionCount', async () => {
     const graph = makeGraph(2);
 
     graph.registerRefinementNode('po', rejectionNode('po', 'always rejected'));
     graph.registerRefinementNode('dev', approvalNode('dev'));
     graph.registerRefinementNode('qa', approvalNode('qa'));
 
-    try {
-      await graph.run('issue-e2e-limit-count', {
-        metadata: { github_issue_id: 'e2e-limit-count' },
-      });
-      expect.fail('should have thrown');
-    } catch (err) {
-      expect(err).toBeInstanceOf(RefinementIterationLimitError);
-      const limitErr = err as RefinementIterationLimitError;
-      expect(limitErr.rejectionCount).toBe(2);
-    }
+    const result = await graph.run('issue-e2e-limit-count', {
+      metadata: { github_issue_id: 'e2e-limit-count' },
+    });
+    expect(result.finalState.pause_context).toBe('refinement_limit');
+    expect(result.finalState.rejectionCount).toBe(2);
   });
 
   // ── configureRefinement: custom sequence ──────────────────────────────────

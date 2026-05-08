@@ -6,7 +6,6 @@ import { FakeListChatModel } from '@langchain/core/utils/testing';
 import { OrchestratorGraph } from '../orchestrator';
 import { AgentState } from '../schema';
 import { getPersonaIds } from '../agents';
-import { MeshStalemateError } from '../orchestrator/mesh-router';
 
 import { findWorkspaceRoot } from '../config';
 
@@ -325,7 +324,7 @@ describe('OrchestratorGraph', () => {
     expect(result.finalState.code_buffer).toBe(originalBuffer);
   });
 
-  it('throws MeshStalemateError when mesh_loop_count exceeds maxMeshLoops', async () => {
+  it('routes to human_review when mesh_loop_count exceeds maxMeshLoops', async () => {
     const graph = new OrchestratorGraph(tempDbPath(), AGENTS_MD_PATH);
     graphs.push(graph);
 
@@ -353,8 +352,12 @@ describe('OrchestratorGraph', () => {
       ],
     }));
 
-    await expect(
-      graph.run('mesh-stalemate', { metadata: { github_issue_id: '20' } }, 50),
-    ).rejects.toThrow(MeshStalemateError);
+    const result = await graph.run(
+      'mesh-stalemate',
+      { metadata: { github_issue_id: '20' } },
+      50,
+    );
+    expect(result.finalState.next_recipient).toBeNull();
+    expect(result.finalState.pause_context).toBe('mesh_stalemate');
   });
 });
