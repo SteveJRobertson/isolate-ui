@@ -119,6 +119,6 @@ db.exec(`SELECT * FROM deliveries WHERE id = '${deliveryId}'`);
 
 ## PR Workflow
 
-- **Run the pre-PR reviewer before opening or updating a PR.** In VS Code Copilot Chat, run `#pre-pr-review` and work through all findings. Do not open the PR until Blocker and Major findings are resolved.
+- **Run the pre-PR reviewer automatically at the end of every phase of work.** Do not wait for a human to ask. In VS Code Copilot Chat, run `#pre-pr-review` and work through all findings before reporting phase completion or starting the next phase. Do not open the PR until Blocker and Major findings are resolved.
 - **Always use the PR template.** Every PR must include the four required sections: `## Summary`, `## Changes`, `## Copilot Review Triage`, and `## Deferred follow-ups`. CI will fail if any section is missing.
 - **Never pre-check triage boxes.** Only mark a triage checkbox as `[x]` after the pre-PR review confirms that category is clean. Leaving boxes unchecked causes CI to fail — this is intentional: it means the review was not completed.

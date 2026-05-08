@@ -254,11 +254,10 @@ nx affected -t test lint typecheck build
 
 ### Pre-PR Review (mandatory, phase-gated)
 
-Run the local pre-PR reviewer **at the end of every phase of work** — not only before opening a PR. Open the VS Code Copilot Chat panel and run:
+The pre-PR reviewer **must run at the end of every phase of work** — not only before opening a PR. This is not optional and must not wait for a human to remember to trigger it.
 
-```
-#pre-pr-review
-```
+- **AI agents**: run `#pre-pr-review` automatically as part of phase completion, before reporting back or starting the next phase.
+- **Humans**: open the VS Code Copilot Chat panel and run `#pre-pr-review`.
 
 **Before starting the next phase:**
 
