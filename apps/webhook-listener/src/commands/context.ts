@@ -29,6 +29,8 @@ export async function postErrorReply(
       body: `@${username} ${message}`,
     });
   } catch (err) {
-    console.warn(`[webhook-listener] Failed to post error reply: ${String(err)}`);
+    console.warn(
+      `[webhook-listener] Failed to post error reply: ${String(err)}`,
+    );
   }
 }

@@ -30,7 +30,9 @@ export async function runStartupSync(
   const since = row?.value ?? new Date(Date.now() - ONE_HOUR_MS).toISOString();
   const now = new Date().toISOString();
 
-  console.log(`[webhook-listener] Startup sync: checking comments since ${since}`);
+  console.log(
+    `[webhook-listener] Startup sync: checking comments since ${since}`,
+  );
 
   try {
     // Iterate all threads that have an active checkpoint in the DB
@@ -103,5 +105,7 @@ export async function runStartupSync(
     'INSERT OR REPLACE INTO webhook_sync (key, value) VALUES (?, ?)',
   ).run(SYNC_KEY, now);
 
-  console.log(`[webhook-listener] Startup sync complete. Next sync from ${now}`);
+  console.log(
+    `[webhook-listener] Startup sync complete. Next sync from ${now}`,
+  );
 }

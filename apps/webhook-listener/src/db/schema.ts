@@ -12,10 +12,7 @@ import Database from 'better-sqlite3';
 export function openDb(): Database.Database {
   const dbPath =
     process.env['DATABASE_PATH'] ??
-    path.resolve(
-      __dirname,
-      '../../../../libs/ai-orchestrator/data/state.db',
-    );
+    path.resolve(__dirname, '../../../../libs/ai-orchestrator/data/state.db');
 
   const db = new Database(dbPath);
   db.pragma('journal_mode = WAL');
