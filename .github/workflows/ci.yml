@@ -77,20 +77,22 @@ jobs:
             process.exit(1);
           }
 
-          // Unchecked boxes inside the triage section means the review
-          // was not completed before opening the PR.
+          // All four triage checkboxes must be checked [x].
+          // Requiring exactly 4 checked boxes is robust against list-marker
+          // variations (- vs * vs +) and prevents bypassing by deleting lines.
           const triageStart = body.indexOf('## Copilot Review Triage');
           const triageEnd = body.indexOf('## Deferred follow-ups');
           const triageSection = triageStart !== -1 && triageEnd !== -1
             ? body.slice(triageStart, triageEnd)
             : '';
 
-          if (/^- \[ \]/m.test(triageSection)) {
+          const checkedBoxes = (triageSection.match(/\[x\]/gi) ?? []).length;
+          if (checkedBoxes < 4) {
             console.error(
-              'PR has unchecked triage boxes in the Copilot Review Triage section.'
+              `PR triage section has ${checkedBoxes} checked box(es) — all 4 are required.`
             );
             console.error(
-              'Run #pre-pr-review in VS Code Copilot Chat and resolve all findings before opening the PR.'
+              'Run #pre-pr-review in VS Code Copilot Chat and tick every triage checkbox before opening the PR.'
             );
             process.exit(1);
           }

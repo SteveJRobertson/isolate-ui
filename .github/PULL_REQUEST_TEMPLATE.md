@@ -21,4 +21,4 @@ See [AGENTS.md](../AGENTS.md#pr-review-triage-policy) for the full triage policy
 
 <!-- Link any follow-up issues for Major or Minor items deferred from this PR. -->
 <!-- Format: "- #N — brief description" -->
-<!-- Remove this section if there are no deferred items. -->
+<!-- If there are no deferred items, write "None" below. Do NOT remove this section — CI requires it to be present. -->
