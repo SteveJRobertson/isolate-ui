@@ -5,8 +5,8 @@
       "type": "node",
       "request": "launch",
       "name": "Debug webhook-listener with Nx",
-      "runtimeExecutable": "pnpm exec",
-      "runtimeArgs": ["nx", "serve", "webhook-listener"],
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["exec", "nx", "serve", "webhook-listener"],
       "env": {
         "NODE_OPTIONS": "--inspect=9229"
       },

@@ -62,6 +62,9 @@ export function openDb(dbPath?: string): Database.Database {
   const db = new Database(resolvedPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
+  // Match the busy_timeout set in LangGraphSqliteSaver so both connections
+  // give writers a grace period before erroring on SQLITE_BUSY.
+  db.pragma('busy_timeout = 5000');
 
   applyMigrations(db);
 

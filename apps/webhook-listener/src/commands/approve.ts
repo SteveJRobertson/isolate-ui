@@ -45,9 +45,12 @@ export async function handleApprove(ctx: CommandContext): Promise<void> {
       pause_context: null,
     });
   } catch (err) {
+    // Post a user-facing reply first, then re-throw so the webhook route's
+    // catch block can delete the delivery row and allow GitHub to retry.
     await postErrorReply(
       ctx,
       `Failed to resume graph: ${err instanceof Error ? err.message : String(err)}`,
     );
+    throw err;
   }
 }

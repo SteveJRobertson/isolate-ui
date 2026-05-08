@@ -97,14 +97,23 @@ export async function runStartupSync(
         const [command, ...rest] = commentBody.split(/\s+/);
         const args = rest.join(' ');
 
-        if (command === '/approve') {
-          await handleApprove(ctx);
-        } else if (command === '/fix') {
-          await handleFix(ctx, args);
-        } else if (command === '/query') {
-          await handleQuery(ctx, args);
-        } else {
-          continue; // not a bot command
+        try {
+          if (command === '/approve') {
+            await handleApprove(ctx);
+          } else if (command === '/fix') {
+            await handleFix(ctx, args);
+          } else if (command === '/query') {
+            await handleQuery(ctx, args);
+          } else {
+            continue; // not a bot command
+          }
+        } catch (handlerErr) {
+          // Handler threw (and already posted an error reply). Skip the
+          // deliveries INSERT so the next startup can retry this command.
+          console.warn(
+            `[webhook-listener] Startup sync: handler failed for comment ${comment.id}: ${String(handlerErr)}`,
+          );
+          continue;
         }
 
         // Mark as processed so we don't replay if the server restarts again

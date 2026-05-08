@@ -19,8 +19,18 @@ interface WebhookRouteOptions {
 interface IssueCommentPayload {
   action: string;
   issue: { number: number };
-  comment: { body: string; user: { login: string } };
+  comment: {
+    body: string;
+    user: { login: string };
+    // GitHub's association of the commenter with the repo.
+    // Only OWNER, MEMBER, and COLLABORATOR may run orchestrator commands.
+    author_association: string;
+  };
 }
+
+// Minimum association required to run /approve, /fix, /query.
+// GitHub values: OWNER > MEMBER > COLLABORATOR > CONTRIBUTOR > NONE
+const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 
 /**
  * Register the POST /api/webhook route.
@@ -104,7 +114,20 @@ export async function webhookRoute(
       const issueNumber = payload.issue.number;
       const commentBody = payload.comment.body.trim();
       const username = payload.comment.user.login;
+      const authorAssociation = payload.comment.author_association;
       const threadId = `issue-${issueNumber}`;
+
+      // Authorization check: only repo collaborators and above may run commands.
+      // Rejecting here (before any DB write) keeps the delivery row so that
+      // if the same delivery is somehow replayed it is still treated as seen.
+      if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
+        // Release the delivery claim — unauthorized comments are not commands
+        // and should not permanently occupy a dedup slot.
+        db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+          deliveryId,
+        );
+        return reply.status(200).send({ ok: true, skipped: true });
+      }
 
       const ctx: CommandContext = {
         db,

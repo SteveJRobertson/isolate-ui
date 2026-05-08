@@ -54,9 +54,12 @@ export async function handleQuery(
       messages: [{ type: 'human', content: `@isolate- ${trimmed}` }],
     });
   } catch (err) {
+    // Post a user-facing reply first, then re-throw so the webhook route's
+    // catch block can delete the delivery row and allow GitHub to retry.
     await postErrorReply(
       ctx,
       `Failed to route query: ${err instanceof Error ? err.message : String(err)}`,
     );
+    throw err;
   }
 }
