@@ -6,7 +6,7 @@ import { openDb, resolveDbPath } from './db/schema';
 import { webhookRoute } from './routes/webhook';
 import { runStartupSync } from './sync/startup';
 
-const host = process.env.HOST ?? 'localhost';
+const host = process.env.HOST ?? '0.0.0.0'; // bind to all interfaces so GitHub/Tailscale can reach the service
 const port = process.env.PORT ? Number(process.env.PORT) : 8080;
 const owner = process.env.GITHUB_OWNER ?? 'SteveJRobertson';
 const repo = process.env.GITHUB_REPO ?? 'isolate-ui';

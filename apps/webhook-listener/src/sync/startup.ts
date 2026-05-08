@@ -33,11 +33,14 @@ export async function runStartupSync(
     `[webhook-listener] Startup sync: checking comments since ${since}`,
   );
 
-  // Track the latest processed comment timestamp across all threads so the
-  // cursor is advanced only to the point we know was fully processed.
-  // Using `now` (computed before fetching) can skip comments created after
-  // comments are fetched but before the cursor write. Using the latest
-  // processed comment timestamp avoids that window.
+  // latestSeenAt: max timestamp of any comment fetched in this scan,
+  // regardless of whether it was a bot command or already deduped.
+  // Advancing the cursor to this value prevents re-scanning the same window
+  // on every restart when only non-command or already-deduped comments are
+  // present, avoiding wasted GitHub API quota.
+  let latestSeenAt: string | null = null;
+  // latestProcessedAt: max timestamp of actually-processed commands,
+  // retained for informational logging only.
   let latestProcessedAt: string | null = null;
 
   try {
@@ -61,6 +64,15 @@ export async function runStartupSync(
       });
 
       for (const comment of comments) {
+        // Track the latest timestamp from every comment we've seen
+        // (including already-processed and non-command ones) so the cursor
+        // can advance even when no new commands are processed.
+        if (comment.created_at) {
+          if (!latestSeenAt || comment.created_at > latestSeenAt) {
+            latestSeenAt = comment.created_at;
+          }
+        }
+
         const deliveryId = `startup-sync-${comment.id}`;
 
         // Skip already-processed comments
@@ -111,20 +123,26 @@ export async function runStartupSync(
       }
     }
 
-    // Only advance the cursor when at least one command was processed.
-    // Using the latest processed comment timestamp prevents skipping comments
-    // created after we fetched but before the cursor write.
-    if (latestProcessedAt) {
+    // Advance the cursor to the latest comment we've seen — even if all
+    // were non-commands or already deduped — so the next startup doesn't
+    // re-scan the same window and waste GitHub API quota.
+    if (latestSeenAt) {
       db.prepare(
         'INSERT OR REPLACE INTO webhook_sync (key, value) VALUES (?, ?)',
-      ).run(SYNC_KEY, latestProcessedAt);
+      ).run(SYNC_KEY, latestSeenAt);
 
-      console.log(
-        `[webhook-listener] Startup sync complete. Next sync from ${latestProcessedAt}`,
-      );
+      if (latestProcessedAt) {
+        console.log(
+          `[webhook-listener] Startup sync complete. Processed commands up to ${latestProcessedAt}. Next sync from ${latestSeenAt}`,
+        );
+      } else {
+        console.log(
+          `[webhook-listener] Startup sync complete. No new commands processed. Next sync from ${latestSeenAt}`,
+        );
+      }
     } else {
       console.log(
-        `[webhook-listener] Startup sync complete. No new commands processed.`,
+        `[webhook-listener] Startup sync complete. No comments in window.`,
       );
     }
   } catch (err) {

@@ -6,10 +6,10 @@ import { CommandContext, postErrorReply } from './context';
  * Resumes the graph from its last checkpoint. Reads pause_context from the
  * checkpoint state to determine the correct resume target:
  * - 'mesh_stalemate' → resume at mesh_origin (return to interrupted sequence)
- * - 'refinement_limit' or null → resume at 'po' (restart refinement loop)
+ * - 'refinement_limit' → resume at 'po' (restart refinement loop)
  *
- * Also resets rejectionCount, mesh_loop_count, signoffs, and pause_context
- * so the agents get a clean run.
+ * Returns an error reply when pause_context is null — i.e., the thread is not
+ * currently paused for human review and there is nothing to approve.
  */
 export async function handleApprove(ctx: CommandContext): Promise<void> {
   const { graph, threadId } = ctx;

@@ -35,6 +35,12 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
     // Open/create database
     this.db = new Database(dbPath);
     this.db.pragma('foreign_keys = ON');
+    // WAL mode allows concurrent readers alongside a single writer, avoiding
+    // SQLITE_BUSY errors when the webhook-listener's openDb() connection is
+    // active at the same time. busy_timeout gives writers a grace period
+    // before giving up.
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('busy_timeout = 5000');
     this.initSchema();
     this.prepareStatements();
   }

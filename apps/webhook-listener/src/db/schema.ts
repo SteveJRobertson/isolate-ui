@@ -54,6 +54,11 @@ export function resolveDbPath(): string {
 export function openDb(dbPath?: string): Database.Database {
   const resolvedPath = dbPath ?? resolveDbPath();
 
+  // Ensure the parent directory exists before opening the DB file.
+  // new Database() will throw if the directory is missing; this mirrors
+  // LangGraphSqliteSaver's behaviour so both connections are consistent.
+  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+
   const db = new Database(resolvedPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
