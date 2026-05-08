@@ -2,19 +2,44 @@ import * as path from 'path';
 import Database from 'better-sqlite3';
 
 /**
+ * Resolve the SQLite database path.
+ *
+ * Uses DATABASE_PATH env var when set; otherwise falls back to the path used
+ * by OrchestratorGraph's own default (libs/ai-orchestrator/data/state.db)
+ * derived from the workspace root. Exporting this function lets main.ts
+ * compute the path once and pass it to both openDb() and new OrchestratorGraph()
+ * so both always use the same file.
+ */
+export function resolveDbPath(): string {
+  if (process.env['DATABASE_PATH']) {
+    return process.env['DATABASE_PATH'];
+  }
+  // Walk up to the workspace root from this file's location in dist/
+  // by looking for the nx.json marker, mirroring OrchestratorGraph's approach.
+  // At runtime the compiled file is at dist/apps/webhook-listener/main.js;
+  // the workspace root is 3 levels up from that.
+  const candidates = [
+    // Runtime (compiled): dist/apps/webhook-listener/src/db/schema.js → root is ../../../../
+    path.resolve(__dirname, '../../../../libs/ai-orchestrator/data/state.db'),
+    // Development (ts-node / nx serve): src/db/schema.ts → root is ../../../../
+    path.resolve(__dirname, '../../../../libs/ai-orchestrator/data/state.db'),
+  ];
+  return candidates[0];
+}
+
+/**
  * Open the shared SQLite database and ensure the webhook-specific tables exist.
  *
  * Uses the same database file as ai-orchestrator so deliveries and checkpoints
  * are co-located — no extra DB connection or file required.
  *
- * DATABASE_PATH env var overrides the default path (useful in tests).
+ * Pass the resolved path explicitly (from resolveDbPath()) so the caller can
+ * share the same path with OrchestratorGraph.
  */
-export function openDb(): Database.Database {
-  const dbPath =
-    process.env['DATABASE_PATH'] ??
-    path.resolve(__dirname, '../../../../libs/ai-orchestrator/data/state.db');
+export function openDb(dbPath?: string): Database.Database {
+  const resolvedPath = dbPath ?? resolveDbPath();
 
-  const db = new Database(dbPath);
+  const db = new Database(resolvedPath);
   db.pragma('journal_mode = WAL');
   db.pragma('foreign_keys = ON');
 

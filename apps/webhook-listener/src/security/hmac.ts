@@ -2,19 +2,23 @@ import { createHmac, timingSafeEqual } from 'crypto';
 
 // SHA-256 produces 32 bytes = 64 hex characters.
 const EXPECTED_PREFIX = 'sha256=';
-const DIGEST_HEX_LENGTH = 64;
+const DIGEST_BYTE_LENGTH = 32; // 256 bits
+const DIGEST_HEX_LENGTH = DIGEST_BYTE_LENGTH * 2; // 64 hex chars
 const EXPECTED_SIG_LENGTH = EXPECTED_PREFIX.length + DIGEST_HEX_LENGTH;
+
+// Valid lowercase hex characters for strict validation.
+const HEX_RE = /^[0-9a-f]{64}$/;
 
 /**
  * Verify a GitHub webhook HMAC-SHA256 signature.
  *
  * GitHub sends the signature in the X-Hub-Signature-256 header as:
- *   "sha256=<64-char hex digest>"
+ *   "sha256=<64-char lowercase hex digest>"
  *
- * Compares raw 32-byte digest buffers (not hex strings) via timingSafeEqual
- * to prevent timing-based side-channel attacks. If the provided signature is
- * malformed, a dummy comparison is still performed so the function takes
- * constant time regardless of whether the signature is valid or not.
+ * Compares raw 32-byte digest buffers via timingSafeEqual to prevent
+ * timing-based side-channel attacks. All rejection paths (missing, wrong
+ * length, wrong prefix, invalid hex) still run a dummy timingSafeEqual so
+ * the function takes constant time regardless of the failure reason.
  *
  * @param secret    - The WEBHOOK_SECRET shared with GitHub
  * @param rawBody   - The raw request body buffer (before JSON parsing)
@@ -29,19 +33,25 @@ export function verifyHmac(
   // Compute expected digest as a 32-byte Buffer.
   const expectedDigest = createHmac('sha256', secret).update(rawBody).digest();
 
-  if (!signature || signature.length !== EXPECTED_SIG_LENGTH) {
-    // Wrong format — run a dummy comparison to keep constant time.
+  // Validate format: must be exactly "sha256=" + 64 lowercase hex chars.
+  const isValidFormat =
+    !!signature &&
+    signature.length === EXPECTED_SIG_LENGTH &&
+    signature.startsWith(EXPECTED_PREFIX) &&
+    HEX_RE.test(signature.slice(EXPECTED_PREFIX.length));
+
+  if (!isValidFormat) {
+    // Run a dummy comparison to avoid timing differences on rejection.
     timingSafeEqual(expectedDigest, Buffer.alloc(expectedDigest.length));
     return false;
   }
 
-  // Decode the 64-char hex portion into a 32-byte Buffer.
+  // Decode the 64-char hex portion. HEX_RE guarantees valid lowercase hex so
+  // Buffer.from always returns exactly 32 bytes — timingSafeEqual is safe.
   const providedDigest = Buffer.from(
     signature.slice(EXPECTED_PREFIX.length),
     'hex',
   );
 
-  // If the hex was invalid, Buffer.from returns a zero-padded buffer of the
-  // same length — timingSafeEqual still works and returns false safely.
   return timingSafeEqual(expectedDigest, providedDigest);
 }

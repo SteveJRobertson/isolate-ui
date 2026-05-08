@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import rawBody from 'fastify-raw-body';
 import { Octokit } from '@octokit/rest';
 import { OrchestratorGraph } from '@isolate-ui/ai-orchestrator';
-import { openDb } from './db/schema';
+import { openDb, resolveDbPath } from './db/schema';
 import { webhookRoute } from './routes/webhook';
 import { runStartupSync } from './sync/startup';
 
@@ -23,10 +23,12 @@ async function start() {
     runFirst: true,
   });
 
-  // Initialise shared dependencies
-  const db = openDb();
+  // Resolve the DB path once so both openDb() and OrchestratorGraph use the
+  // same SQLite file (important when DATABASE_PATH env var is set).
+  const dbPath = resolveDbPath();
+  const db = openDb(dbPath);
   const octokit = new Octokit({ auth: process.env['GITHUB_TOKEN'] });
-  const graph = new OrchestratorGraph();
+  const graph = new OrchestratorGraph(dbPath);
 
   // Sync the graph's GitHub repo target so the human_review pause comment
   // is posted to the same repo this service is configured to watch.

@@ -95,18 +95,21 @@ export async function runStartupSync(
         ).run(deliveryId);
       }
     }
+
+    // Only advance the cursor after ALL threads are fully processed.
+    // Moving it inside the try block means a mid-run API failure leaves
+    // the cursor unchanged so the next startup re-scans the same window.
+    db.prepare(
+      'INSERT OR REPLACE INTO webhook_sync (key, value) VALUES (?, ?)',
+    ).run(SYNC_KEY, now);
+
+    console.log(
+      `[webhook-listener] Startup sync complete. Next sync from ${now}`,
+    );
   } catch (err) {
-    // Non-fatal — log and continue server startup
+    // Non-fatal — log and continue server startup.
+    // Cursor is intentionally NOT advanced so the next startup re-processes
+    // the same window and avoids permanently skipping missed commands.
     console.warn(`[webhook-listener] Startup sync failed: ${String(err)}`);
   }
-
-  // Update last_sync_time regardless of errors so we don't re-process the
-  // same window on the next restart.
-  db.prepare(
-    'INSERT OR REPLACE INTO webhook_sync (key, value) VALUES (?, ?)',
-  ).run(SYNC_KEY, now);
-
-  console.log(
-    `[webhook-listener] Startup sync complete. Next sync from ${now}`,
-  );
 }

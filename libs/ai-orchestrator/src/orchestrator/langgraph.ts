@@ -206,10 +206,15 @@ export class OrchestratorGraph {
           state.pause_context === 'mesh_stalemate'
             ? `Ambiguity Mesh stalemate after ${state.mesh_loop_count} jumps.`
             : `Refinement loop reached the iteration limit (${state.rejectionCount} rejections).`;
-        const issueAuthor = String(
-          state.metadata?.['github_issue_author'] ?? '',
-        );
-        const mention = issueAuthor ? `@${issueAuthor} ` : '';
+        // Sanitize issueAuthor to GitHub-safe characters (alphanumeric + hyphens,
+        // max 39 chars) to prevent injection of extra @mentions or formatting
+        // from caller-supplied metadata. Mirrors buildStalemateCommentBody in poster.ts.
+        const rawAuthor = String(state.metadata?.['github_issue_author'] ?? '');
+        const safeAuthor = rawAuthor
+          .trim()
+          .replace(/[^a-zA-Z0-9-]/g, '')
+          .slice(0, 39);
+        const mention = safeAuthor ? `@${safeAuthor} ` : '';
         const body = [
           `${mention}**Graph paused — human review required.**`,
           '',
@@ -491,13 +496,20 @@ export class OrchestratorGraph {
 
     // Parse input through schema for validation.
     // When input is provided alongside an existing checkpoint, merge the
-    // checkpoint state first so that persistent fields (messages, metadata,
-    // code_buffer, etc.) are preserved. Only explicitly provided input fields
-    // override the checkpoint values.
+    // checkpoint state first so that persistent fields are preserved.
+    // For array fields like `messages`, new input messages are APPENDED to
+    // the checkpoint history so prior context is never lost. Scalar overrides
+    // (next_recipient, counters, etc.) still win via the spread.
+    const baseState = existingCheckpoint ?? createDefaultAgentState();
     const parsedInput = input
       ? AgentStateSchema.parse({
-          ...(existingCheckpoint ?? createDefaultAgentState()),
+          ...baseState,
           ...input,
+          // Append new messages to existing history rather than replacing it.
+          messages:
+            input.messages && baseState.messages?.length
+              ? [...baseState.messages, ...input.messages]
+              : (input.messages ?? baseState.messages),
         })
       : existingCheckpoint
         ? AgentStateSchema.parse(existingCheckpoint)

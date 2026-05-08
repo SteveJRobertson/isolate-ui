@@ -206,6 +206,13 @@ export function createMeshRouterNode(
   let resolvedClient: BaseChatModel | undefined = config.llmClient;
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
+    // The human_review node is a terminal HITL pause — never escape it via a
+    // mesh jump. Return {} to pass through unchanged so the graph routes to
+    // __end__ as intended without any LLM classification overhead.
+    if (state.next_recipient === 'human_review') {
+      return {};
+    }
+
     if (!resolvedClient) {
       try {
         resolvedClient = createDefaultMeshClient();
@@ -242,21 +249,16 @@ export function createMeshRouterNode(
         next_recipient: 'human_review' as const,
         pause_context: 'mesh_stalemate' as const,
         mesh_loop_count: newMeshLoopCount,
-        mesh_origin:
-          state.next_recipient && state.next_recipient !== 'human_review'
-            ? state.next_recipient
-            : null,
+        mesh_origin: state.next_recipient ?? null,
       };
     }
 
     return {
       next_recipient: target,
       // Record where the deterministic sequence was heading before this jump.
-      // Exclude 'human_review' — it is never a valid origin persona.
-      mesh_origin:
-        state.next_recipient && state.next_recipient !== 'human_review'
-          ? state.next_recipient
-          : null,
+      // 'human_review' is excluded by the early guard above, so this is always
+      // a valid persona ID or null.
+      mesh_origin: state.next_recipient ?? null,
       mesh_loop_count: newMeshLoopCount,
     };
   };
