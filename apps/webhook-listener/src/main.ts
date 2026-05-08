@@ -28,6 +28,10 @@ async function start() {
   const octokit = new Octokit({ auth: process.env['GITHUB_TOKEN'] });
   const graph = new OrchestratorGraph();
 
+  // Sync the graph's GitHub repo target so the human_review pause comment
+  // is posted to the same repo this service is configured to watch.
+  graph.setGitHubRepo(owner, repo);
+
   // Register the webhook route with its dependencies
   await server.register(webhookRoute, { db, graph, octokit, owner, repo });
 

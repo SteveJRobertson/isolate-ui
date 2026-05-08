@@ -28,6 +28,14 @@ export async function handleApprove(ctx: CommandContext): Promise<void> {
       ? checkpoint.mesh_origin
       : 'po';
 
+  if (!checkpoint.pause_context) {
+    await postErrorReply(
+      ctx,
+      `Thread \`${threadId}\` is not currently paused for human review. Nothing to approve.`,
+    );
+    return;
+  }
+
   try {
     await graph.invoke(threadId, {
       next_recipient: resumeTarget as any,

@@ -6,7 +6,7 @@ import { verifyHmac } from '../security/hmac';
 import { handleApprove } from '../commands/approve';
 import { handleFix } from '../commands/fix';
 import { handleQuery } from '../commands/query';
-import { postErrorReply, CommandContext } from '../commands/context';
+import { CommandContext } from '../commands/context';
 
 interface WebhookRouteOptions {
   db: Database.Database;
@@ -39,7 +39,12 @@ export async function webhookRoute(
   opts: WebhookRouteOptions,
 ): Promise<void> {
   const { db, graph, octokit, owner, repo } = opts;
-  const secret = process.env['WEBHOOK_SECRET'] ?? '';
+  const secret = process.env['WEBHOOK_SECRET'];
+  if (!secret || secret.length < 32) {
+    throw new Error(
+      'WEBHOOK_SECRET must be set and at least 32 characters. Refusing to start.',
+    );
+  }
 
   fastify.post(
     '/api/webhook',
@@ -54,7 +59,12 @@ export async function webhookRoute(
       const signature = request.headers['x-hub-signature-256'] as
         | string
         | undefined;
-      const rawBody: Buffer = (request as any).rawBody;
+      const rawBody = (request as any).rawBody;
+      if (!Buffer.isBuffer(rawBody)) {
+        return reply
+          .status(400)
+          .send({ error: 'Raw body unavailable — HMAC cannot be verified' });
+      }
       if (!verifyHmac(secret, rawBody, signature)) {
         return reply.status(401).send({ error: 'Invalid signature' });
       }

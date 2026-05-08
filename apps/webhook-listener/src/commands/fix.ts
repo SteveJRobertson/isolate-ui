@@ -34,6 +34,14 @@ export async function handleFix(
     return;
   }
 
+  if (!checkpoint.pause_context) {
+    await postErrorReply(
+      ctx,
+      `Thread \`${threadId}\` is not currently paused for human review. Nothing to fix.`,
+    );
+    return;
+  }
+
   try {
     await graph.invoke(threadId, {
       next_recipient: 'po' as any,

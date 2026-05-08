@@ -236,12 +236,16 @@ export function createMeshRouterNode(
       // Route to the human_review node instead of throwing. The human_review
       // node posts a GitHub pause comment and terminates the graph cleanly,
       // preserving the checkpoint for webhook-based resumption via /approve or /fix.
-      // mesh_origin is already set in state — preserve it so the webhook can
-      // determine the correct resume target on /approve.
+      // Set mesh_origin now (same logic as the normal jump path) so /approve
+      // knows the correct persona to resume from after stalemate.
       return {
         next_recipient: 'human_review' as const,
         pause_context: 'mesh_stalemate' as const,
         mesh_loop_count: newMeshLoopCount,
+        mesh_origin:
+          state.next_recipient && state.next_recipient !== 'human_review'
+            ? state.next_recipient
+            : null,
       };
     }
 

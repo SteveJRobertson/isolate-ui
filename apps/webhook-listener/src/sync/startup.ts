@@ -46,11 +46,12 @@ export async function runStartupSync(
       if (!match) continue;
       const issueNumber = parseInt(match[1], 10);
 
-      const { data: comments } = await octokit.issues.listComments({
+      const comments = await octokit.paginate(octokit.issues.listComments, {
         owner,
         repo,
         issue_number: issueNumber,
         since,
+        per_page: 100,
       });
 
       for (const comment of comments) {

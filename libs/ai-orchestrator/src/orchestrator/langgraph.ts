@@ -489,10 +489,14 @@ export class OrchestratorGraph {
       },
     };
 
-    // Parse input through schema for validation
+    // Parse input through schema for validation.
+    // When input is provided alongside an existing checkpoint, merge the
+    // checkpoint state first so that persistent fields (messages, metadata,
+    // code_buffer, etc.) are preserved. Only explicitly provided input fields
+    // override the checkpoint values.
     const parsedInput = input
       ? AgentStateSchema.parse({
-          ...createDefaultAgentState(),
+          ...(existingCheckpoint ?? createDefaultAgentState()),
           ...input,
         })
       : existingCheckpoint
