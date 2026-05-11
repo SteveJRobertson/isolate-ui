@@ -15,14 +15,14 @@ The most distinctive aspect of Isolate UI is its agentic development workflow. T
 
 ### Agent Personas
 
-| Persona | Role |
-|---|---|
-| `@isolate-po` | Selects Ark UI primitives, maps design tokens, and produces the initial component specification |
+| Persona              | Role                                                                                                                  |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `@isolate-po`        | Selects Ark UI primitives, maps design tokens, and produces the initial component specification                       |
 | `@isolate-architect` | Enforces Nx project boundary rules and validates permitted shared utility imports before greenlighting implementation |
-| `@isolate-dev` | Implements TypeScript/React components with Panda CSS, following "The Blueprint" component pattern |
-| `@isolate-a11y` | Audits WAI-ARIA compliance and keyboard navigation, validates WCAG 2.1 Level AA conformance |
-| `@isolate-qa` | Validates Vitest test coverage (minimum 80%), error state recovery, and edge case handling |
-| `@isolate-docs` | Generates Storybook CSF stories and README artifacts documenting all prop interfaces and variants |
+| `@isolate-dev`       | Implements TypeScript/React components with Panda CSS, following "The Blueprint" component pattern                    |
+| `@isolate-a11y`      | Audits WAI-ARIA compliance and keyboard navigation, validates WCAG 2.1 Level AA conformance                           |
+| `@isolate-qa`        | Validates Vitest test coverage (minimum 80%), error state recovery, and edge case handling                            |
+| `@isolate-docs`      | Generates Storybook CSF stories and README artifacts documenting all prop interfaces and variants                     |
 
 ### The Consensus Loop
 
@@ -150,23 +150,23 @@ libs/
 
 ## Technology Stack
 
-| Category | Technology |
-|---|---|
-| **Monorepo** | [Nx](https://nx.dev) 22.5.4 |
-| **Package Manager** | [pnpm](https://pnpm.io) 10.30.3 |
-| **Agent Orchestration** | [LangGraph.js](https://langchain-ai.github.io/langgraphjs/) |
-| **UI Framework** | React 19 |
-| **Language** | TypeScript 5.9 |
-| **Build Tool** | [Vite](https://vitejs.dev) 7.x |
-| **Testing** | [Vitest](https://vitest.dev) 3.2.4 |
-| **Browser Testing** | [Playwright](https://playwright.dev) 1.58.2 |
-| **Accessibility** | [@axe-core/playwright](https://github.com/dequelabs/axe-core-npm) 4.11.1 |
-| **Documentation** | [Storybook](https://storybook.js.org) 8.6.18 |
-| **Styling** | [Panda CSS](https://panda-css.com) |
-| **Releases** | [Nx Release](https://nx.dev/features/manage-releases) with version plans |
-| **Commit Linting** | [Commitlint](https://commitlint.js.org/) + [Husky](https://typicode.github.io/husky/) |
-| **Deployment** | [Vercel](https://vercel.com) (Storybook previews) |
-| **Registry** | [NPM](https://www.npmjs.com) with provenance attestations |
+| Category                | Technology                                                                            |
+| ----------------------- | ------------------------------------------------------------------------------------- |
+| **Monorepo**            | [Nx](https://nx.dev) 22.5.4                                                           |
+| **Package Manager**     | [pnpm](https://pnpm.io) 10.30.3                                                       |
+| **Agent Orchestration** | [LangGraph.js](https://langchain-ai.github.io/langgraphjs/)                           |
+| **UI Framework**        | React 19                                                                              |
+| **Language**            | TypeScript 5.9                                                                        |
+| **Build Tool**          | [Vite](https://vitejs.dev) 7.x                                                        |
+| **Testing**             | [Vitest](https://vitest.dev) 3.2.4                                                    |
+| **Browser Testing**     | [Playwright](https://playwright.dev) 1.58.2                                           |
+| **Accessibility**       | [@axe-core/playwright](https://github.com/dequelabs/axe-core-npm) 4.11.1              |
+| **Documentation**       | [Storybook](https://storybook.js.org) 8.6.18                                          |
+| **Styling**             | [Panda CSS](https://panda-css.com)                                                    |
+| **Releases**            | [Nx Release](https://nx.dev/features/manage-releases) with version plans              |
+| **Commit Linting**      | [Commitlint](https://commitlint.js.org/) + [Husky](https://typicode.github.io/husky/) |
+| **Deployment**          | [Vercel](https://vercel.com) (Storybook previews)                                     |
+| **Registry**            | [NPM](https://www.npmjs.com) with provenance attestations                             |
 
 ---
 
@@ -353,17 +353,17 @@ Distributed caching is configured with Vercel Remote Cache. Cacheable operations
 
 ### Key Files
 
-| File | Purpose |
-|---|---|
-| [AGENTS.md](./AGENTS.md) | Agentic workflow reference and troubleshooting |
-| [libs/ai-orchestrator/README.md](./libs/ai-orchestrator/README.md) | Full orchestrator API reference |
-| [nx.json](./nx.json) | Nx workspace configuration with release settings |
-| [tsconfig.base.json](./tsconfig.base.json) | TypeScript base configuration and path mappings |
-| [vitest.workspace.ts](./vitest.workspace.ts) | Vitest workspace configuration |
-| [commitlint.config.ts](./commitlint.config.ts) | Commit message linting rules |
-| [vercel.json](./vercel.json) | Vercel deployment configuration |
-| [.github/workflows/ci.yml](./.github/workflows/ci.yml) | CI verification workflow |
-| [.github/workflows/release.yml](./.github/workflows/release.yml) | Automated release workflow |
+| File                                                               | Purpose                                          |
+| ------------------------------------------------------------------ | ------------------------------------------------ |
+| [AGENTS.md](./AGENTS.md)                                           | Agentic workflow reference and troubleshooting   |
+| [libs/ai-orchestrator/README.md](./libs/ai-orchestrator/README.md) | Full orchestrator API reference                  |
+| [nx.json](./nx.json)                                               | Nx workspace configuration with release settings |
+| [tsconfig.base.json](./tsconfig.base.json)                         | TypeScript base configuration and path mappings  |
+| [vitest.workspace.ts](./vitest.workspace.ts)                       | Vitest workspace configuration                   |
+| [commitlint.config.ts](./commitlint.config.ts)                     | Commit message linting rules                     |
+| [vercel.json](./vercel.json)                                       | Vercel deployment configuration                  |
+| [.github/workflows/ci.yml](./.github/workflows/ci.yml)             | CI verification workflow                         |
+| [.github/workflows/release.yml](./.github/workflows/release.yml)   | Automated release workflow                       |
 
 ### Path Mappings
 
