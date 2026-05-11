@@ -30,7 +30,7 @@ function detectSqlite(): boolean {
     // Attempt a full require() load so that a missing or ABI-incompatible
     // native binary is caught here rather than surfacing as a runtime error
     // inside OrchestratorGraph construction.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     require('better-sqlite3');
     return true;
   } catch {

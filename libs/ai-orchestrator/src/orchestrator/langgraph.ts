@@ -1,5 +1,5 @@
 import * as path from 'path';
-import { StateGraph, START, Annotation } from '@langchain/langgraph';
+import { StateGraph, START, Annotation, interrupt } from '@langchain/langgraph';
 import {
   AgentState,
   createDefaultAgentState,
@@ -200,16 +200,36 @@ export class OrchestratorGraph {
     const meshRouterFn = createMeshRouterNode(this.meshConfig);
     stateGraph.addNode('mesh_router', meshRouterFn);
 
+    // Add the __pause__ node for interrupt-based pause handling.
+    // Called when pause_context is set, allowing nodes to request pauses
+    // without calling interrupt() themselves (which would fail in unit tests).
+    stateGraph.addNode('__pause__', (state: AgentState) => {
+      if (state.pause_context) {
+        const pausePayload: PausePayload = {
+          pause_context: state.pause_context,
+          rejectionCount: state.rejectionCount ?? 0,
+          rejectionReason: state.rejectionReason ?? '',
+          signoffs: state.signoffs,
+          mesh_origin: state.mesh_origin,
+          mesh_loop_count: state.mesh_loop_count,
+        };
+        interrupt(pausePayload);
+      }
+      return {}; // Node requires a return; interrupt() will suspend before this matters
+    });
+
     // Single routing function shared by START and mesh_router output.
     // Routes to a persona node when next_recipient is a known persona ID,
-    // otherwise terminates the graph (__end__).
+    // routes to __pause__ if pause_context is set, otherwise terminates (__end__).
     const routeByRecipient = (state: AgentState): string => {
+      // If pause is requested, route to __pause__ node to call interrupt()
+      if (state.pause_context) return '__pause__';
       const next = state.next_recipient;
       if (!next) return '__end__';
       return personaIds.includes(next) ? next : '__end__';
     };
 
-    // START → persona nodes | __end__ (direct dispatch — bypasses mesh_router on initial entry)
+    // START → persona nodes | __pause__ | __end__ (direct dispatch — bypasses mesh_router on initial entry)
     stateGraph.addConditionalEdges(START, routeByRecipient, {
       po: 'po',
       architect: 'architect',
@@ -217,6 +237,7 @@ export class OrchestratorGraph {
       a11y: 'a11y',
       qa: 'qa',
       docs: 'docs',
+      __pause__: '__pause__',
       __end__: '__end__',
     } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
 
@@ -228,7 +249,7 @@ export class OrchestratorGraph {
       stateGraph.addEdge(personaId as any, 'mesh_router' as any);
     });
 
-    // mesh_router → persona nodes | __end__ (conditional)
+    // mesh_router → persona nodes | __pause__ | __end__ (conditional)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stateGraph.addConditionalEdges('mesh_router' as any, routeByRecipient, {
       po: 'po',
@@ -237,8 +258,14 @@ export class OrchestratorGraph {
       a11y: 'a11y',
       qa: 'qa',
       docs: 'docs',
+      __pause__: '__pause__',
       __end__: '__end__',
     } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+    // __pause__ → __end__ (deterministic)
+    // Pauses route to __end__ once interrupt() has suspended execution.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stateGraph.addEdge('__pause__' as any, '__end__' as any);
 
     return stateGraph.compile({
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -435,14 +462,7 @@ export class OrchestratorGraph {
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, unknown> },
   ): Promise<OrchestratorRunResult> {
-    const result = await this.invokeWithGraph(
-      this.graph,
-      threadId,
-      input,
-      config,
-    );
-    // For now, invoke returns the same shape as run. We'll add interrupt detection in Phase 3.
-    return result;
+    return this.invokeWithGraph(this.graph, threadId, input, config);
   }
 
   /**
@@ -505,6 +525,26 @@ export class OrchestratorGraph {
 
     // Extract the final state
     const finalState = AgentStateSchema.parse(result);
+
+    // Detect pause_context marker set by nodes and handled by __pause__ node.
+    // If pause_context is set, return paused result (interrupt() was already called by __pause__ node).
+    if (finalState.pause_context) {
+      const pausePayload: PausePayload = {
+        pause_context: finalState.pause_context,
+        rejectionCount: finalState.rejectionCount ?? 0,
+        rejectionReason: finalState.rejectionReason ?? '',
+        signoffs: finalState.signoffs,
+        mesh_origin: finalState.mesh_origin,
+        mesh_loop_count: finalState.mesh_loop_count,
+      };
+      return {
+        status: 'paused',
+        threadId,
+        finalState,
+        stepCount: finalState._step_count,
+        pausePayload,
+      };
+    }
 
     return {
       status: 'completed',
