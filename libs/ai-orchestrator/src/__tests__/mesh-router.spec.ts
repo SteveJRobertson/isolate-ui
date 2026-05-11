@@ -3,7 +3,6 @@ import { FakeListChatModel } from '@langchain/core/utils/testing';
 import {
   analyzeMeshQuery,
   createMeshRouterNode,
-  MeshStalemateError,
   DEFAULT_MESH_CONFIG,
   type MeshRouterConfig,
 } from '../orchestrator/mesh-router';
@@ -306,39 +305,5 @@ describe('createMeshRouterNode', () => {
     // Should silently fail safe without throwing
     const result = await node(state);
     expect(result).toEqual({});
-  });
-});
-
-// ── MeshStalemateError ────────────────────────────────────────────────────────
-
-describe('MeshStalemateError', () => {
-  it('is an instance of Error', () => {
-    const err = new MeshStalemateError(6, 'issue-20', 'dev', 5);
-    expect(err).toBeInstanceOf(Error);
-  });
-
-  it('carries correct fields', () => {
-    const err = new MeshStalemateError(6, 'issue-20', 'dev', 5);
-    expect(err.meshLoopCount).toBe(6);
-    expect(err.issueId).toBe('issue-20');
-    expect(err.originPersona).toBe('dev');
-    expect(err.name).toBe('MeshStalemateError');
-  });
-
-  it('message includes loop count and limit', () => {
-    const err = new MeshStalemateError(6, 'issue-20', 'dev', 5);
-    expect(err.message).toContain('6');
-    expect(err.message).toContain('5');
-  });
-
-  it('instanceof check survives re-throw', () => {
-    const original = new MeshStalemateError(3, 'issue-20', 'po', 3);
-    let caught: unknown;
-    try {
-      throw original;
-    } catch (e) {
-      caught = e;
-    }
-    expect(caught).toBeInstanceOf(MeshStalemateError);
   });
 });

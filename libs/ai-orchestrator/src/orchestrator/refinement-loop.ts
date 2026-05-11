@@ -13,7 +13,7 @@ export interface RefinementConfig {
 
   /**
    * Maximum number of rejections before the loop auto-pauses and requires
-   * human intervention via RefinementIterationLimitError.
+   * human intervention via pause_context marker and interrupt().
    * Defaults to 5.
    */
   maxIterations: number;
@@ -64,35 +64,6 @@ export function parseDecision(state: Partial<AgentState>): RefinementDecision {
 }
 
 // ── Iteration limit error ─────────────────────────────────────────────────────
-
-/**
- * Thrown when the refinement loop reaches its maximum iteration count.
- * Callers should catch this to trigger a human-in-the-loop pause and post a
- * GitHub comment before requesting manual review.
- */
-export class RefinementIterationLimitError extends Error {
-  public readonly rejectionCount: number;
-  /** The GitHub issue ID that triggered this loop (from metadata.github_issue_id). */
-  public readonly issueId: string;
-  public readonly rejectionReason: string;
-
-  constructor(
-    rejectionCount: number,
-    issueId: string,
-    maxIterations?: number,
-    rejectionReason = '',
-  ) {
-    super(
-      `Refinement loop paused: ${rejectionCount} rejections reached the maximum of ${maxIterations ?? rejectionCount}. Human review required.`,
-    );
-    this.name = 'RefinementIterationLimitError';
-    this.rejectionCount = rejectionCount;
-    this.issueId = issueId;
-    this.rejectionReason = rejectionReason;
-    // Maintain prototype chain for instanceof checks in TypeScript
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-}
 
 // ── Node wrapper ──────────────────────────────────────────────────────────────
 
