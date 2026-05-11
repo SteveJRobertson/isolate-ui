@@ -245,11 +245,10 @@ export async function writeComponentFile(
   dir: string,
   componentName: string,
   tagName: string,
-  _slots: string[],
 ): Promise<void> {
   const pascal = toPascal(componentName);
   const camel = toCamel(componentName);
-  // 'root' and 'label' are always normalized into slots by createDevBoilerplateNode.
+  // 'root' and 'label' are always hardcoded in the template.
 
   const content = [
     `import type { HTMLArkProps } from '@ark-ui/react';`,
@@ -472,8 +471,6 @@ export async function runBuildAndTest(
  */
 export async function attemptAutoFix(
   workspaceRoot: string,
-  _componentName: string,
-  _errorLog: string,
 ): Promise<{ success: boolean; errorLog: string }> {
   try {
     await execFileAsync('pnpm', ['exec', 'panda', 'codegen'], {
@@ -614,7 +611,7 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
       `HTML tag: ${tagName}`,
     ].join('\n');
     try {
-      await writeComponentFile(dir, componentName, tagName, slots);
+      await writeComponentFile(dir, componentName, tagName);
       await writeRecipeFile(dir, componentName, slots, variants);
       await writeStoriesFile(dir, componentName, variants);
       await writeComponentTestFile(dir, componentName);
@@ -642,11 +639,7 @@ export function createDevBoilerplateNode(config: DevNodeConfig): AgentNodeFn {
     }
 
     // 6. Auto-fix (Panda codegen only)
-    const fixResult = await attemptAutoFix(
-      config.workspaceRoot,
-      componentName,
-      buildResult.errorLog,
-    );
+    const fixResult = await attemptAutoFix(config.workspaceRoot);
     if (fixResult.success) {
       const retryResult = await runBuildAndTest(
         config.workspaceRoot,
@@ -708,21 +701,19 @@ function escalate(
   componentName: string,
   errorLog: string,
 ): Partial<AgentState> {
-  // Do NOT end with REJECTED/APPROVED — the refinement wrapper parses those
-  // markers and would override next_recipient. A neutral message lets the
-  // wrapper return PENDING and pass through the explicit next_recipient.
+  // Node returns state with pause_context marker.
+  // Phase 3 (invoke layer) detects this and calls interrupt().
+  const escalationMessage =
+    `Component \`${componentName}\` generation failed after auto-fix attempt.\n\n` +
+    `Build errors could not be resolved automatically.\n\n` +
+    `Error:\n${errorLog}\n\n` +
+    `STALEMATE: escalating to human review`;
+
   return {
-    next_recipient: 'human_review',
+    next_recipient: null,
+    messages: [makeMessage(escalationMessage)],
     pause_context: 'mesh_stalemate',
     mesh_origin: 'dev',
-    messages: [
-      makeMessage(
-        `Component \`${componentName}\` generation failed after auto-fix attempt.\n\n` +
-          `Build errors could not be resolved automatically.\n\n` +
-          `Error:\n${errorLog}\n\n` +
-          `STALEMATE: escalating to human review`,
-      ),
-    ],
   };
 }
 

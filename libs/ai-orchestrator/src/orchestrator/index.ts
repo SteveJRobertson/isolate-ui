@@ -17,7 +17,6 @@ export {
   createRefinementNode,
   parseDecision,
   getNextInSequence,
-  RefinementIterationLimitError,
   DEFAULT_REFINEMENT_CONFIG,
   type RefinementConfig,
   type RefinementDecision,
@@ -27,7 +26,6 @@ export {
 export {
   createMeshRouterNode,
   analyzeMeshQuery,
-  MeshStalemateError,
   DEFAULT_MESH_CONFIG,
   type MeshRouterConfig,
   type MeshQueryResult,

@@ -39,10 +39,9 @@ export async function handleQuery(
   // so graph.invoke() would immediately route START → __end__ and the mesh
   // router would never run. Fall back to 'po' so the question is processed
   // by at least one persona before the mesh router classifies the target.
-  const nextRecipient =
-    checkpoint.next_recipient && checkpoint.next_recipient !== 'human_review'
-      ? checkpoint.next_recipient
-      : 'po';
+  const nextRecipient = checkpoint.next_recipient
+    ? checkpoint.next_recipient
+    : 'po';
 
   try {
     // The '@isolate- ' prefix triggers the mesh router heuristic gate.

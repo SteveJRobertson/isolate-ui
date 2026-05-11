@@ -256,7 +256,7 @@ describe('writeComponentFile', () => {
   });
 
   it('writes a file containing HTMLArkProps and ark.<tagName>', async () => {
-    await writeComponentFile('/dir', 'checkbox', 'input', ['root', 'label']);
+    await writeComponentFile('/dir', 'checkbox', 'input');
 
     expect(mockWriteFile).toHaveBeenCalledOnce();
     const [, content] = mockWriteFile.mock.calls[0];
@@ -265,13 +265,13 @@ describe('writeComponentFile', () => {
   });
 
   it('uses PascalCase for the component name', async () => {
-    await writeComponentFile('/dir', 'my-component', 'div', ['root']);
+    await writeComponentFile('/dir', 'my-component', 'div');
     const [, content] = mockWriteFile.mock.calls[0];
     expect(content).toContain('MyComponent');
   });
 
   it('uses camelCase for the recipe identifier (kebab-case input)', async () => {
-    await writeComponentFile('/dir', 'my-component', 'div', ['root']);
+    await writeComponentFile('/dir', 'my-component', 'div');
     const [, content] = mockWriteFile.mock.calls[0];
     expect(content).toContain('myComponentRecipe');
     expect(content).not.toContain('my-componentRecipe');
@@ -280,7 +280,7 @@ describe('writeComponentFile', () => {
   it('rejects when writeFile rejects', async () => {
     mockWriteFile.mockRejectedValueOnce(new Error('EACCES') as never);
     await expect(
-      writeComponentFile('/dir', 'checkbox', 'input', ['root']),
+      writeComponentFile('/dir', 'checkbox', 'input'),
     ).rejects.toThrow('EACCES');
   });
 });
@@ -430,7 +430,7 @@ describe('attemptAutoFix', () => {
   it('returns success: true when panda codegen succeeds', async () => {
     mockExecFile.mockResolvedValueOnce({ stdout: '', stderr: '' } as never);
 
-    const result = await attemptAutoFix(WORKSPACE, 'checkbox', 'some error');
+    const result = await attemptAutoFix(WORKSPACE);
     expect(result.success).toBe(true);
     expect(mockExecFile).toHaveBeenCalledWith(
       'pnpm',
@@ -442,7 +442,7 @@ describe('attemptAutoFix', () => {
   it('returns success: false when panda codegen fails', async () => {
     mockExecFile.mockRejectedValueOnce(new Error('codegen failed') as never);
 
-    const result = await attemptAutoFix(WORKSPACE, 'checkbox', 'build error');
+    const result = await attemptAutoFix(WORKSPACE);
     expect(result.success).toBe(false);
     expect(result.errorLog).toContain('codegen failed');
   });
@@ -453,7 +453,7 @@ describe('attemptAutoFix', () => {
     });
     mockExecFile.mockRejectedValueOnce(err as never);
 
-    const result = await attemptAutoFix(WORKSPACE, 'checkbox', 'build error');
+    const result = await attemptAutoFix(WORKSPACE);
     expect(result.errorLog).toContain('Error: missing token');
   });
 });
@@ -529,7 +529,7 @@ describe('createDevBoilerplateNode', () => {
     const node = createDevBoilerplateNode(config);
     const result = await node(makeState());
 
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('mesh_stalemate');
     expect(result.mesh_origin).toBe('dev');
     // Escalation message must include both the original build error and the codegen error.
@@ -553,7 +553,7 @@ describe('createDevBoilerplateNode', () => {
     const node = createDevBoilerplateNode(config);
     const result = await node(makeState());
 
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('mesh_stalemate');
   });
 

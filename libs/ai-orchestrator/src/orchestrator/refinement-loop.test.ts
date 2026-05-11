@@ -3,7 +3,6 @@ import {
   parseDecision,
   getNextInSequence,
   createRefinementNode,
-  RefinementIterationLimitError,
   DEFAULT_REFINEMENT_CONFIG,
   type RefinementConfig,
 } from './refinement-loop';
@@ -235,7 +234,7 @@ describe('createRefinementNode', () => {
     });
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('refinement_limit');
   });
 
@@ -250,7 +249,7 @@ describe('createRefinementNode', () => {
     });
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('refinement_limit');
     expect(result.rejectionCount).toBe(5);
     expect(result.signoffs).toEqual({});
@@ -287,7 +286,7 @@ describe('createRefinementNode', () => {
     const state = makeState({ rejectionCount: 1 }); // 1 + 1 = 2 = maxIterations
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('refinement_limit');
   });
 
@@ -305,31 +304,6 @@ describe('createRefinementNode', () => {
     const result = await node(state);
 
     expect(result.next_recipient).toBe('qa');
-  });
-});
-
-// ── RefinementIterationLimitError ──────────────────────────────────────────────
-
-describe('RefinementIterationLimitError', () => {
-  it('is an instance of Error', () => {
-    const err = new RefinementIterationLimitError(5, 'issue-19');
-    expect(err).toBeInstanceOf(Error);
-  });
-
-  it('is an instance of RefinementIterationLimitError', () => {
-    const err = new RefinementIterationLimitError(5, 'issue-19');
-    expect(err).toBeInstanceOf(RefinementIterationLimitError);
-  });
-
-  it('has the correct name', () => {
-    const err = new RefinementIterationLimitError(5, 'issue-19');
-    expect(err.name).toBe('RefinementIterationLimitError');
-  });
-
-  it('exposes rejectionCount and issueId', () => {
-    const err = new RefinementIterationLimitError(5, 'issue-19');
-    expect(err.rejectionCount).toBe(5);
-    expect(err.issueId).toBe('issue-19');
   });
 });
 

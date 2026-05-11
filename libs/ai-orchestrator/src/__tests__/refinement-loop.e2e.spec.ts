@@ -30,7 +30,7 @@ function detectSqlite(): boolean {
     // Attempt a full require() load so that a missing or ABI-incompatible
     // native binary is caught here rather than surfacing as a runtime error
     // inside OrchestratorGraph construction.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
+
     require('better-sqlite3');
     return true;
   } catch {
@@ -297,5 +297,91 @@ describe.skipIf(!sqliteAvailable)('Refinement Loop — E2E', () => {
 
     expect(result.finalState.signoffs).toMatchObject({ po: true, qa: true });
     expect(devCalled).toBe(false);
+  });
+
+  // ── Pause and Resume: refinement_limit ────────────────────────────────────
+
+  it('pauses at refinement_limit and returns paused status with pausePayload', async () => {
+    const graph = makeGraph(2);
+
+    graph.registerRefinementNode('po', rejectionNode('po', 'always rejected'));
+    graph.registerRefinementNode('dev', approvalNode('dev'));
+    graph.registerRefinementNode('qa', approvalNode('qa'));
+
+    const result = await graph.invoke('issue-pause-limit', {
+      metadata: { github_issue_id: 'pause-limit' },
+    });
+
+    // Verify paused status with pausePayload
+    expect(result.status).toBe('paused');
+    expect(result.pausePayload).toBeDefined();
+    expect(result.pausePayload?.pause_context).toBe('refinement_limit');
+    expect(result.pausePayload?.rejectionCount).toBe(2);
+    expect(result.finalState.next_recipient).toBeNull();
+  });
+
+  it('pauses at refinement_limit and returns paused status', async () => {
+    const graph = makeGraph(2);
+
+    graph.registerRefinementNode('po', (_state: AgentState) => ({
+      messages: [{ type: 'ai', content: 'REJECTED: incomplete' }],
+    }));
+    graph.registerRefinementNode('dev', approvalNode('dev'));
+    graph.registerRefinementNode('qa', approvalNode('qa'));
+
+    // Single invoke: each rejection increments the counter, and at 2 rejections
+    // (maxIterations = 2), the loop pauses before moving to the next persona
+    const pauseResult = await graph.invoke('issue-pause-at-limit', {
+      metadata: { github_issue_id: 'pause-at-limit' },
+    });
+
+    // With maxIterations = 2 and po always rejecting, we hit the pause at rejectionCount = 2
+    expect(pauseResult.status).toBe('paused');
+    expect(pauseResult.finalState.pause_context).toBe('refinement_limit');
+    expect(pauseResult.finalState.rejectionCount).toBe(2);
+    expect(pauseResult.finalState.next_recipient).toBeNull();
+    expect(pauseResult.pausePayload).toBeDefined();
+    expect(pauseResult.pausePayload?.pause_context).toBe('refinement_limit');
+    expect(pauseResult.pausePayload?.rejectionCount).toBe(2);
+  });
+
+  it('resumes from refinement_limit pause with cleared rejectionCount', async () => {
+    const graph = makeGraph(2);
+    let poCallCount = 0;
+
+    // po rejects twice (triggers pause), then approves on resume
+    graph.registerRefinementNode('po', (_state: AgentState) => {
+      poCallCount += 1;
+      if (poCallCount <= 2) {
+        return { messages: [{ type: 'ai', content: 'REJECTED: not ready' }] };
+      }
+      return { messages: [{ type: 'ai', content: 'APPROVED — looks good' }] };
+    });
+    graph.registerRefinementNode('dev', approvalNode('dev'));
+    graph.registerRefinementNode('qa', approvalNode('qa'));
+
+    // First invoke: hits rejection limit and pauses
+    const pauseResult = await graph.invoke('issue-resume-at-limit', {
+      metadata: { github_issue_id: 'resume-at-limit' },
+    });
+    expect(pauseResult.status).toBe('paused');
+    expect(pauseResult.finalState.rejectionCount).toBe(2);
+
+    // Second invoke: resumes by creating new thread with cleared rejectionCount
+    // (In real usage, approve.ts would provide the cleared rejectionCount)
+    const resumeResult = await graph.invoke('issue-resume-at-limit-continued', {
+      rejectionCount: 0,
+      rejectionReason: '',
+      next_recipient: 'po',
+      signoffs: {},
+      metadata: { github_issue_id: 'resume-at-limit-continued' },
+    });
+    // Should now complete since rejectionCount is reset to 0
+    expect(resumeResult.status).toBe('completed');
+    expect(resumeResult.finalState.signoffs).toMatchObject({
+      po: true,
+      dev: true,
+      qa: true,
+    });
   });
 });

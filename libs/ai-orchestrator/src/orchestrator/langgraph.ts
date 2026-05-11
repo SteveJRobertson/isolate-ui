@@ -1,9 +1,10 @@
 import * as path from 'path';
-import { StateGraph, START } from '@langchain/langgraph';
+import { StateGraph, START, Annotation, interrupt } from '@langchain/langgraph';
 import {
   AgentState,
   createDefaultAgentState,
   AgentStateSchema,
+  type PausePayload,
 } from '../schema';
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { LangGraphSqliteSaver } from '../persistence';
@@ -33,12 +34,22 @@ export type AgentNodeFn = (
 
 /**
  * Result returned from running the orchestrator.
+ * Discriminated union: completed | paused.
  */
-export interface OrchestratorRunResult {
-  threadId: string;
-  finalState: AgentState;
-  stepCount: number;
-}
+export type OrchestratorRunResult =
+  | {
+      status: 'completed';
+      threadId: string;
+      finalState: AgentState;
+      stepCount: number;
+    }
+  | {
+      status: 'paused';
+      threadId: string;
+      finalState: AgentState;
+      stepCount: number;
+      pausePayload: PausePayload;
+    };
 
 /**
  * OrchestratorGraph
@@ -100,74 +111,77 @@ export class OrchestratorGraph {
    * Accepts a per-call recursion limit so concurrent run() calls each get
    * their own isolated compiled graph without mutating shared instance state.
    */
-  private buildGraph(limit = this.maxStepsLimit) {
+  private buildGraph(
+    limit = this.maxStepsLimit,
+  ): ReturnType<typeof StateGraph.prototype.compile> {
     const personaIds = getPersonaIds();
 
-    // Create the graph with AgentState as the state type
-    const stateGraph = new StateGraph<AgentState>({
-      channels: {
-        messages: {
-          value: (x: any, y: any) => [...(x || []), ...(y || [])],
-          default: () => [],
-        },
-        next_recipient: {
-          value: (x: any, y: any) => (y !== undefined ? y : x), // Properly handle null values
-          default: () => null,
-        },
-        code_buffer: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => '',
-        },
-        a11y_report: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => '',
-        },
-        arch_approval: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => false,
-        },
-        metadata: {
-          value: (x: any, y: any) => ({ ...x, ...y }),
-          default: () => ({}),
-        },
-        _step_count: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => 0,
-        },
-        rejectionCount: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => 0,
-        },
-        rejectionReason: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => '',
-        },
-        lastApprovedBy: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => null,
-        },
-        signoffs: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => ({}),
-        },
-        mesh_loop_count: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => 0,
-        },
-        mesh_origin: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => null,
-        },
-        pause_context: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => null,
-        },
-        parts: {
-          value: (x: any, y: any) => (y !== undefined ? y : x),
-          default: () => [],
-        },
-      },
+    // Define state channels using the Annotation API (replaces deprecated channels object).
+    // Each field mirrors its Zod schema type via AgentState[field] to keep types in sync.
+    const GraphAnnotation = Annotation.Root({
+      messages: Annotation<AgentState['messages']>({
+        reducer: (x, y) => [...(x ?? []), ...(y ?? [])],
+        default: () => [],
+      }),
+      next_recipient: Annotation<AgentState['next_recipient']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => null,
+      }),
+      code_buffer: Annotation<AgentState['code_buffer']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => '',
+      }),
+      a11y_report: Annotation<AgentState['a11y_report']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => '',
+      }),
+      arch_approval: Annotation<AgentState['arch_approval']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => false,
+      }),
+      metadata: Annotation<AgentState['metadata']>({
+        reducer: (x, y) => ({ ...x, ...y }),
+        default: () => ({}),
+      }),
+      _step_count: Annotation<AgentState['_step_count']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => 0,
+      }),
+      rejectionCount: Annotation<AgentState['rejectionCount']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => 0,
+      }),
+      rejectionReason: Annotation<AgentState['rejectionReason']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => '',
+      }),
+      lastApprovedBy: Annotation<AgentState['lastApprovedBy']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => null,
+      }),
+      signoffs: Annotation<AgentState['signoffs']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => ({}),
+      }),
+      mesh_loop_count: Annotation<AgentState['mesh_loop_count']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => 0,
+      }),
+      mesh_origin: Annotation<AgentState['mesh_origin']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => null,
+      }),
+      pause_context: Annotation<AgentState['pause_context']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => null,
+      }),
+      parts: Annotation<AgentState['parts']>({
+        reducer: (x, y) => (y !== undefined ? y : x),
+        default: () => [],
+      }),
     });
+
+    const stateGraph = new StateGraph(GraphAnnotation);
 
     // Add nodes for each persona
     personaIds.forEach((personaId) => {
@@ -186,81 +200,36 @@ export class OrchestratorGraph {
     const meshRouterFn = createMeshRouterNode(this.meshConfig);
     stateGraph.addNode('mesh_router', meshRouterFn);
 
+    // Add the __pause__ node for interrupt-based pause handling.
+    // Called when pause_context is set, allowing nodes to request pauses
+    // without calling interrupt() themselves (which would fail in unit tests).
+    stateGraph.addNode('__pause__', (state: AgentState) => {
+      if (state.pause_context) {
+        const pausePayload: PausePayload = {
+          pause_context: state.pause_context,
+          rejectionCount: state.rejectionCount ?? 0,
+          rejectionReason: state.rejectionReason ?? '',
+          signoffs: state.signoffs,
+          mesh_origin: state.mesh_origin,
+          mesh_loop_count: state.mesh_loop_count,
+        };
+        interrupt(pausePayload);
+      }
+      return {}; // Node requires a return; interrupt() will suspend before this matters
+    });
+
     // Single routing function shared by START and mesh_router output.
     // Routes to a persona node when next_recipient is a known persona ID,
-    // 'human_review' for the HITL pause node,
-    // otherwise terminates the graph (__end__).
+    // routes to __pause__ if pause_context is set, otherwise terminates (__end__).
     const routeByRecipient = (state: AgentState): string => {
+      // If pause is requested, route to __pause__ node to call interrupt()
+      if (state.pause_context) return '__pause__';
       const next = state.next_recipient;
       if (!next) return '__end__';
-      if (next === 'human_review') return 'human_review';
       return personaIds.includes(next) ? next : '__end__';
     };
 
-    // human_review node — terminal HITL pause point.
-    // Reached when refinement loop hits maxIterations (pause_context: 'refinement_limit')
-    // or mesh router hits maxMeshLoops (pause_context: 'mesh_stalemate').
-    // Posts a GitHub comment, then returns next_recipient: null so the graph
-    // routes to __end__ while the checkpoint is preserved for webhook resumption.
-    stateGraph.addNode('human_review', async (state: AgentState) => {
-      const githubToken = process.env['GITHUB_TOKEN'];
-      const issueNumber = Number(state.metadata?.['github_issue_id']);
-      if (githubToken && issueNumber && !isNaN(issueNumber)) {
-        const pauseReason =
-          state.pause_context === 'mesh_stalemate'
-            ? `Ambiguity Mesh stalemate after ${state.mesh_loop_count} jumps.`
-            : `Refinement loop reached the iteration limit (${state.rejectionCount} rejections).`;
-        // Sanitize issueAuthor to GitHub-safe characters (alphanumeric + hyphens,
-        // max 39 chars) to prevent injection of extra @mentions or formatting
-        // from caller-supplied metadata. Mirrors buildStalemateCommentBody in poster.ts.
-        const rawAuthor = String(state.metadata?.['github_issue_author'] ?? '');
-        const safeAuthor = rawAuthor
-          .trim()
-          .replace(/[^a-zA-Z0-9-]/g, '')
-          .slice(0, 39);
-        const mention = safeAuthor ? `@${safeAuthor} ` : '';
-        const body = [
-          `${mention}**Graph paused — human review required.**`,
-          '',
-          pauseReason,
-          '',
-          'Reply with `/approve` to resume, or `/fix [feedback]` to inject guidance and restart.',
-        ].join('\n');
-        try {
-          // Dynamic import: @octokit/rest is a runtime dependency of the whole
-          // project but keeping the import dynamic here means the ai-orchestrator
-          // library itself doesn't hard-require a GitHub token at module load
-          // time. Environments that never reach human_review (e.g., unit tests
-          // without GITHUB_TOKEN) are unaffected.
-          const { Octokit } = await import('@octokit/rest');
-          const octokit = new Octokit({ auth: githubToken });
-          await octokit.rest.issues.createComment({
-            owner: this.githubOwner,
-            repo: this.githubRepo,
-            issue_number: issueNumber,
-            body,
-          });
-        } catch (err) {
-          // Non-fatal — log and continue so the checkpoint is always saved.
-          console.warn(
-            `[ai-orchestrator] Failed to post human_review pause comment: ${String(err)}`,
-          );
-        }
-      }
-      // Intentionally omit pause_context from the return value.
-      // LangGraph's reducer treats `undefined` as "no update", so the
-      // pause_context written by the refinement-loop or mesh-router node is
-      // preserved in the checkpoint. Webhook command handlers read it to
-      // determine the correct resume target. If we returned `pause_context`
-      // here it would be overwritten and lost before the webhook can read it.
-      return {
-        next_recipient: null,
-        signoffs: state.signoffs,
-        metadata: state.metadata,
-      };
-    });
-
-    // START → persona nodes | human_review | __end__ (direct dispatch — bypasses mesh_router on initial entry)
+    // START → persona nodes | __pause__ | __end__ (direct dispatch — bypasses mesh_router on initial entry)
     stateGraph.addConditionalEdges(START, routeByRecipient, {
       po: 'po',
       architect: 'architect',
@@ -268,18 +237,20 @@ export class OrchestratorGraph {
       a11y: 'a11y',
       qa: 'qa',
       docs: 'docs',
-      human_review: 'human_review',
+      __pause__: '__pause__',
       __end__: '__end__',
-    } as any);
+    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
 
     // Persona nodes → mesh_router (deterministic)
     // Every persona output is inspected by the mesh router before the next
     // routing decision is made.
     personaIds.forEach((personaId) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       stateGraph.addEdge(personaId as any, 'mesh_router' as any);
     });
 
-    // mesh_router → persona nodes | human_review | __end__ (conditional)
+    // mesh_router → persona nodes | __pause__ | __end__ (conditional)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     stateGraph.addConditionalEdges('mesh_router' as any, routeByRecipient, {
       po: 'po',
       architect: 'architect',
@@ -287,17 +258,20 @@ export class OrchestratorGraph {
       a11y: 'a11y',
       qa: 'qa',
       docs: 'docs',
-      human_review: 'human_review',
+      __pause__: '__pause__',
       __end__: '__end__',
-    } as any);
+    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    // human_review → __end__ (deterministic — always terminates after posting pause comment)
-    stateGraph.addEdge('human_review' as any, '__end__' as any);
+    // __pause__ → __end__ (deterministic)
+    // Pauses route to __end__ once interrupt() has suspended execution.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    stateGraph.addEdge('__pause__' as any, '__end__' as any);
 
     return stateGraph.compile({
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       checkpointer: this.checkpointer as any,
       recursionLimit: limit,
-    } as any);
+    } as any) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
   }
 
   /**
@@ -412,7 +386,10 @@ export class OrchestratorGraph {
         );
       }
 
-      return result;
+      return {
+        ...result,
+        status: 'completed' as const,
+      };
     } catch (error) {
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
@@ -483,7 +460,7 @@ export class OrchestratorGraph {
   public async invoke(
     threadId: string,
     input?: Partial<AgentState>,
-    config?: { configurable?: Record<string, any> },
+    config?: { configurable?: Record<string, unknown> },
   ): Promise<OrchestratorRunResult> {
     return this.invokeWithGraph(this.graph, threadId, input, config);
   }
@@ -497,7 +474,7 @@ export class OrchestratorGraph {
     graph: ReturnType<typeof StateGraph.prototype.compile>,
     threadId: string,
     input?: Partial<AgentState>,
-    config?: { configurable?: Record<string, any> },
+    config?: { configurable?: Record<string, unknown> },
   ): Promise<OrchestratorRunResult> {
     // Check if there's an existing checkpoint for this thread
     const existingCheckpoint = this.checkpointer.getLatest(threadId);
@@ -549,7 +526,28 @@ export class OrchestratorGraph {
     // Extract the final state
     const finalState = AgentStateSchema.parse(result);
 
+    // Detect pause_context marker set by nodes and handled by __pause__ node.
+    // If pause_context is set, return paused result (interrupt() was already called by __pause__ node).
+    if (finalState.pause_context) {
+      const pausePayload: PausePayload = {
+        pause_context: finalState.pause_context,
+        rejectionCount: finalState.rejectionCount ?? 0,
+        rejectionReason: finalState.rejectionReason ?? '',
+        signoffs: finalState.signoffs,
+        mesh_origin: finalState.mesh_origin,
+        mesh_loop_count: finalState.mesh_loop_count,
+      };
+      return {
+        status: 'paused',
+        threadId,
+        finalState,
+        stepCount: finalState._step_count,
+        pausePayload,
+      };
+    }
+
     return {
+      status: 'completed',
       threadId,
       finalState,
       stepCount: finalState._step_count,

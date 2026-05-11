@@ -45,42 +45,6 @@ export interface MeshQueryResult {
   target: PersonaId | null;
 }
 
-// ── Error ─────────────────────────────────────────────────────────────────────
-
-/**
- * Thrown when the mesh loop count exceeds MeshRouterConfig.maxMeshLoops.
- * Callers should catch this, post a stalemate GitHub comment, and surface
- * the error for manual review.
- */
-export class MeshStalemateError extends Error {
-  public readonly meshLoopCount: number;
-  /** The GitHub issue ID that triggered this loop (from metadata.github_issue_id). */
-  public readonly issueId: string;
-  /**
-   * The next_recipient value before the final mesh jump was attempted — i.e.
-   * the point in the deterministic workflow that was diverted from.
-   * Useful for instructing the caller which persona to resume from.
-   */
-  public readonly originPersona: string | null;
-
-  constructor(
-    meshLoopCount: number,
-    issueId: string,
-    originPersona: string | null,
-    maxMeshLoops?: number,
-  ) {
-    super(
-      `Ambiguity mesh stalemate: ${meshLoopCount} mesh jumps reached the maximum of ${maxMeshLoops ?? meshLoopCount}. Human review required.`,
-    );
-    this.name = 'MeshStalemateError';
-    this.meshLoopCount = meshLoopCount;
-    this.issueId = issueId;
-    this.originPersona = originPersona;
-    // Maintain prototype chain for instanceof checks in TypeScript
-    Object.setPrototypeOf(this, new.target.prototype);
-  }
-}
-
 // ── LLM prompt ────────────────────────────────────────────────────────────────
 
 const MESH_SYSTEM_PROMPT = `You are a routing classifier for an AI multi-agent orchestration system.
@@ -185,7 +149,7 @@ export async function analyzeMeshQuery(
  *    - Sets next_recipient to the detected target.
  *    - Records mesh_origin as the pre-jump next_recipient.
  *    - Increments mesh_loop_count.
- *    - Throws MeshStalemateError when mesh_loop_count > maxMeshLoops.
+ *    - Returns state with pause_context: 'mesh_stalemate' when mesh_loop_count > maxMeshLoops.
  *      Callers (e.g. OrchestratorGraph.run) catch this error, post a
  *      stalemate GitHub comment, and surface the error to the consumer.
  * 4. Deterministic fallback — when no cross-persona query is detected,
@@ -206,13 +170,6 @@ export function createMeshRouterNode(
   let resolvedClient: BaseChatModel | undefined = config.llmClient;
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
-    // The human_review node is a terminal HITL pause — never escape it via a
-    // mesh jump. Return {} to preserve the existing recipient so the graph
-    // continues to human_review without any LLM classification overhead.
-    if (state.next_recipient === 'human_review') {
-      return {};
-    }
-
     if (!resolvedClient) {
       try {
         resolvedClient = createDefaultMeshClient();
@@ -237,17 +194,15 @@ export function createMeshRouterNode(
 
     // Mesh jump
     const newMeshLoopCount = (state.mesh_loop_count ?? 0) + 1;
-    const issueId = String(state.metadata?.['github_issue_id'] ?? '');
 
     if (newMeshLoopCount > config.maxMeshLoops) {
-      // Route to the human_review node instead of throwing. The human_review
-      // node posts a GitHub pause comment and terminates the graph cleanly,
-      // preserving the checkpoint for webhook-based resumption via /approve or /fix.
-      // Set mesh_origin now (same logic as the normal jump path) so /approve
-      // knows the correct persona to resume from after stalemate.
+      // Node returns state with pause_context marker.
+      // Phase 3 (invoke layer) detects this and calls interrupt().
       return {
-        next_recipient: 'human_review' as const,
-        pause_context: 'mesh_stalemate' as const,
+        next_recipient: null,
+        pause_context: 'mesh_stalemate',
+        rejectionCount: state.rejectionCount ?? 0,
+        rejectionReason: `Ambiguity mesh stalemate after ${newMeshLoopCount} jumps.`,
         mesh_loop_count: newMeshLoopCount,
         mesh_origin: state.next_recipient ?? null,
       };

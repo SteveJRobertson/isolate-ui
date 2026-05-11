@@ -43,16 +43,28 @@ export async function handleApprove(ctx: CommandContext): Promise<void> {
       ? checkpoint.mesh_origin
       : 'po';
 
+  // Build resume payload: clear pause context and rejection state, set next
+  // recipient to the resume target (either mesh_origin on stalemate or 'po'
+  // on refinement_limit). This matches the Command({ resume: ... }) pattern
+  // where the approved flag is implicit (we're here only if pause_context was set).
+  const resumePayload = {
+    next_recipient: resumeTarget as
+      | 'po'
+      | 'architect'
+      | 'dev'
+      | 'a11y'
+      | 'qa'
+      | 'docs',
+    rejectionCount: 0,
+    rejectionReason: '',
+    lastApprovedBy: null,
+    mesh_loop_count: 0,
+    signoffs: {},
+    pause_context: null,
+  };
+
   try {
-    await graph.invoke(threadId, {
-      next_recipient: resumeTarget as any,
-      rejectionCount: 0,
-      rejectionReason: '',
-      lastApprovedBy: null,
-      mesh_loop_count: 0,
-      signoffs: {},
-      pause_context: null,
-    });
+    await graph.invoke(threadId, resumePayload);
   } catch (err) {
     // Post a user-facing reply first, then re-throw so the webhook route's
     // catch block can delete the delivery row and allow GitHub to retry.
