@@ -32,28 +32,31 @@ gh project item-list <PROJECT_NUMBER> --owner <owner> --format json --limit 50
 
 Filter results for items where the **Status** field equals `"Unrefined"` and the content type is `Issue`.
 
-**Fallback — if the CLI command fails or returns no `status` field**, use the GraphQL API directly:
+**Fallback — if the CLI command fails or returns no `status` field**, use the GraphQL API directly. Query via `repository` to support both user-owned and organization-owned projects:
 
 ```bash
 gh api graphql -f query='
-  query($owner: String!, $number: Int!) {
-    user(login: $owner) {
-      projectV2(number: $number) {
-        items(first: 50) {
-          nodes {
-            id
-            content {
-              ... on Issue {
-                number
-                title
-                url
+  query($owner: String!, $repo: String!) {
+    repository(owner: $owner, name: $repo) {
+      projectsV2(first: 50) {
+        nodes {
+          number
+          items(first: 50) {
+            nodes {
+              id
+              content {
+                ... on Issue {
+                  number
+                  title
+                  url
+                }
               }
-            }
-            fieldValues(first: 20) {
-              nodes {
-                ... on ProjectV2ItemFieldSingleSelectValue {
-                  name
-                  field { ... on ProjectV2SingleSelectField { name } }
+              fieldValues(first: 20) {
+                nodes {
+                  ... on ProjectV2ItemFieldSingleSelectValue {
+                    name
+                    field { ... on ProjectV2SingleSelectField { name } }
+                  }
                 }
               }
             }
@@ -62,10 +65,10 @@ gh api graphql -f query='
       }
     }
   }
-' -f owner=<owner> -F number=<PROJECT_NUMBER>
+' -f owner=<owner> -f repo=<repo>
 ```
 
-Filter for items where the `fieldValues` node with `field.name == "Status"` has `name == "Unrefined"`.
+Filter the results for the project matching `<PROJECT_NUMBER>`, then filter items where the `fieldValues` node with `field.name == "Status"` has `name == "Unrefined"`.
 
 If the user provided an argument (a specific issue number), skip filtering and refine only that issue.
 
@@ -91,10 +94,10 @@ Starting with **#42**. Copy the block below and paste it into Gemini.
 
 ### Step 3 — Fetch Issue Details (current issue only)
 
-For the **current** issue only, retrieve full details:
+For the **current** issue only, retrieve structured details:
 
 ```bash
-gh issue view <ISSUE_NUMBER> --repo <owner>/<repo>
+gh issue view <ISSUE_NUMBER> --repo <owner>/<repo> --json title,body,labels,url,number
 ```
 
 ### Step 4 — Assess Completeness and Output Initial Gemini Prompt
@@ -103,13 +106,15 @@ Evaluate the issue against the **Refinement Checklist**. For each criterion that
 
 #### Refinement Checklist
 
-| Criterion                | What to look for                                                                | Satisfied when…                                       |
-| ------------------------ | ------------------------------------------------------------------------------- | ----------------------------------------------------- |
-| **Acceptance Criteria**  | Explicit bullet list or "Given/When/Then" conditions                            | At least 2 concrete, verifiable conditions are listed |
-| **Scope Boundary**       | Explicit statement of what is OUT of scope                                      | At least one explicit exclusion is stated             |
-| **Nx Projects Affected** | Named Nx project(s) from the workspace (e.g. `react-button`, `utils`, `tokens`) | At least one valid Nx project name is confirmed       |
-| **Dependencies**         | References to blocking issues, or explicit "None"                               | A definitive answer is given — "None" is acceptable   |
-| **Test Strategy**        | Unit, component, e2e, or manual testing approach                                | A specific testing approach is named                  |
+| Criterion                | What to look for                                                                | Satisfied when…                                            |
+| ------------------------ | ------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| **Description Clarity**  | Issue description is clear and provides sufficient context                      | Description explains the problem/feature without ambiguity |
+| **Acceptance Criteria**  | Explicit bullet list or "Given/When/Then" conditions                            | At least 2 concrete, verifiable conditions are listed      |
+| **Scope Boundary**       | Explicit statement of what is OUT of scope                                      | At least one explicit exclusion is stated                  |
+| **Nx Projects Affected** | Named Nx project(s) from the workspace (e.g. `react-button`, `utils`, `tokens`) | At least one valid Nx project name is confirmed            |
+| **Dependencies**         | References to blocking issues, or explicit "None"                               | A definitive answer is given — "None" is acceptable        |
+| **Test Strategy**        | Unit, component, e2e, or manual testing approach                                | A specific testing approach is named                       |
+| **Effort Estimate**      | T-shirt size or story points                                                    | An estimate (XS/S/M/L/XL or 1-13) is provided              |
 
 Output the following markdown block for the user to copy into Gemini:
 
@@ -191,7 +196,7 @@ When the user returns with answers, evaluate **every outstanding criterion** aga
 
 ### Step 6 — Output Refined Summary
 
-Once **all 5 criteria are satisfied**, output the final refined summary:
+Once **all 7 criteria are satisfied**, output the final refined summary:
 
 ```markdown
 ## ✅ Refined: <Issue Title> (#<number>) — complete after <N> round(s)
@@ -216,6 +221,10 @@ Once **all 5 criteria are satisfied**, output the final refined summary:
 **Test Strategy**
 
 - <approach>
+
+**Effort Estimate**
+
+- <estimate>
 ```
 
 ### Step 7 — Update Project Status
@@ -290,7 +299,7 @@ After all issues are processed, output a final summary table:
 
 ## Edge Cases
 
-- **Issue already fully refined**: all 5 criteria satisfy the "Satisfied when…" conditions → note "✅ Already complete", skip all questions, update status immediately.
+- **Issue already fully refined**: all 7 criteria satisfy the "Satisfied when…" conditions → note "✅ Already complete", skip all questions, update status immediately.
 - **No project found**: output the error in markdown and stop.
 - **`gh` auth failure**: surface the error message in markdown and stop — do not proceed.
 - **Argument provided**: if the user ran the skill with a specific issue number, refine only that issue regardless of its current project status.
