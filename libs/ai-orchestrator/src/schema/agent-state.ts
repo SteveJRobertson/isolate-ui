@@ -143,6 +143,20 @@ export const AgentStateSchema = z.object({
 export type AgentState = z.infer<typeof AgentStateSchema>;
 
 /**
+ * Payload passed to interrupt() when the refinement loop or mesh router
+ * needs to pause for human review. Contains the context needed for the
+ * node that wakes up on resume to determine how to proceed.
+ */
+export interface PausePayload {
+  pause_context: 'refinement_limit' | 'mesh_stalemate';
+  rejectionCount: number;
+  rejectionReason: string;
+  signoffs?: Record<string, boolean>;
+  mesh_origin?: string | null;
+  mesh_loop_count?: number;
+}
+
+/**
  * Default initial state for new workflows.
  */
 export const DEFAULT_AGENT_STATE: AgentState = {

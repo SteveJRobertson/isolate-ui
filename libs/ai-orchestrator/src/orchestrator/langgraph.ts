@@ -4,6 +4,7 @@ import {
   AgentState,
   createDefaultAgentState,
   AgentStateSchema,
+  type PausePayload,
 } from '../schema';
 import { AGENT_PERSONAS, getPersonaIds } from '../agents';
 import { LangGraphSqliteSaver } from '../persistence';
@@ -33,12 +34,22 @@ export type AgentNodeFn = (
 
 /**
  * Result returned from running the orchestrator.
+ * Discriminated union: completed | paused.
  */
-export interface OrchestratorRunResult {
-  threadId: string;
-  finalState: AgentState;
-  stepCount: number;
-}
+export type OrchestratorRunResult =
+  | {
+      status: 'completed';
+      threadId: string;
+      finalState: AgentState;
+      stepCount: number;
+    }
+  | {
+      status: 'paused';
+      threadId: string;
+      finalState: AgentState;
+      stepCount: number;
+      pausePayload: PausePayload;
+    };
 
 /**
  * OrchestratorGraph
@@ -412,7 +423,10 @@ export class OrchestratorGraph {
         );
       }
 
-      return result;
+      return {
+        ...result,
+        status: 'completed' as const,
+      };
     } catch (error) {
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
@@ -485,7 +499,14 @@ export class OrchestratorGraph {
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, any> },
   ): Promise<OrchestratorRunResult> {
-    return this.invokeWithGraph(this.graph, threadId, input, config);
+    const result = await this.invokeWithGraph(
+      this.graph,
+      threadId,
+      input,
+      config,
+    );
+    // For now, invoke returns the same shape as run. We'll add interrupt detection in Phase 3.
+    return result;
   }
 
   /**
@@ -550,6 +571,7 @@ export class OrchestratorGraph {
     const finalState = AgentStateSchema.parse(result);
 
     return {
+      status: 'completed',
       threadId,
       finalState,
       stepCount: finalState._step_count,

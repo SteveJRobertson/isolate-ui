@@ -5,4 +5,5 @@ export {
   SerializedMessageSchema,
   type AgentState,
   type SerializedMessage,
+  type PausePayload,
 } from './agent-state';
