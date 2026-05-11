@@ -235,7 +235,7 @@ describe('createRefinementNode', () => {
     });
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('refinement_limit');
   });
 
@@ -250,7 +250,7 @@ describe('createRefinementNode', () => {
     });
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('refinement_limit');
     expect(result.rejectionCount).toBe(5);
     expect(result.signoffs).toEqual({});
@@ -287,7 +287,7 @@ describe('createRefinementNode', () => {
     const state = makeState({ rejectionCount: 1 }); // 1 + 1 = 2 = maxIterations
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('refinement_limit');
   });
 

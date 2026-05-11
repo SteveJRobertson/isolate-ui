@@ -25,11 +25,11 @@ export const AgentStateSchema = z.object({
    * Validated as a known persona ID or null; invalid values are rejected at schema parse time.
    *
    * When null, the workflow has completed or the next recipient has not yet been set.
-   * 'human_review' is a special terminal node that posts a GitHub pause comment
-   * and routes the graph to __end__, preserving the checkpoint for webhook resumption.
+   * Pauses for human review are handled via LangGraph.interrupt() rather than routing
+   * to a dedicated node.
    */
   next_recipient: z
-    .enum(['po', 'architect', 'dev', 'a11y', 'qa', 'docs', 'human_review'])
+    .enum(['po', 'architect', 'dev', 'a11y', 'qa', 'docs'])
     .nullable()
     .default(null),
 

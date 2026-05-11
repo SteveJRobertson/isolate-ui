@@ -231,7 +231,7 @@ describe('createMeshRouterNode', () => {
     });
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('mesh_stalemate');
   });
 
@@ -249,7 +249,7 @@ describe('createMeshRouterNode', () => {
     });
 
     const result = await node(state);
-    expect(result.next_recipient).toBe('human_review');
+    expect(result.next_recipient).toBeNull();
     expect(result.pause_context).toBe('mesh_stalemate');
     expect(result.mesh_loop_count).toBe(3);
   });

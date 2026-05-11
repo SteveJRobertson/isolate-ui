@@ -143,7 +143,6 @@ export function createRefinementNode(
 
     if (decision === 'REJECTED') {
       const newRejectionCount = (state.rejectionCount ?? 0) + 1;
-      const issueId = String(state.metadata?.['github_issue_id'] ?? '');
 
       // Capture reason first so it is available on the error and in state
       const reason =
@@ -151,16 +150,14 @@ export function createRefinementNode(
         'No reason provided';
 
       if (newRejectionCount >= config.maxIterations) {
-        // Route to the human_review node instead of throwing. The human_review
-        // node posts a GitHub pause comment and terminates the graph cleanly,
-        // preserving the checkpoint for webhook-based resumption via /approve or /fix.
+        // Node returns state with pause_context marker.
+        // Phase 3 (invoke layer) detects this and calls interrupt().
         return {
           ...innerResult,
-          next_recipient: 'human_review' as const,
-          pause_context: 'refinement_limit' as const,
+          next_recipient: null,
+          pause_context: 'refinement_limit',
           rejectionCount: newRejectionCount,
           rejectionReason: reason,
-          lastApprovedBy: null,
           signoffs: {},
         };
       }

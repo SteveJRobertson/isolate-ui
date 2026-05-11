@@ -206,13 +206,6 @@ export function createMeshRouterNode(
   let resolvedClient: BaseChatModel | undefined = config.llmClient;
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
-    // The human_review node is a terminal HITL pause — never escape it via a
-    // mesh jump. Return {} to preserve the existing recipient so the graph
-    // continues to human_review without any LLM classification overhead.
-    if (state.next_recipient === 'human_review') {
-      return {};
-    }
-
     if (!resolvedClient) {
       try {
         resolvedClient = createDefaultMeshClient();
@@ -237,17 +230,15 @@ export function createMeshRouterNode(
 
     // Mesh jump
     const newMeshLoopCount = (state.mesh_loop_count ?? 0) + 1;
-    const issueId = String(state.metadata?.['github_issue_id'] ?? '');
 
     if (newMeshLoopCount > config.maxMeshLoops) {
-      // Route to the human_review node instead of throwing. The human_review
-      // node posts a GitHub pause comment and terminates the graph cleanly,
-      // preserving the checkpoint for webhook-based resumption via /approve or /fix.
-      // Set mesh_origin now (same logic as the normal jump path) so /approve
-      // knows the correct persona to resume from after stalemate.
+      // Node returns state with pause_context marker.
+      // Phase 3 (invoke layer) detects this and calls interrupt().
       return {
-        next_recipient: 'human_review' as const,
-        pause_context: 'mesh_stalemate' as const,
+        next_recipient: null,
+        pause_context: 'mesh_stalemate',
+        rejectionCount: state.rejectionCount ?? 0,
+        rejectionReason: `Ambiguity mesh stalemate after ${newMeshLoopCount} jumps.`,
         mesh_loop_count: newMeshLoopCount,
         mesh_origin: state.next_recipient ?? null,
       };
