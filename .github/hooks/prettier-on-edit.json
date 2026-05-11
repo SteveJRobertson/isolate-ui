@@ -1,0 +1,11 @@
+{
+  "hooks": {
+    "Stop": [
+      {
+        "type": "command",
+        "command": "pnpm format:affected",
+        "timeout": 60
+      }
+    ]
+  }
+}

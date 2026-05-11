@@ -5,6 +5,32 @@ Follow them precisely; do not silently deviate.
 
 ---
 
+## Project Orientation
+
+Nx monorepo for the Isolate UI component library. Package manager: **pnpm**. Testing: **Vitest** (unit) + **Playwright CT** (component a11y).
+
+**Key paths:**
+
+- `libs/react/*/` — React component libraries
+- `libs/shared/tokens/` — Design token pipeline (Style Dictionary v4)
+- `libs/utils/` — Shared utilities; `@isolate-ui/utils/ai` exports `checkTokenExists()`
+- `libs/ai-orchestrator/` — LangGraph multi-agent orchestrator
+- `apps/webhook-listener/` — Fastify server that receives GitHub webhooks
+
+**Essential commands:**
+
+```bash
+pnpm vitest run            # run all unit tests once
+nx run-many -t test lint typecheck  # full quality gate
+nx affected -t test --base=origin/main  # only changed projects
+nx test react-button       # single project
+```
+
+**Full development guide:** [AGENTS.md](../AGENTS.md)
+**Accessibility testing guide:** [A11Y_TESTING.md](../A11Y_TESTING.md)
+
+---
+
 ## Async / Error Handling
 
 - **No fire-and-forget.** Every top-level async call site must either `await` the call inside a `try/catch`, or chain `.catch()` with a handler that logs and exits (or re-throws). This applies to: command handlers (`approve.ts`, `fix.ts`, `query.ts`), startup functions, and any background work initiated from a route handler.

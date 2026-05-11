@@ -7,6 +7,8 @@
     "local-registry": "verdaccio --config .verdaccio/config.yml",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "format:affected": "nx format:write --affected --base=origin/main",
+    "format:check:affected": "nx format:check --affected --base=origin/main",
     "lint:pr-title": "node scripts/lint-pr-title.mjs"
   },
   "private": true,
