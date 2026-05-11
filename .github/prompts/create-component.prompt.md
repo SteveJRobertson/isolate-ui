@@ -2,7 +2,7 @@
 mode: agent
 description: >-
   Create a new React component in the Isolate UI library. Use when: scaffolding
-  a new component, adding a new UI primitive, creating a new react library.
+  a new component, adding a new UI primitive, creating a new React library.
 ---
 
 Create a new React component library in the Isolate UI monorepo.
@@ -45,8 +45,7 @@ Follow the Button component pattern in `libs/react/button/src/lib/`:
 
 ```typescript
 import { ark } from '@ark-ui/react';
-import { cx } from 'styled-system/css';
-import { sva } from 'styled-system/css';
+import { cx, sva } from 'styled-system/css';
 // Never use relative paths across project boundaries
 // ✅ import { checkTokenExists } from '@isolate-ui/utils/ai';
 // ❌ import { checkTokenExists } from '../../utils/src/lib/ai';

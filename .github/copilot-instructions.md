@@ -31,8 +31,6 @@ nx test react-button       # single project
 
 ---
 
----
-
 ## Async / Error Handling
 
 - **No fire-and-forget.** Every top-level async call site must either `await` the call inside a `try/catch`, or chain `.catch()` with a handler that logs and exits (or re-throws). This applies to: command handlers (`approve.ts`, `fix.ts`, `query.ts`), startup functions, and any background work initiated from a route handler.
