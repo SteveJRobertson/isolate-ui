@@ -1,12 +1,20 @@
 import * as path from 'path';
-import { StateGraph, START, Annotation, interrupt } from '@langchain/langgraph';
+import {
+  StateGraph,
+  START,
+  END,
+  Annotation,
+  interrupt,
+  type BaseCheckpointSaver,
+  type CompiledStateGraph,
+} from '@langchain/langgraph';
 import {
   AgentState,
   createDefaultAgentState,
   AgentStateSchema,
   type PausePayload,
 } from '../schema';
-import { AGENT_PERSONAS, getPersonaIds } from '../agents';
+import { AGENT_PERSONAS, PERSONA_IDS, getPersonaIds } from '../agents';
 import { LangGraphSqliteSaver } from '../persistence';
 import { validateAgentsConfig, findWorkspaceRoot } from '../config';
 import {
@@ -51,6 +59,25 @@ export type OrchestratorRunResult =
       pausePayload: PausePayload;
     };
 
+/** String-literal union derived from the `PERSONA_IDS` constant — each value is a valid persona node name. */
+type PersonaId = (typeof PERSONA_IDS)[number];
+
+/** Union of all registered node names (personas + internal routing nodes). */
+type GraphNodeName = PersonaId | 'mesh_router' | '__pause__';
+
+/**
+ * Precise type of the compiled orchestrator graph.
+ * Using `as unknown as OrchestratorCompiledGraph` (not `as any`) when assigning
+ * the result of `stateGraph.compile()` lets us bypass the invariant `I`/`O`
+ * schema type parameters (which carry deep AnnotationRoot generics) while still
+ * expressing the state shape and node-name set that callers depend on.
+ */
+type OrchestratorCompiledGraph = CompiledStateGraph<
+  AgentState,
+  Partial<AgentState>,
+  typeof START | GraphNodeName
+>;
+
 /**
  * OrchestratorGraph
  *
@@ -65,11 +92,10 @@ export type OrchestratorRunResult =
  *   const result = await graph.invoke('issue-23', { metadata: {...} }, { configurable: { thread_id: 'issue-23' } });
  */
 export class OrchestratorGraph {
-  private graph: ReturnType<typeof StateGraph.prototype.compile>;
+  private graph: OrchestratorCompiledGraph;
   private checkpointer: LangGraphSqliteSaver;
   private dbPath: string;
   private nodes: Map<string, AgentNodeFn> = new Map();
-  private maxStepsLimit = 500;
   private refinementConfig: RefinementConfig = DEFAULT_REFINEMENT_CONFIG;
   private meshConfig: MeshRouterConfig = DEFAULT_MESH_CONFIG;
 
@@ -108,12 +134,10 @@ export class OrchestratorGraph {
 
   /**
    * Build and compile a LangGraph StateGraph with conditional edges.
-   * Accepts a per-call recursion limit so concurrent run() calls each get
-   * their own isolated compiled graph without mutating shared instance state.
+   * Each call returns a new compiled graph instance so concurrent run() calls
+   * get their own isolated graph without mutating shared instance state.
    */
-  private buildGraph(
-    limit = this.maxStepsLimit,
-  ): ReturnType<typeof StateGraph.prototype.compile> {
+  private buildGraph(): OrchestratorCompiledGraph {
     const personaIds = getPersonaIds();
 
     // Define state channels using the Annotation API (replaces deprecated channels object).
@@ -181,11 +205,11 @@ export class OrchestratorGraph {
       }),
     });
 
-    const stateGraph = new StateGraph(GraphAnnotation);
+    const rawGraph = new StateGraph(GraphAnnotation);
 
     // Add nodes for each persona
     personaIds.forEach((personaId) => {
-      stateGraph.addNode(personaId, async (state: AgentState) => {
+      rawGraph.addNode(personaId, async (state: AgentState) => {
         const nodeFn =
           this.nodes.get(personaId) || this.createDefaultNode(personaId);
         const result = await nodeFn(state);
@@ -198,12 +222,12 @@ export class OrchestratorGraph {
     // Inserted after every persona node via a deterministic edge.
     // Detects cross-persona queries and performs non-linear mesh jumps.
     const meshRouterFn = createMeshRouterNode(this.meshConfig);
-    stateGraph.addNode('mesh_router', meshRouterFn);
+    rawGraph.addNode('mesh_router', meshRouterFn);
 
     // Add the __pause__ node for interrupt-based pause handling.
     // Called when pause_context is set, allowing nodes to request pauses
     // without calling interrupt() themselves (which would fail in unit tests).
-    stateGraph.addNode('__pause__', (state: AgentState) => {
+    rawGraph.addNode('__pause__', (state: AgentState) => {
       if (state.pause_context) {
         const pausePayload: PausePayload = {
           pause_context: state.pause_context,
@@ -218,60 +242,60 @@ export class OrchestratorGraph {
       return {}; // Node requires a return; interrupt() will suspend before this matters
     });
 
+    // Assert the full node-set type. StateGraph accumulates N via chaining;
+    // since nodes were added via forEach the compiler sees N = typeof START.
+    // We declare the known set once here so addEdge / addConditionalEdges below
+    // are checked against concrete types instead of just typeof START.
+    const stateGraph = rawGraph as unknown as StateGraph<
+      typeof GraphAnnotation,
+      AgentState,
+      Partial<AgentState>,
+      typeof START | GraphNodeName
+    >;
+
     // Single routing function shared by START and mesh_router output.
     // Routes to a persona node when next_recipient is a known persona ID,
-    // routes to __pause__ if pause_context is set, otherwise terminates (__end__).
+    // routes to __pause__ if pause_context is set, otherwise terminates (END).
     const routeByRecipient = (state: AgentState): string => {
       // If pause is requested, route to __pause__ node to call interrupt()
       if (state.pause_context) return '__pause__';
       const next = state.next_recipient;
-      if (!next) return '__end__';
-      return personaIds.includes(next) ? next : '__end__';
+      if (!next) return END;
+      return personaIds.includes(next) ? next : END;
     };
 
-    // START → persona nodes | __pause__ | __end__ (direct dispatch — bypasses mesh_router on initial entry)
-    stateGraph.addConditionalEdges(START, routeByRecipient, {
-      po: 'po',
-      architect: 'architect',
-      dev: 'dev',
-      a11y: 'a11y',
-      qa: 'qa',
-      docs: 'docs',
+    // Shared routing map used by START → dispatch and mesh_router → dispatch.
+    // Derived from PERSONA_IDS so it stays in sync when personas are added/removed.
+    const routeMap: Record<string, GraphNodeName | typeof END> = {
+      ...Object.fromEntries(PERSONA_IDS.map((id) => [id, id])),
       __pause__: '__pause__',
-      __end__: '__end__',
-    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+      [END]: END,
+    };
+
+    // START → persona nodes | __pause__ | END (direct dispatch — bypasses mesh_router on initial entry)
+    stateGraph.addConditionalEdges(START, routeByRecipient, routeMap);
 
     // Persona nodes → mesh_router (deterministic)
     // Every persona output is inspected by the mesh router before the next
     // routing decision is made.
-    personaIds.forEach((personaId) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      stateGraph.addEdge(personaId as any, 'mesh_router' as any);
+    PERSONA_IDS.forEach((personaId) => {
+      stateGraph.addEdge(personaId, 'mesh_router');
     });
 
-    // mesh_router → persona nodes | __pause__ | __end__ (conditional)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    stateGraph.addConditionalEdges('mesh_router' as any, routeByRecipient, {
-      po: 'po',
-      architect: 'architect',
-      dev: 'dev',
-      a11y: 'a11y',
-      qa: 'qa',
-      docs: 'docs',
-      __pause__: '__pause__',
-      __end__: '__end__',
-    } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+    // mesh_router → persona nodes | __pause__ | END (conditional)
+    stateGraph.addConditionalEdges('mesh_router', routeByRecipient, routeMap);
 
-    // __pause__ → __end__ (deterministic)
-    // Pauses route to __end__ once interrupt() has suspended execution.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    stateGraph.addEdge('__pause__' as any, '__end__' as any);
+    // __pause__ → END (deterministic)
+    // Pauses route to END once interrupt() has suspended execution.
+    stateGraph.addEdge('__pause__', END);
 
+    // stateGraph.compile() returns CompiledStateGraph<Prettify<S>, Prettify<U>, N, I, O, ...>
+    // where I and O carry deep AnnotationRoot generic parameters that don't match the
+    // defaults in OrchestratorCompiledGraph. The runtime shape is identical so we use
+    // `as unknown as` (not `as any`) to bridge the invariant I/O type parameters.
     return stateGraph.compile({
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      checkpointer: this.checkpointer as any,
-      recursionLimit: limit,
-    } as any) as any; // eslint-disable-line @typescript-eslint/no-explicit-any
+      checkpointer: this.checkpointer as unknown as BaseCheckpointSaver,
+    }) as unknown as OrchestratorCompiledGraph;
   }
 
   /**
@@ -357,9 +381,9 @@ export class OrchestratorGraph {
     initialInput?: Partial<AgentState>,
     maxSteps = 20,
   ): Promise<OrchestratorRunResult> {
-    // Build a local graph with per-run recursionLimit to avoid mutating shared
-    // instance state (which would race under concurrent run() calls).
-    const localGraph = this.buildGraph(maxSteps);
+    // Build a local graph to avoid mutating shared instance state
+    // (which would race under concurrent run() calls).
+    const localGraph = this.buildGraph();
     const githubToken = process.env['GITHUB_TOKEN'];
 
     try {
@@ -471,7 +495,7 @@ export class OrchestratorGraph {
    * per-invocation local graph without touching shared instance state.
    */
   private async invokeWithGraph(
-    graph: ReturnType<typeof StateGraph.prototype.compile>,
+    graph: OrchestratorCompiledGraph,
     threadId: string,
     input?: Partial<AgentState>,
     config?: { configurable?: Record<string, unknown> },
