@@ -379,7 +379,6 @@ export class OrchestratorGraph {
   public async run(
     threadId: string,
     initialInput?: Partial<AgentState>,
-    maxSteps = 20,
   ): Promise<OrchestratorRunResult> {
     // Build a local graph to avoid mutating shared instance state
     // (which would race under concurrent run() calls).
@@ -418,7 +417,7 @@ export class OrchestratorGraph {
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
         throw new Error(
-          `exceeded max steps: recursion limit hit (limit: ${maxSteps})`,
+          'exceeded max steps: recursion limit hit (LangGraph default limit applies)',
         );
       }
       throw error;

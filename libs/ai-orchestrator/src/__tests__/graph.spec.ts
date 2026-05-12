@@ -150,7 +150,7 @@ describe('OrchestratorGraph', () => {
       metadata: state.metadata,
     }));
 
-    await expect(graph.run('issue-loop', {}, 5)).rejects.toThrow(
+    await expect(graph.run('issue-loop', {})).rejects.toThrow(
       'exceeded max steps',
     );
   });
