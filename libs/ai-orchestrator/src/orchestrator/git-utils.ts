@@ -96,10 +96,17 @@ export async function applyCodeBuffer(
     return { success: true, code_buffer: '' };
   } catch (err) {
     // Type-narrow to safely access stderr property from ExecFileException
-    const execErr = err as { stderr?: string };
-    const errorMessage =
-      execErr.stderr?.trim() ||
-      (err instanceof Error ? err.message : String(err));
+    let errorMessage = '';
+    if (err && typeof err === 'object' && 'stderr' in err) {
+      const stderrVal = (err as { stderr?: unknown }).stderr;
+      if (typeof stderrVal === 'string') {
+        errorMessage = stderrVal.trim();
+      }
+    }
+    // Fall back to error message if stderr is unavailable or empty
+    if (!errorMessage) {
+      errorMessage = err instanceof Error ? err.message : String(err);
+    }
 
     // Capture file snapshots for paths referenced in the diff as a fallback
     const snapshots = await captureFileSnapshots(codeBuffer, workspaceRoot);
@@ -171,7 +178,11 @@ async function captureFileSnapshots(
 
     seen.add(filePath);
 
-    const absPath = path.join(workspaceRoot, filePath);
+    const absPath = path.resolve(workspaceRoot, filePath);
+    // Ensure absPath is within workspaceRoot
+    if (!absPath.startsWith(path.resolve(workspaceRoot) + path.sep)) {
+      continue; // skip paths that escape the workspace
+    }
     try {
       snapshots[filePath] = await fs.promises.readFile(absPath, 'utf8');
     } catch {

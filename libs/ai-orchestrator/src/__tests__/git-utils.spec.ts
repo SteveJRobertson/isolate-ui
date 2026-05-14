@@ -49,10 +49,7 @@ vi.mock('os', () => {
 import { execFile } from 'child_process';
 import * as fsModule from 'fs';
 import * as osModule from 'os';
-import {
-  applyCodeBuffer,
-  type ApplyCodeBufferResult,
-} from '../orchestrator/git-utils';
+import { applyCodeBuffer } from '../orchestrator/git-utils';
 
 // ── Type definitions and helpers ───────────────────────────────────────────────
 
@@ -97,6 +94,7 @@ describe('applyCodeBuffer', () => {
     mockWriteFile.mockResolvedValue(undefined);
     mockUnlink.mockResolvedValue(undefined);
     mockRmdir.mockResolvedValue(undefined);
+    mockReadFile.mockReset && mockReadFile.mockReset();
   });
 
   describe('empty code buffer', () => {
