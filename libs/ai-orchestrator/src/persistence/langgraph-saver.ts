@@ -3,6 +3,7 @@ import * as path from 'path';
 import { randomUUID } from 'crypto';
 import Database = require('better-sqlite3');
 import { BaseCheckpointSaver } from '@langchain/langgraph';
+import type { CheckpointTuple } from '@langchain/langgraph-checkpoint';
 import type { RunnableConfig } from '@langchain/core/runnables';
 import { AgentState } from '../schema';
 
@@ -26,6 +27,7 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
   private db: Database.Database;
   private stmtUpsert!: Database.Statement;
   private stmtGetLatest!: Database.Statement;
+  private stmtGetAllByThread!: Database.Statement;
   private stmtGetWriteVersion!: Database.Statement;
   private txPutTuple!: (
     configurable: Record<string, any>,
@@ -73,6 +75,7 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
       CREATE TABLE IF NOT EXISTS checkpoint_writes (
         thread_id TEXT NOT NULL,
         checkpoint_id TEXT NOT NULL,
+        task_id TEXT NOT NULL DEFAULT 'default',
         channel TEXT NOT NULL,
         version INTEGER NOT NULL,
         data BLOB NOT NULL,
@@ -109,6 +112,13 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
       LIMIT 1
     `);
 
+    this.stmtGetAllByThread = this.db.prepare(`
+      SELECT checkpoint_id, checkpoint_body, metadata_body
+      FROM checkpoints
+      WHERE thread_id = ?
+      ORDER BY sequence DESC
+    `);
+
     this.stmtGetWriteVersion = this.db.prepare(`
       SELECT MAX(version) as max_version
       FROM checkpoint_writes
@@ -135,59 +145,78 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
 
   /**
    * Get the latest checkpoint for a thread.
-   * Implements LangGraph's BaseCheckpointSaver.getTuple().
-   * Loads persisted channel writes to support resumption/replay semantics.
+   * Implements LangGraph 1.3.0 BaseCheckpointSaver.getTuple().
+   * Returns a CheckpointTuple object (not an array).
    */
   public async getTuple(
     config: RunnableConfig,
-  ): Promise<[checkpoint: any, metadata: any, writes: any[]] | null> {
+  ): Promise<CheckpointTuple | undefined> {
     const threadId = (config.configurable as any)?.['thread_id'] || 'default';
     const row = this.stmtGetLatest.get(threadId) as any;
 
     if (!row) {
-      return null;
+      return undefined;
     }
 
-    // Load channel writes for proper checkpoint restore semantics
+    // Load pending writes — each stored as [task_id, channel, value]
     const writesRows = this.db
       .prepare(
-        `SELECT channel, version, data FROM checkpoint_writes
+        `SELECT task_id, channel, data FROM checkpoint_writes
          WHERE thread_id = ? AND checkpoint_id = ?
-         ORDER BY version DESC`,
+         ORDER BY version ASC`,
       )
       .all(threadId, row.checkpoint_id) as any[];
 
-    const writes = writesRows.map((w: any) => [w.channel, JSON.parse(w.data)]);
+    const pendingWrites: [string, string, unknown][] = writesRows.map(
+      (w: any) => [w.task_id, w.channel, JSON.parse(w.data)],
+    );
 
-    return [
-      JSON.parse(row.checkpoint_body),
-      JSON.parse(row.metadata_body),
-      writes,
-    ];
+    const tupleConfig: RunnableConfig = {
+      configurable: { thread_id: threadId, checkpoint_id: row.checkpoint_id },
+    };
+
+    return {
+      config: tupleConfig,
+      checkpoint: JSON.parse(row.checkpoint_body),
+      metadata: JSON.parse(row.metadata_body),
+      pendingWrites,
+    };
   }
 
   /**
    * Save a checkpoint.
-   * Implements LangGraph's BaseCheckpointSaver.put().
+   * Implements LangGraph 1.3.0 BaseCheckpointSaver.put().
+   * Returns the RunnableConfig for the saved checkpoint.
    */
   public async put(
     config: RunnableConfig,
     checkpoint: any,
     metadata: any,
-  ): Promise<void> {
-    this.txPutTuple(config.configurable || {}, checkpoint, metadata);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _newVersions?: Record<string, unknown>,
+  ): Promise<RunnableConfig> {
+    const configurable = config.configurable || {};
+    this.txPutTuple(configurable, checkpoint, metadata);
+    const threadId = (configurable as any)['thread_id'] || 'default';
+    const checkpointId = checkpoint.id || 'default';
+    return {
+      configurable: { thread_id: threadId, checkpoint_id: checkpointId },
+    };
   }
 
   /**
    * Save writes (channel updates) to a checkpoint.
-   * Implements LangGraph's BaseCheckpointSaver.putWrites().
+   * Implements LangGraph 1.3.0 BaseCheckpointSaver.putWrites().
+   * Third argument is taskId (not checkpointId) per the 1.3.0 interface.
    */
   public async putWrites(
     config: RunnableConfig,
-    writes: Array<[string, any]>,
-    checkpointId: string,
+    writes: Array<[string, unknown]>,
+    taskId: string,
   ): Promise<void> {
     const threadId = (config.configurable as any)?.['thread_id'] || 'default';
+    const checkpointId =
+      (config.configurable as any)?.['checkpoint_id'] || 'default';
 
     // Ensure checkpoint exists before inserting writes
     const existing = this.db
@@ -209,8 +238,8 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
     // Wrap version lookup and insert in transaction to prevent race conditions
     this.db.transaction(() => {
       const stmt = this.db.prepare(`
-        INSERT INTO checkpoint_writes (thread_id, checkpoint_id, channel, version, data)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO checkpoint_writes (thread_id, checkpoint_id, task_id, channel, version, data)
+        VALUES (?, ?, ?, ?, ?, ?)
       `);
 
       for (const [channel, data] of writes) {
@@ -226,12 +255,34 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
         stmt.run(
           threadId,
           checkpointId,
+          taskId,
           channel,
           version,
           JSON.stringify(data),
         );
       }
     })();
+  }
+
+  /**
+   * List all checkpoints for a thread.
+   * Implements LangGraph 1.3.0 BaseCheckpointSaver.list().
+   */
+  public async *list(config: RunnableConfig): AsyncGenerator<CheckpointTuple> {
+    const threadId = (config.configurable as any)?.['thread_id'] || 'default';
+    const rows = this.stmtGetAllByThread.all(threadId) as any[];
+
+    for (const row of rows) {
+      const tupleConfig: RunnableConfig = {
+        configurable: { thread_id: threadId, checkpoint_id: row.checkpoint_id },
+      };
+      yield {
+        config: tupleConfig,
+        checkpoint: JSON.parse(row.checkpoint_body),
+        metadata: JSON.parse(row.metadata_body),
+        pendingWrites: [],
+      };
+    }
   }
 
   /**
