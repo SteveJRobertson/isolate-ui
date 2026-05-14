@@ -94,7 +94,7 @@ describe('applyCodeBuffer', () => {
     mockWriteFile.mockResolvedValue(undefined);
     mockUnlink.mockResolvedValue(undefined);
     mockRmdir.mockResolvedValue(undefined);
-    mockReadFile.mockReset && mockReadFile.mockReset();
+    mockReadFile.mockReset();
   });
 
   describe('empty code buffer', () => {
