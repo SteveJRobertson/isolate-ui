@@ -101,6 +101,43 @@ describe('runStartupSync', () => {
     expect(calledIssues).toEqual([1, 2]);
   });
 
+  it('processes only paused threads with multiple pause contexts', async () => {
+    // thread-1, thread-2: paused with different pause_context values
+    // thread-3, thread-4: not paused (pause_context = null)
+    insertCheckpoint(
+      db,
+      'issue-1',
+      JSON.stringify({ channel_values: { pause_context: 'refinement_limit' } }),
+      1,
+    );
+    insertCheckpoint(
+      db,
+      'issue-2',
+      JSON.stringify({ channel_values: { pause_context: 'mesh_stalemate' } }),
+      1,
+    );
+    insertCheckpoint(
+      db,
+      'issue-3',
+      JSON.stringify({ channel_values: { pause_context: null } }),
+      1,
+    );
+    insertCheckpoint(
+      db,
+      'issue-4',
+      JSON.stringify({ channel_values: { pause_context: null } }),
+      1,
+    );
+    octokit.paginate.mockResolvedValue([]);
+    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    // Only issue-1 and issue-2 should be processed
+    expect(octokit.paginate).toHaveBeenCalledTimes(2);
+    const calledIssues = octokit.paginate.mock.calls
+      .map((call) => call[1].issue_number)
+      .sort();
+    expect(calledIssues).toEqual([1, 2]);
+  });
+
   it('skips malformed checkpoint_body but processes valid ones', async () => {
     // thread-1: malformed, thread-2: valid
     insertCheckpoint(db, 'issue-1', '{not valid json}', 1);
