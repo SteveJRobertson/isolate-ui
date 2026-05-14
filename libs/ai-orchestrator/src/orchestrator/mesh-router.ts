@@ -184,8 +184,7 @@ export function createMeshRouterNode(
 
     const { target } = await analyzeMeshQuery(
       state.messages ?? [],
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      resolvedClient!,
+      resolvedClient,
     );
 
     // No ambiguous query detected — pass through unchanged (deterministic fallback)

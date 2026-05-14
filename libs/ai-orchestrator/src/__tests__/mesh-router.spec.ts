@@ -1,15 +1,15 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FakeListChatModel } from '@langchain/core/utils/testing';
+import { ChatOpenAI } from '@langchain/openai';
 import {
   analyzeMeshQuery,
   createMeshRouterNode,
   DEFAULT_MESH_CONFIG,
+  _test_createDefaultMeshClient,
   type MeshRouterConfig,
 } from '../orchestrator/mesh-router';
 import { createDefaultAgentState } from '../schema';
 import type { AgentState } from '../schema';
-import { _test_createDefaultMeshClient } from '../orchestrator/mesh-router';
-import { ChatOpenAI } from '@langchain/openai';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -311,7 +311,11 @@ describe('createMeshRouterNode', () => {
 });
 
 describe('_test_createDefaultMeshClient', () => {
-  const ORIGINAL_KEY = process.env['OPENAI_API_KEY'];
+  let ORIGINAL_KEY: string | undefined;
+
+  beforeEach(() => {
+    ORIGINAL_KEY = process.env['OPENAI_API_KEY'];
+  });
 
   afterEach(() => {
     if (ORIGINAL_KEY === undefined) {
