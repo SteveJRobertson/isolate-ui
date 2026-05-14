@@ -1,6 +1,7 @@
 import { describe, it, beforeEach, expect, vi } from 'vitest';
 import type { Mock } from 'vitest';
 import Database from 'better-sqlite3';
+import type { Database as DatabaseType } from 'better-sqlite3';
 import { runStartupSync } from './startup';
 
 vi.mock('../commands/approve');
@@ -13,7 +14,12 @@ describe('runStartupSync', () => {
   let octokit: { paginate: Mock; issues: { listComments: Mock } };
 
   // Helper for inserting checkpoints (module scope)
-  function insertCheckpoint(db, threadId, checkpointBody, sequenceNum = 1) {
+  function insertCheckpoint(
+    db: DatabaseType,
+    threadId: string,
+    checkpointBody: string,
+    sequenceNum = 1,
+  ) {
     db.prepare(
       `
     INSERT INTO checkpoints (thread_id, checkpoint_id, checkpoint_body, metadata_body, sequence)

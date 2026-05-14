@@ -99,7 +99,7 @@ export async function runStartupSync(
     for (const { thread_id, checkpoint_body } of checkpointRows) {
       try {
         const state = deserializeCheckpointBody(checkpoint_body) as AgentState;
-        if (state.pause_context !== null) {
+        if (state.pause_context != null) {
           pausedThreads.push({ thread_id, state });
         }
       } catch (err) {
