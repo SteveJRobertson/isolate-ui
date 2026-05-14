@@ -95,7 +95,18 @@ export async function applyCodeBuffer(
 
     return { success: true, code_buffer: '' };
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
+    // Type-narrow to safely access stderr property from ExecFileException
+    let errorMessage = '';
+    if (err && typeof err === 'object' && 'stderr' in err) {
+      const stderrVal = (err as { stderr?: unknown }).stderr;
+      if (typeof stderrVal === 'string') {
+        errorMessage = stderrVal.trim();
+      }
+    }
+    // Fall back to error message if stderr is unavailable or empty
+    if (!errorMessage) {
+      errorMessage = err instanceof Error ? err.message : String(err);
+    }
 
     // Capture file snapshots for paths referenced in the diff as a fallback
     const snapshots = await captureFileSnapshots(codeBuffer, workspaceRoot);
@@ -139,20 +150,49 @@ async function captureFileSnapshots(
   workspaceRoot: string,
 ): Promise<Record<string, string>> {
   const snapshots: Record<string, string> = {};
-  const pathPattern = /^(?:---|\+\+\+) (?:a|b)\/(.+)$/gm;
   const seen = new Set<string>();
 
-  let match: RegExpExecArray | null;
-  while ((match = pathPattern.exec(diff)) !== null) {
-    const relativePath = match[1];
-    if (relativePath === '/dev/null' || seen.has(relativePath)) continue;
-    seen.add(relativePath);
+  // Match --- and +++ line pairs, capturing both source and target
+  // Pattern: `--- a/<path>` or `--- /dev/null` immediately followed by `+++ b/<path>` or `+++ /dev/null`
+  const fileBlockPattern =
+    /^---\s+(?:a\/(.+)|\/(dev\/null))\s*\n\+\+\+\s+(?:b\/(.+)|\/(dev\/null))/gm;
 
-    const absPath = path.join(workspaceRoot, relativePath);
-    try {
-      snapshots[relativePath] = await fs.promises.readFile(absPath, 'utf8');
-    } catch {
-      // File doesn't exist or isn't readable — skip silently
+  let match: RegExpExecArray | null;
+  while ((match = fileBlockPattern.exec(diff)) !== null) {
+    // match[1] = path from --- a/<path>
+    // match[2] = dev/null (without slash) from --- /dev/null
+    // match[3] = path from +++ b/<path>
+    // match[4] = dev/null (without slash) from +++ /dev/null
+
+    const sourcePath = match[1]; // from --- line
+    const targetPath = match[3]; // from +++ line
+    const sourceIsDevNull = match[2] ? true : false;
+    const targetIsDevNull = match[4] ? true : false;
+
+    // Collect all real (non-/dev/null) paths from both sides
+    // For modifications: source == target (single path)
+    // For renames/copies: source != target (both paths are real)
+    // For creations: source is /dev/null, target is real
+    // For deletions: source is real, target is /dev/null
+    const paths = new Set<string>();
+    if (!sourceIsDevNull && sourcePath) paths.add(sourcePath);
+    if (!targetIsDevNull && targetPath) paths.add(targetPath);
+
+    // Snapshot each real path
+    for (const filePath of paths) {
+      if (seen.has(filePath)) continue;
+      seen.add(filePath);
+
+      const absPath = path.resolve(workspaceRoot, filePath);
+      // Ensure absPath is within workspaceRoot
+      if (!absPath.startsWith(path.resolve(workspaceRoot) + path.sep)) {
+        continue; // skip paths that escape the workspace
+      }
+      try {
+        snapshots[filePath] = await fs.promises.readFile(absPath, 'utf8');
+      } catch {
+        // File doesn't exist or isn't readable — skip silently
+      }
     }
   }
 
