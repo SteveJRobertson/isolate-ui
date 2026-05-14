@@ -167,7 +167,7 @@ export function createMeshRouterNode(
   // Lazily resolve the client: if a client was injected (e.g. MockChatModel in
   // tests) use it directly; otherwise create the default on first invocation so
   // that OPENAI_API_KEY absence only throws when the node actually runs.
-  let resolvedClient: BaseChatModel | undefined = config.llmClient;
+  let resolvedClient: BaseChatModel | ChatOpenAI | undefined = config.llmClient;
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
     if (!resolvedClient) {
@@ -184,7 +184,7 @@ export function createMeshRouterNode(
 
     const { target } = await analyzeMeshQuery(
       state.messages ?? [],
-      resolvedClient,
+      resolvedClient as BaseChatModel,
     );
 
     // No ambiguous query detected — pass through unchanged (deterministic fallback)
@@ -228,8 +228,15 @@ export function createMeshRouterNode(
  * a small, fast model is perfectly suited and keeps orchestration overhead
  * negligible. temperature: 0 for deterministic routing decisions;
  * maxTokens: 64 since only a short JSON object is expected.
+ *
+ * JSON mode is enabled by passing `modelKwargs: { response_format: { type: 'json_object' } }`.
+ * This is the correct API surface for @langchain/openai v0.2.x. The `strict` flag is not required for
+ * `json_object` mode (only for `json_schema`).
+ *
+ * @returns {ChatOpenAI} Configured ChatOpenAI client for mesh routing
+ * @throws {Error} If OPENAI_API_KEY is not set
  */
-function createDefaultMeshClient(): BaseChatModel {
+function createDefaultMeshClient(): ChatOpenAI {
   const env = validateOrchestratorEnv();
   if (!env.OPENAI_API_KEY) {
     throw new Error(
@@ -244,5 +251,8 @@ function createDefaultMeshClient(): BaseChatModel {
     // JSON mode ensures the model always returns a valid JSON object,
     // reducing parse failures and making routing more deterministic.
     modelKwargs: { response_format: { type: 'json_object' } },
-  }) as unknown as BaseChatModel;
+  });
 }
+
+// Export for testing only; not part of the public API
+export { createDefaultMeshClient as _test_createDefaultMeshClient };

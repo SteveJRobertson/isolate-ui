@@ -1,9 +1,11 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { FakeListChatModel } from '@langchain/core/utils/testing';
+import { ChatOpenAI } from '@langchain/openai';
 import {
   analyzeMeshQuery,
   createMeshRouterNode,
   DEFAULT_MESH_CONFIG,
+  _test_createDefaultMeshClient,
   type MeshRouterConfig,
 } from '../orchestrator/mesh-router';
 import { createDefaultAgentState } from '../schema';
@@ -305,5 +307,35 @@ describe('createMeshRouterNode', () => {
     // Should silently fail safe without throwing
     const result = await node(state);
     expect(result).toEqual({});
+  });
+});
+
+describe('_test_createDefaultMeshClient', () => {
+  let ORIGINAL_KEY: string | undefined;
+
+  beforeEach(() => {
+    ORIGINAL_KEY = process.env['OPENAI_API_KEY'];
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_KEY === undefined) {
+      delete process.env['OPENAI_API_KEY'];
+    } else {
+      process.env['OPENAI_API_KEY'] = ORIGINAL_KEY;
+    }
+  });
+
+  it('creates a ChatOpenAI client with JSON mode enabled', () => {
+    process.env['OPENAI_API_KEY'] = 'test-key';
+    const client = _test_createDefaultMeshClient();
+    expect(client).toBeInstanceOf(ChatOpenAI);
+    expect(client.modelKwargs?.['response_format']?.type).toBe('json_object');
+    expect(client.temperature).toBe(0);
+    expect(client.maxTokens).toBe(64);
+  });
+
+  it('throws if OPENAI_API_KEY is not set', () => {
+    delete process.env['OPENAI_API_KEY'];
+    expect(() => _test_createDefaultMeshClient()).toThrow(/OPENAI_API_KEY/);
   });
 });
