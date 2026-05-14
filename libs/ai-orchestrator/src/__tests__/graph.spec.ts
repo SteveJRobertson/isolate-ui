@@ -352,11 +352,9 @@ describe('OrchestratorGraph', () => {
       ],
     }));
 
-    const result = await graph.run(
-      'mesh-stalemate',
-      { metadata: { github_issue_id: '20' } },
-      50,
-    );
+    const result = await graph.run('mesh-stalemate', {
+      metadata: { github_issue_id: '20' },
+    });
     expect(result.finalState.next_recipient).toBeNull();
     expect(result.finalState.pause_context).toBe('mesh_stalemate');
   });
