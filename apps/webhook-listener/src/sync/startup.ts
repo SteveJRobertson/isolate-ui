@@ -1,6 +1,10 @@
 import Database from 'better-sqlite3';
 import { Octokit } from '@octokit/rest';
-import { OrchestratorGraph } from '@isolate-ui/ai-orchestrator';
+import {
+  OrchestratorGraph,
+  deserializeCheckpointBody,
+} from '@isolate-ui/ai-orchestrator';
+import type { AgentState } from '@isolate-ui/ai-orchestrator';
 import { handleApprove } from '../commands/approve';
 import { handleFix } from '../commands/fix';
 import { handleQuery } from '../commands/query';
@@ -73,12 +77,48 @@ export async function runStartupSync(
   let latestProcessedAt: string | null = null;
 
   try {
-    // Iterate all threads that have an active checkpoint in the DB
-    const threads = db
-      .prepare(`SELECT DISTINCT thread_id FROM checkpoints`)
-      .all() as { thread_id: string }[];
+    // Query latest checkpoint per thread (window function)
+    const checkpointRows = db
+      .prepare(
+        `
+      SELECT thread_id, checkpoint_body
+      FROM (
+        SELECT thread_id, checkpoint_body,
+               ROW_NUMBER() OVER (PARTITION BY thread_id ORDER BY sequence DESC) as rn
+        FROM checkpoints
+      )
+      WHERE rn = 1
+    `,
+      )
+      .all() as { thread_id: string; checkpoint_body: string }[];
 
-    for (const { thread_id } of threads) {
+    const totalThreads = checkpointRows.length;
+    const pausedThreads: { thread_id: string; state: AgentState }[] = [];
+    let malformedCount = 0;
+
+    for (const { thread_id, checkpoint_body } of checkpointRows) {
+      try {
+        const state = deserializeCheckpointBody(checkpoint_body) as AgentState;
+        if (state.pause_context !== null) {
+          pausedThreads.push({ thread_id, state });
+        }
+      } catch (err) {
+        malformedCount++;
+        console.warn(
+          `[webhook-listener] Startup sync: skipped thread "${thread_id}" (malformed checkpoint_body: ${String(err)})`,
+        );
+      }
+    }
+
+    console.log(
+      `[webhook-listener] Startup sync: found ${totalThreads} total threads; ` +
+        `${pausedThreads.length} paused threads will be checked for missed commands` +
+        (malformedCount > 0
+          ? `; ${malformedCount} malformed checkpoints skipped`
+          : ''),
+    );
+
+    for (const { thread_id } of pausedThreads) {
       // thread_id is 'issue-<number>' — extract the issue number
       const match = thread_id.match(/^issue-(\d+)$/);
       if (!match) continue;
@@ -94,8 +134,6 @@ export async function runStartupSync(
 
       for (const comment of comments) {
         // Track the latest timestamp from every comment we've seen
-        // (including already-processed and non-command ones) so the cursor
-        // can advance even when no new commands are processed.
         if (comment.created_at) {
           if (!latestSeenAt || comment.created_at > latestSeenAt) {
             latestSeenAt = comment.created_at;
@@ -112,9 +150,7 @@ export async function runStartupSync(
 
         const deliveryId = `startup-sync-${comment.id}`;
 
-        // Claim the delivery ID first (INSERT before dispatch) so that a crash
-        // after a successful handler but before the INSERT doesn't replay the
-        // same command on the next restart. Mirrors the webhook route semantics.
+        // Claim the delivery ID first (INSERT before dispatch)
         const inserted = db
           .prepare('INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)')
           .run(deliveryId);
@@ -127,11 +163,7 @@ export async function runStartupSync(
         const authorAssociation = comment.author_association ?? '';
 
         // Apply the same authorization check as the live webhook route.
-        // Without this, any GitHub user whose command falls in the scan window
-        // would be processed during a restart.
         if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
-          // Release the claimed delivery row so the dedup table doesn't fill
-          // with comments from unauthorized users.
           db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
             deliveryId,
           );
@@ -160,16 +192,12 @@ export async function runStartupSync(
           } else if (command === '/query') {
             await handleQuery(ctx, args);
           } else {
-            // Not a recognized command — release the claimed row so the dedup
-            // table doesn't fill with non-command comments (mirrors webhook route).
             db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
               deliveryId,
             );
             continue;
           }
         } catch (handlerErr) {
-          // Handler threw (and already posted an error reply). Delete the
-          // claimed delivery row so the next startup can retry this command.
           db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
             deliveryId,
           );
@@ -179,8 +207,6 @@ export async function runStartupSync(
           continue;
         }
 
-        // Mark the claimed delivery as processed (INSERT was done above).
-        // Advance the cursor to the latest processed comment's timestamp.
         if (comment.created_at) {
           if (!latestProcessedAt || comment.created_at > latestProcessedAt) {
             latestProcessedAt = comment.created_at;
