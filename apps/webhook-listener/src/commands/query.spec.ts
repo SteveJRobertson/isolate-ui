@@ -11,6 +11,7 @@ describe('handleQuery', () => {
   let ctx;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     graph = { getState: vi.fn(), invoke: vi.fn() };
     ctx = makeCommandContext({ graph });
   });

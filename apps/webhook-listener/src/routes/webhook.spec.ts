@@ -14,6 +14,7 @@ const WEBHOOK_SECRET = 'a'.repeat(32);
 describe('webhookRoute', () => {
   let fastify;
   let db;
+  let previousWebhookSecret: string | undefined;
 
   beforeEach(async () => {
     fastify = Fastify();
@@ -32,6 +33,7 @@ describe('webhookRoute', () => {
       );
     `);
 
+    previousWebhookSecret = process.env.WEBHOOK_SECRET;
     process.env.WEBHOOK_SECRET = WEBHOOK_SECRET;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,6 +48,11 @@ describe('webhookRoute', () => {
 
   afterEach(async () => {
     await fastify.close();
+    if (previousWebhookSecret === undefined) {
+      delete process.env.WEBHOOK_SECRET;
+    } else {
+      process.env.WEBHOOK_SECRET = previousWebhookSecret;
+    }
   });
 
   it('registers the POST /api/webhook route successfully', async () => {
