@@ -102,7 +102,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer('', WORKSPACE);
 
       expect(result.success).toBe(true);
-      expect((result as any).code_buffer).toBe('');
+      if (result.success) {
+        expect(result.code_buffer).toBe('');
+      }
       expect(mockMkdtemp).not.toHaveBeenCalled();
       expect(mockExecFile).not.toHaveBeenCalled();
     });
@@ -111,7 +113,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer('   \n\t  ', WORKSPACE);
 
       expect(result.success).toBe(true);
-      expect((result as any).code_buffer).toBe('');
+      if (result.success) {
+        expect(result.code_buffer).toBe('');
+      }
       expect(mockMkdtemp).not.toHaveBeenCalled();
       expect(mockExecFile).not.toHaveBeenCalled();
     });
@@ -132,7 +136,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(true);
-      expect((result as any).code_buffer).toBe('');
+      if (result.success) {
+        expect(result.code_buffer).toBe('');
+      }
       expect(mockMkdtemp).toHaveBeenCalledWith('/tmp/isolate-mesh-');
       expect(mockWriteFile).toHaveBeenCalledWith(PATCH_FILE, patch, 'utf8');
       expect(mockExecFile).toHaveBeenCalledWith('git', ['apply', PATCH_FILE], {
@@ -166,7 +172,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(gitStderr);
+      if (!result.success) {
+        expect(result.error).toBe(gitStderr);
+      }
     });
 
     it('trims trailing newlines from stderr', async () => {
@@ -182,7 +190,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('error: patch does not apply');
+      if (!result.success) {
+        expect(result.error).toBe('error: patch does not apply');
+      }
     });
 
     it('captures file snapshots when apply fails with stderr', async () => {
@@ -201,9 +211,11 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.file_snapshots).toEqual({
-        'src/file.ts': 'file snapshot content',
-      });
+      if (!result.success) {
+        expect(result.file_snapshots).toEqual({
+          'src/file.ts': 'file snapshot content',
+        });
+      }
       expect(mockReadFile).toHaveBeenCalledWith(
         '/test-workspace/src/file.ts',
         'utf8',
@@ -225,7 +237,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(errMessage);
+      if (!result.success) {
+        expect(result.error).toBe(errMessage);
+      }
     });
 
     it('falls back to err.message when stderr is undefined', async () => {
@@ -241,7 +255,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe(errMessage);
+      if (!result.success) {
+        expect(result.error).toBe(errMessage);
+      }
     });
 
     it('falls back to String(err) when err is not an Error instance', async () => {
@@ -254,7 +270,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.error).toBe('string error');
+      if (!result.success) {
+        expect(result.error).toBe('string error');
+      }
     });
   });
 
@@ -282,13 +300,15 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.file_snapshots).toEqual({
-        'src/button.ts': 'button content',
-        'src/styles.ts': 'styles content',
-      });
+      if (!result.success) {
+        expect(result.file_snapshots).toEqual({
+          'src/button.ts': 'button content',
+          'src/styles.ts': 'styles content',
+        });
+      }
     });
 
-    it('skips /dev/null paths (deleted files)', async () => {
+    it('captures source file for deletions (real path when target is /dev/null)', async () => {
       const patch = `--- a/deleted.ts
 +++ /dev/null
 @@ -1 +0 @@
@@ -298,10 +318,104 @@ describe('applyCodeBuffer', () => {
       execErr.stderr = 'error';
       mockExecFile.mockRejectedValueOnce(execErr as never);
 
+      mockReadFile.mockResolvedValue('deleted file content');
+
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.file_snapshots).toEqual({});
+      if (!result.success) {
+        expect(result.file_snapshots).toEqual({
+          'deleted.ts': 'deleted file content',
+        });
+      }
+      expect(mockReadFile).toHaveBeenCalledWith(
+        '/test-workspace/deleted.ts',
+        'utf8',
+      );
+    });
+
+    it('captures target file for creations (real path when source is /dev/null)', async () => {
+      const patch = `--- /dev/null
++++ b/new-file.ts
+@@ -0 +1 @@
++new content`;
+
+      const execErr: ExecFileException = new Error('failed');
+      execErr.stderr = 'error';
+      mockExecFile.mockRejectedValueOnce(execErr as never);
+
+      // For a newly created file, readFile should be called but will likely fail (file doesn't exist)
+      mockReadFile.mockRejectedValueOnce(new Error('ENOENT') as never);
+
+      const result = await applyCodeBuffer(patch, WORKSPACE);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        // File doesn't exist on disk yet, so snapshots should be empty
+        expect(result.file_snapshots).toEqual({});
+      }
+      // But we should have tried to read it
+      expect(mockReadFile).toHaveBeenCalledWith(
+        '/test-workspace/new-file.ts',
+        'utf8',
+      );
+    });
+
+    it('handles rename/copy diffs by capturing both source and target paths', async () => {
+      const patch = `--- a/old-name.ts
++++ b/new-name.ts
+@@ -1 +1 @@
+// file moved and modified`;
+
+      const execErr: ExecFileException = new Error('failed');
+      execErr.stderr = 'error';
+      mockExecFile.mockRejectedValueOnce(execErr as never);
+
+      mockReadFile
+        .mockResolvedValueOnce('old file content')
+        .mockResolvedValueOnce('new file content');
+
+      const result = await applyCodeBuffer(patch, WORKSPACE);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.file_snapshots).toEqual({
+          'old-name.ts': 'old file content',
+          'new-name.ts': 'new file content',
+        });
+      }
+      // Should attempt to read both paths
+      expect(mockReadFile).toHaveBeenNthCalledWith(
+        1,
+        '/test-workspace/old-name.ts',
+        'utf8',
+      );
+      expect(mockReadFile).toHaveBeenNthCalledWith(
+        2,
+        '/test-workspace/new-name.ts',
+        'utf8',
+      );
+    });
+
+    it('prevents path traversal attacks by skipping paths that escape workspace', async () => {
+      const patch = `--- a/../../../etc/passwd
++++ b/../../../etc/passwd
+@@ -1 +1 @@
+-old
++new`;
+
+      const execErr: ExecFileException = new Error('failed');
+      execErr.stderr = 'error';
+      mockExecFile.mockRejectedValueOnce(execErr as never);
+
+      const result = await applyCodeBuffer(patch, WORKSPACE);
+
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        // Path should not be read due to traversal guard
+        expect(result.file_snapshots).toEqual({});
+      }
+      // readFile should never be called for escaped paths
       expect(mockReadFile).not.toHaveBeenCalled();
     });
 
@@ -321,7 +435,9 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.file_snapshots).toEqual({});
+      if (!result.success) {
+        expect(result.file_snapshots).toEqual({});
+      }
     });
 
     it('handles duplicate paths in diff by capturing only once', async () => {
@@ -345,9 +461,11 @@ describe('applyCodeBuffer', () => {
       const result = await applyCodeBuffer(patch, WORKSPACE);
 
       expect(result.success).toBe(false);
-      expect(result.file_snapshots).toEqual({
-        'file.ts': 'snapshot content',
-      });
+      if (!result.success) {
+        expect(result.file_snapshots).toEqual({
+          'file.ts': 'snapshot content',
+        });
+      }
       expect(mockReadFile).toHaveBeenCalledTimes(1);
     });
   });

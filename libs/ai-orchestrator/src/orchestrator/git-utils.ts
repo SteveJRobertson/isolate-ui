@@ -153,40 +153,46 @@ async function captureFileSnapshots(
   const seen = new Set<string>();
 
   // Match --- and +++ line pairs, capturing both source and target
-  // Pattern: `--- a/<path>` or `--- /dev/null` followed eventually by `+++ b/<path>` or `+++ /dev/null`
+  // Pattern: `--- a/<path>` or `--- /dev/null` immediately followed by `+++ b/<path>` or `+++ /dev/null`
   const fileBlockPattern =
     /^---\s+(?:a\/(.+)|\/(dev\/null))\s*\n\+\+\+\s+(?:b\/(.+)|\/(dev\/null))/gm;
 
   let match: RegExpExecArray | null;
   while ((match = fileBlockPattern.exec(diff)) !== null) {
     // match[1] = path from --- a/<path>
-    // match[2] = /dev/null from --- /dev/null
+    // match[2] = dev/null (without slash) from --- /dev/null
     // match[3] = path from +++ b/<path>
-    // match[4] = /dev/null from +++ /dev/null
+    // match[4] = dev/null (without slash) from +++ /dev/null
 
     const sourcePath = match[1]; // from --- line
     const targetPath = match[3]; // from +++ line
     const sourceIsDevNull = match[2] ? true : false;
     const targetIsDevNull = match[4] ? true : false;
 
-    // Skip files that are being created (+dev/null source) or deleted (+dev/null target)
-    if (sourceIsDevNull || targetIsDevNull) continue;
+    // Collect all real (non-/dev/null) paths from both sides
+    // For modifications: source == target (single path)
+    // For renames/copies: source != target (both paths are real)
+    // For creations: source is /dev/null, target is real
+    // For deletions: source is real, target is /dev/null
+    const paths = new Set<string>();
+    if (!sourceIsDevNull && sourcePath) paths.add(sourcePath);
+    if (!targetIsDevNull && targetPath) paths.add(targetPath);
 
-    // Use the path from whichever side is real (should be both for modifications)
-    const filePath = sourcePath || targetPath;
-    if (!filePath || seen.has(filePath)) continue;
+    // Snapshot each real path
+    for (const filePath of paths) {
+      if (seen.has(filePath)) continue;
+      seen.add(filePath);
 
-    seen.add(filePath);
-
-    const absPath = path.resolve(workspaceRoot, filePath);
-    // Ensure absPath is within workspaceRoot
-    if (!absPath.startsWith(path.resolve(workspaceRoot) + path.sep)) {
-      continue; // skip paths that escape the workspace
-    }
-    try {
-      snapshots[filePath] = await fs.promises.readFile(absPath, 'utf8');
-    } catch {
-      // File doesn't exist or isn't readable — skip silently
+      const absPath = path.resolve(workspaceRoot, filePath);
+      // Ensure absPath is within workspaceRoot
+      if (!absPath.startsWith(path.resolve(workspaceRoot) + path.sep)) {
+        continue; // skip paths that escape the workspace
+      }
+      try {
+        snapshots[filePath] = await fs.promises.readFile(absPath, 'utf8');
+      } catch {
+        // File doesn't exist or isn't readable — skip silently
+      }
     }
   }
 
