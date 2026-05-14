@@ -167,14 +167,12 @@ export function createMeshRouterNode(
   // Lazily resolve the client: if a client was injected (e.g. MockChatModel in
   // tests) use it directly; otherwise create the default on first invocation so
   // that OPENAI_API_KEY absence only throws when the node actually runs.
-  let resolvedClient: ChatOpenAI | undefined = config.llmClient as
-    | ChatOpenAI
-    | undefined;
+  let resolvedClient: BaseChatModel | undefined = config.llmClient;
 
   return async (state: AgentState): Promise<Partial<AgentState>> => {
     if (!resolvedClient) {
       try {
-        resolvedClient = createDefaultMeshClient();
+        resolvedClient = createDefaultMeshClient() as unknown as BaseChatModel;
       } catch {
         // No API key available — mesh router is disabled for this run.
         // Fail safe: pass through unchanged rather than crashing the graph.
@@ -186,7 +184,8 @@ export function createMeshRouterNode(
 
     const { target } = await analyzeMeshQuery(
       state.messages ?? [],
-      resolvedClient,
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      resolvedClient!,
     );
 
     // No ambiguous query detected — pass through unchanged (deterministic fallback)
