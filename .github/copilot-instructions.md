@@ -143,6 +143,67 @@ db.exec(`SELECT * FROM deliveries WHERE id = '${deliveryId}'`);
 
 ---
 
+## Development Workflow & TDD
+
+### Branching
+
+- **Create a fresh branch immediately after plan approval.** Before any implementation work, code changes, or new files are created, create a new git branch from `main`.
+- **Branch name must start with the issue number.** Use the format `<issue-number>-<short-slug>` (e.g., `42-add-dropdown-component`, `67-fix-button-accessibility`). This ensures easy tracking and reference of the work across the team.
+- **Ensure main is current before branching.** Always run `git pull origin main` before creating a new branch to avoid working against stale commits.
+
+```bash
+# ✅ correct workflow
+git checkout main
+git pull origin main
+git checkout -b 42-add-dropdown-component
+
+# ❌ wrong — branch created without pulling latest
+git checkout -b 42-add-dropdown-component
+```
+
+### Test-Driven Development (TDD)
+
+- **Write failing tests first, before any implementation.** Before writing a single line of feature code or modifying any production source files, create comprehensive test cases that define the expected behavior. These tests must fail initially.
+- **Tests establish the specification.** Use failing tests to document what the code must do. They serve as executable specifications and prevent scope creep during implementation.
+- **Implementation follows test definition.** Only after failing tests are in place and reviewed, begin implementing the feature to make those tests pass.
+- **Every new exported function and async function must have error path tests.** Not just the happy path — tests must verify failure modes, rejection handling, and edge cases (see the Testing section for detailed requirements).
+
+```typescript
+// ✅ correct TDD sequence
+// 1. Write failing test first
+describe('myFunction', () => {
+  it('returns uppercase string', () => {
+    expect(myFunction('hello')).toBe('HELLO');
+  });
+
+  it('throws when input is null', () => {
+    expect(() => myFunction(null)).toThrow();
+  });
+});
+
+// 2. Run tests — they fail
+// pnpm vitest run
+
+// 3. Only then implement
+function myFunction(input) {
+  if (input === null) throw new Error('input required');
+  return input.toUpperCase();
+}
+
+// ❌ wrong — implementation before tests
+function myFunction(input) {
+  return input.toUpperCase();
+}
+// Then write tests after
+describe('myFunction', () => {
+  it('returns uppercase string', () => {
+    expect(myFunction('hello')).toBe('HELLO');
+  });
+});
+```
+
+---
+
 ## PR Workflow
 
 - **Run the pre-PR reviewer automatically at the end of every phase of work.** Do not wait for a human to ask. In VS Code Copilot Chat, run `#pre-pr-review` and work through all findings before reporting phase completion or starting the next phase. Do not open the PR until Blocker and Major findings are resolved.
