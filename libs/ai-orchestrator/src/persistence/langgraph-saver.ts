@@ -12,6 +12,16 @@ import { AgentState } from '../schema';
  * Implements BaseCheckpointSaver interface for seamless integration with LangGraph's
  * state persistence and resumption API.
  */
+/**
+ * Deserialize checkpoint_body BLOB to AgentState, handling legacy formats.
+ * Used by getLatest() and other callers that need to inspect state without a full thread lookup.
+ */
+export function deserializeCheckpointBody(checkpointBodyJson: string): unknown {
+  const checkpoint = JSON.parse(checkpointBodyJson) as Record<string, unknown>;
+  // LangGraph v0.1 checkpoints use 'channel_values' not 'values'
+  return checkpoint['channel_values'] ?? checkpoint['values'] ?? checkpoint;
+}
+
 export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
   private db: Database.Database;
   private stmtUpsert!: Database.Statement;
@@ -230,10 +240,7 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
   public getLatest(threadId: string): AgentState | null {
     const row = this.stmtGetLatest.get(threadId) as any;
     if (!row) return null;
-
-    const checkpoint = JSON.parse(row.checkpoint_body);
-    // LangGraph v0.1 checkpoints use 'channel_values' not 'values'
-    const state = checkpoint.channel_values || checkpoint.values || checkpoint;
+    const state = deserializeCheckpointBody(row.checkpoint_body);
     return state as AgentState;
   }
 
