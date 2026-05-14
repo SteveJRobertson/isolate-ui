@@ -95,7 +95,11 @@ export async function applyCodeBuffer(
 
     return { success: true, code_buffer: '' };
   } catch (err) {
-    const errorMessage = err instanceof Error ? err.message : String(err);
+    // Type-narrow to safely access stderr property from ExecFileException
+    const execErr = err as { stderr?: string };
+    const errorMessage =
+      execErr.stderr?.trim() ||
+      (err instanceof Error ? err.message : String(err));
 
     // Capture file snapshots for paths referenced in the diff as a fallback
     const snapshots = await captureFileSnapshots(codeBuffer, workspaceRoot);
@@ -139,18 +143,37 @@ async function captureFileSnapshots(
   workspaceRoot: string,
 ): Promise<Record<string, string>> {
   const snapshots: Record<string, string> = {};
-  const pathPattern = /^(?:---|\+\+\+) (?:a|b)\/(.+)$/gm;
   const seen = new Set<string>();
 
-  let match: RegExpExecArray | null;
-  while ((match = pathPattern.exec(diff)) !== null) {
-    const relativePath = match[1];
-    if (relativePath === '/dev/null' || seen.has(relativePath)) continue;
-    seen.add(relativePath);
+  // Match --- and +++ line pairs, capturing both source and target
+  // Pattern: `--- a/<path>` or `--- /dev/null` followed eventually by `+++ b/<path>` or `+++ /dev/null`
+  const fileBlockPattern =
+    /^---\s+(?:a\/(.+)|\/(dev\/null))\s*\n\+\+\+\s+(?:b\/(.+)|\/(dev\/null))/gm;
 
-    const absPath = path.join(workspaceRoot, relativePath);
+  let match: RegExpExecArray | null;
+  while ((match = fileBlockPattern.exec(diff)) !== null) {
+    // match[1] = path from --- a/<path>
+    // match[2] = /dev/null from --- /dev/null
+    // match[3] = path from +++ b/<path>
+    // match[4] = /dev/null from +++ /dev/null
+
+    const sourcePath = match[1]; // from --- line
+    const targetPath = match[3]; // from +++ line
+    const sourceIsDevNull = match[2] ? true : false;
+    const targetIsDevNull = match[4] ? true : false;
+
+    // Skip files that are being created (+dev/null source) or deleted (+dev/null target)
+    if (sourceIsDevNull || targetIsDevNull) continue;
+
+    // Use the path from whichever side is real (should be both for modifications)
+    const filePath = sourcePath || targetPath;
+    if (!filePath || seen.has(filePath)) continue;
+
+    seen.add(filePath);
+
+    const absPath = path.join(workspaceRoot, filePath);
     try {
-      snapshots[relativePath] = await fs.promises.readFile(absPath, 'utf8');
+      snapshots[filePath] = await fs.promises.readFile(absPath, 'utf8');
     } catch {
       // File doesn't exist or isn't readable — skip silently
     }
