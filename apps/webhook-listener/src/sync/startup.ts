@@ -1,6 +1,9 @@
 import Database from 'better-sqlite3';
 import { Octokit } from '@octokit/rest';
-import { OrchestratorGraph, deserializeCheckpointBody } from '@isolate-ui/ai-orchestrator';
+import {
+  OrchestratorGraph,
+  deserializeCheckpointBody,
+} from '@isolate-ui/ai-orchestrator';
 import type { AgentState } from '@isolate-ui/ai-orchestrator';
 import { handleApprove } from '../commands/approve';
 import { handleFix } from '../commands/fix';
@@ -75,7 +78,9 @@ export async function runStartupSync(
 
   try {
     // Query latest checkpoint per thread (window function)
-    const checkpointRows = db.prepare(`
+    const checkpointRows = db
+      .prepare(
+        `
       SELECT thread_id, checkpoint_body
       FROM (
         SELECT thread_id, checkpoint_body,
@@ -83,7 +88,9 @@ export async function runStartupSync(
         FROM checkpoints
       )
       WHERE rn = 1
-    `).all() as { thread_id: string; checkpoint_body: string }[];
+    `,
+      )
+      .all() as { thread_id: string; checkpoint_body: string }[];
 
     const totalThreads = checkpointRows.length;
     const pausedThreads: { thread_id: string; state: AgentState }[] = [];
@@ -105,8 +112,10 @@ export async function runStartupSync(
 
     console.log(
       `[webhook-listener] Startup sync: found ${totalThreads} total threads; ` +
-      `${pausedThreads.length} paused threads will be checked for missed commands` +
-      (malformedCount > 0 ? `; ${malformedCount} malformed checkpoints skipped` : '')
+        `${pausedThreads.length} paused threads will be checked for missed commands` +
+        (malformedCount > 0
+          ? `; ${malformedCount} malformed checkpoints skipped`
+          : ''),
     );
 
     for (const { thread_id } of pausedThreads) {
