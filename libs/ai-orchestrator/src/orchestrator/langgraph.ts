@@ -516,24 +516,32 @@ export class OrchestratorGraph {
     };
 
     // Parse input through schema for validation.
-    // When input is provided alongside an existing checkpoint, spread the
-    // checkpoint state first so that scalar fields (next_recipient, counters,
-    // etc.) from the checkpoint are preserved unless explicitly overridden.
+    // When input is provided alongside an existing checkpoint, spread only the
+    // scalar fields from the checkpoint so that next_recipient, counters, etc.
+    // are preserved unless explicitly overridden by the caller.
     //
-    // IMPORTANT — do NOT pre-merge messages here. LangGraph's `messages`
-    // channel reducer already appends input messages to the checkpoint history
-    // (reducer: (x, y) => [...(x||[]), ...(y||[])]). Pre-merging would pass
-    // the full checkpoint history as y, causing every resume to duplicate the
-    // existing messages. Pass only the new message deltas via input.messages
-    // and let the channel reducer handle the append exactly once.
-    const baseState = existingCheckpoint ?? createDefaultAgentState();
+    // IMPORTANT — messages must NEVER be spread from the checkpoint here.
+    // LangGraph's `messages` channel reducer appends input.messages to the
+    // checkpoint history (reducer: (x, y) => [...(x||[]), ...(y||[])]).
+    // If we spread baseState (which includes full message history) into
+    // parsedInput, the reducer receives the full history as the delta y and
+    // doubles every message on each resume.
+    //
+    // Rule: only pass new message deltas (input.messages) to the graph.
+    // When the caller provides no messages key, pass an empty array so the
+    // reducer appends nothing — the checkpoint history is already stored and
+    // will be loaded by the checkpointer automatically.
+    const { messages: _prevMessages, ...baseStateWithoutMessages } =
+      existingCheckpoint ?? createDefaultAgentState();
+
     const parsedInput = input
       ? AgentStateSchema.parse({
-          ...baseState,
+          ...baseStateWithoutMessages,
           ...input,
+          messages: input.messages ?? [],
         })
       : existingCheckpoint
-        ? AgentStateSchema.parse(existingCheckpoint)
+        ? AgentStateSchema.parse({ ...baseStateWithoutMessages, messages: [] })
         : createDefaultAgentState();
 
     // Reset step counter — _step_count is per-invocation and must not carry

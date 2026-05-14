@@ -320,4 +320,61 @@ describe('Message merging with checkpoint resumption', () => {
       'fixed',
     ]);
   });
+
+  it('does not duplicate messages when resume input has no messages key', async () => {
+    // STEALTH BUG (issue #67): When invokeWithGraph receives an input that does
+    // NOT include a `messages` key (e.g. /query updating only next_recipient),
+    // the `...baseState` spread in parsedInput causes the full checkpoint
+    // history to flow into the channel reducer as the delta.
+    // The reducer then appends baseState.messages to the checkpoint, doubling.
+    //
+    // This test resumes with an input that has NO messages key and verifies
+    // the message count stays exactly the same.
+
+    const dbPath = tempDbPath();
+
+    // --- Phase 1: Store initial checkpoint with 2 messages ---
+    const graph1 = new OrchestratorGraph(dbPath, AGENTS_MD_PATH);
+    graphs.push(graph1);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    graph1.registerNode('po', (_state: AgentState) => {
+      return { next_recipient: null, pause_context: 'refinement_limit' };
+    });
+
+    await graph1.run('no-messages-delta', {
+      messages: [
+        { type: 'human', content: 'msg_1' },
+        { type: 'human', content: 'msg_2' },
+      ],
+    });
+
+    const state1 = graph1.getState('no-messages-delta');
+    expect(state1?.messages).toHaveLength(2);
+
+    graph1.close();
+    graphs.pop();
+
+    // --- Phase 2: Resume with input that has NO messages key ---
+    // This simulates e.g. /approve updating pause_context but not sending a message
+    const graph2 = new OrchestratorGraph(dbPath, AGENTS_MD_PATH);
+    graphs.push(graph2);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    graph2.registerNode('po', (_state: AgentState) => {
+      return { next_recipient: null };
+    });
+
+    await graph2.invoke('no-messages-delta', {
+      next_recipient: 'po',
+      pause_context: null,
+      // Intentionally NO messages key — should not trigger duplication
+    });
+
+    // --- Verify: message count unchanged at 2, not doubled to 4 ---
+    const state2 = graph2.getState('no-messages-delta');
+    expect(state2?.messages).toHaveLength(2);
+    expect(state2?.messages[0].content).toBe('msg_1');
+    expect(state2?.messages[1].content).toBe('msg_2');
+  });
 });
