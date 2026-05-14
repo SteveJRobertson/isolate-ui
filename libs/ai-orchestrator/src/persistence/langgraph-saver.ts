@@ -16,10 +16,10 @@ import { AgentState } from '../schema';
  * Deserialize checkpoint_body BLOB to AgentState, handling legacy formats.
  * Used by getLatest() and other callers that need to inspect state without a full thread lookup.
  */
-export function deserializeCheckpointBody(checkpointBodyJson: string): any {
-  const checkpoint = JSON.parse(checkpointBodyJson);
+export function deserializeCheckpointBody(checkpointBodyJson: string): unknown {
+  const checkpoint = JSON.parse(checkpointBodyJson) as Record<string, unknown>;
   // LangGraph v0.1 checkpoints use 'channel_values' not 'values'
-  return checkpoint.channel_values || checkpoint.values || checkpoint;
+  return checkpoint['channel_values'] ?? checkpoint['values'] ?? checkpoint;
 }
 
 export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
