@@ -256,21 +256,27 @@ export class OrchestratorGraph {
     // Single routing function shared by START and mesh_router output.
     // Routes to a persona node when next_recipient is a known persona ID,
     // routes to __pause__ if pause_context is set, otherwise terminates (END).
-    const routeByRecipient = (state: AgentState): string => {
+    const routeByRecipient = (
+      state: AgentState,
+    ): GraphNodeName | typeof END => {
       // If pause is requested, route to __pause__ node to call interrupt()
       if (state.pause_context) return '__pause__';
       const next = state.next_recipient;
       if (!next) return END;
-      return personaIds.includes(next) ? next : END;
+      // personaIds is string[] so includes() can't narrow to PersonaId; cast is safe
+      // because the else branch returns END for any unrecognised value.
+      return personaIds.includes(next) ? (next as PersonaId) : END;
     };
 
     // Shared routing map used by START → dispatch and mesh_router → dispatch.
     // Derived from PERSONA_IDS so it stays in sync when personas are added/removed.
-    const routeMap: Record<string, GraphNodeName | typeof END> = {
+    // `satisfies` validates every value is a GraphNodeName or END while preserving
+    // the inferred literal types for compile-time routing checks.
+    const routeMap = {
       ...Object.fromEntries(PERSONA_IDS.map((id) => [id, id])),
       __pause__: '__pause__',
       [END]: END,
-    };
+    } satisfies Record<string, GraphNodeName | typeof END>;
 
     // START → persona nodes | __pause__ | END (direct dispatch — bypasses mesh_router on initial entry)
     stateGraph.addConditionalEdges(START, routeByRecipient, routeMap);
