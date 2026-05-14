@@ -1,2 +1,5 @@
 export { SqliteSaver } from './checkpoint';
-export { LangGraphSqliteSaver } from './langgraph-saver';
+export {
+  LangGraphSqliteSaver,
+  deserializeCheckpointBody,
+} from './langgraph-saver';
