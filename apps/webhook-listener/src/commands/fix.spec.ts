@@ -1,31 +1,18 @@
 import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { handleFix } from './fix';
-import { CommandContext } from './context';
+import { makeCommandContext } from '../__tests__/test-helpers';
 
 vi.mock('./context', () => ({
   postErrorReply: vi.fn(),
 }));
 
 describe('handleFix', () => {
-  let ctx;
   let graph;
+  let ctx;
 
   beforeEach(() => {
-    graph = {
-      getState: vi.fn(),
-      invoke: vi.fn(),
-    };
-
-    ctx = {
-      graph,
-      threadId: 'issue-1',
-      issueNumber: 1,
-      username: 'user',
-      db: null,
-      octokit: null,
-      owner: 'owner',
-      repo: 'repo',
-    } as unknown as CommandContext;
+    graph = { getState: vi.fn(), invoke: vi.fn() };
+    ctx = makeCommandContext({ graph });
   });
 
   it('posts error reply when feedback is empty', async () => {

@@ -1,31 +1,18 @@
 import { describe, it, beforeEach, expect, vi } from 'vitest';
 import { handleApprove } from './approve';
-import { CommandContext } from './context';
+import { makeCommandContext } from '../__tests__/test-helpers';
 
 vi.mock('./context', () => ({
   postErrorReply: vi.fn(),
 }));
 
 describe('handleApprove', () => {
-  let ctx;
   let graph;
+  let ctx;
 
   beforeEach(() => {
-    graph = {
-      getState: vi.fn(),
-      invoke: vi.fn(),
-    };
-
-    ctx = {
-      graph,
-      threadId: 'issue-1',
-      issueNumber: 1,
-      username: 'user',
-      db: null,
-      octokit: null,
-      owner: 'owner',
-      repo: 'repo',
-    } as unknown as CommandContext;
+    graph = { getState: vi.fn(), invoke: vi.fn() };
+    ctx = makeCommandContext({ graph });
   });
 
   it('posts error reply when no checkpoint exists', async () => {
@@ -63,6 +50,20 @@ describe('handleApprove', () => {
     expect(graph.invoke).toHaveBeenCalledWith(
       'issue-1',
       expect.objectContaining({ next_recipient: 'dev' }),
+    );
+  });
+
+  it('falls back to po when pause_context is mesh_stalemate but mesh_origin is missing', async () => {
+    graph.getState.mockReturnValue({
+      pause_context: 'mesh_stalemate',
+      mesh_origin: undefined,
+    });
+
+    await handleApprove(ctx);
+
+    expect(graph.invoke).toHaveBeenCalledWith(
+      'issue-1',
+      expect.objectContaining({ next_recipient: 'po' }),
     );
   });
 

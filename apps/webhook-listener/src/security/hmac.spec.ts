@@ -43,4 +43,11 @@ describe('verifyHmac', () => {
       createHmac('sha256', 'wrongsecret').update(payload).digest('hex');
     expect(verifyHmac(secret, payload, hash)).toBe(false);
   });
+
+  it('returns true for a valid signature over an empty payload', () => {
+    const payload = Buffer.alloc(0);
+    const hash =
+      'sha256=' + createHmac('sha256', secret).update(payload).digest('hex');
+    expect(verifyHmac(secret, payload, hash)).toBe(true);
+  });
 });
