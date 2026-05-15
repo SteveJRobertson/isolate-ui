@@ -27,6 +27,7 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
   private db: Database.Database;
   private stmtUpsert!: Database.Statement;
   private stmtGetLatest!: Database.Statement;
+  private stmtGetById!: Database.Statement;
   private stmtGetAllByThread!: Database.Statement;
   private stmtGetWriteVersion!: Database.Statement;
   private txPutTuple!: (
@@ -142,6 +143,12 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
       LIMIT 1
     `);
 
+    this.stmtGetById = this.db.prepare(`
+      SELECT checkpoint_id, checkpoint_body, metadata_body
+      FROM checkpoints
+      WHERE thread_id = ? AND checkpoint_id = ?
+    `);
+
     this.stmtGetAllByThread = this.db.prepare(`
       SELECT checkpoint_id, checkpoint_body, metadata_body
       FROM checkpoints
@@ -182,7 +189,13 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
     config: RunnableConfig,
   ): Promise<CheckpointTuple | undefined> {
     const threadId = (config.configurable as any)?.['thread_id'] || 'default';
-    const row = this.stmtGetLatest.get(threadId) as any;
+    const requestedCheckpointId = (config.configurable as any)?.[
+      'checkpoint_id'
+    ] as string | undefined;
+
+    const row = requestedCheckpointId
+      ? (this.stmtGetById.get(threadId, requestedCheckpointId) as any)
+      : (this.stmtGetLatest.get(threadId) as any);
 
     if (!row) {
       return undefined;
