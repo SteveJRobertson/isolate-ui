@@ -175,7 +175,7 @@ describe.skipIf(!sqliteAvailable)(
       );
     });
 
-    // ── Error path: run() with a brand-new threadId must start fresh ──
+    // ── Fresh-start path: run() with a brand-new threadId must start fresh ──
 
     it('run() with a threadId that has no checkpoint starts fresh without errors', async () => {
       const graph = makeGraph();
