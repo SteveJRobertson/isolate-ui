@@ -384,4 +384,53 @@ describe.skipIf(!sqliteAvailable)('Refinement Loop — E2E', () => {
       qa: true,
     });
   });
+
+  // ── Checkpoint resumption: same threadId re-invoke loads prior state ───────
+
+  it('loads prior checkpoint when same threadId is reused on second invoke', async () => {
+    const graph = makeGraph();
+
+    graph.registerRefinementNode('po', approvalNode('po'));
+    graph.registerRefinementNode('dev', approvalNode('dev'));
+    graph.registerRefinementNode('qa', approvalNode('qa'));
+
+    const threadId = 'issue-same-thread-resumption';
+
+    // First invoke: full loop completes, checkpoint is persisted
+    const firstResult = await graph.invoke(threadId, {
+      metadata: { github_issue_id: 'same-thread-resume' },
+    });
+    expect(firstResult.status).toBe('completed');
+    expect(firstResult.finalState.signoffs).toMatchObject({
+      po: true,
+      dev: true,
+      qa: true,
+    });
+    const firstMessageCount = firstResult.finalState.messages.length;
+    expect(firstMessageCount).toBeGreaterThan(0);
+
+    // Second invoke with the same threadId: invokeWithGraph loads the persisted
+    // checkpoint via getLatest(), applies the delta input on top, then runs the
+    // graph again.  The messages reducer appends each persona's new messages to
+    // the checkpoint's existing history — proving the checkpoint was loaded.
+    const secondResult = await graph.invoke(threadId, {
+      next_recipient: 'po',
+      signoffs: {},
+      rejectionCount: 0,
+      rejectionReason: '',
+      metadata: { github_issue_id: 'same-thread-resume' },
+    });
+    expect(secondResult.status).toBe('completed');
+    expect(secondResult.finalState.signoffs).toMatchObject({
+      po: true,
+      dev: true,
+      qa: true,
+    });
+
+    // The second run appended new persona messages on top of the checkpoint's
+    // existing message history, so the total must exceed the first run's count.
+    expect(secondResult.finalState.messages.length).toBeGreaterThan(
+      firstMessageCount,
+    );
+  });
 });

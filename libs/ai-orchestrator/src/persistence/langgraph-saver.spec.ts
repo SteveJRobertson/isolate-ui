@@ -143,6 +143,50 @@ describe('LangGraphSqliteSaver', () => {
         expect(typeof channel).toBe('string');
       }
     });
+
+    it('returns specific checkpoint when config.configurable.checkpoint_id is provided', async () => {
+      const config = makeConfig('thread-specific');
+      const checkpointA = makeCheckpoint('ckpt-a');
+      const checkpointB = makeCheckpoint('ckpt-b');
+      const metadata = makeMetadata();
+
+      // Put two checkpoints for the same thread — ckpt-b is the latest
+      await saver.put(config, checkpointA, metadata, {});
+      await saver.put(config, checkpointB, metadata, {});
+
+      // Request the older checkpoint by explicit checkpoint_id
+      const specificConfig: RunnableConfig = {
+        configurable: { thread_id: 'thread-specific', checkpoint_id: 'ckpt-a' },
+      };
+      const tuple = await saver.getTuple(specificConfig);
+
+      // Must return ckpt-a, not the latest ckpt-b
+      expect(tuple).toBeDefined();
+      expect(tuple?.checkpoint?.id).toBe('ckpt-a');
+      // The returned config must echo back the requested checkpoint_id
+      expect((tuple?.config?.configurable as any)?.['checkpoint_id']).toBe(
+        'ckpt-a',
+      );
+    });
+
+    it('returns undefined when a specific checkpoint_id is provided but not found', async () => {
+      const config = makeConfig('thread-specific-miss');
+      const checkpoint = makeCheckpoint('ckpt-exists');
+      const metadata = makeMetadata();
+
+      await saver.put(config, checkpoint, metadata, {});
+
+      // Request a checkpoint_id that was never stored
+      const missConfig: RunnableConfig = {
+        configurable: {
+          thread_id: 'thread-specific-miss',
+          checkpoint_id: 'ckpt-does-not-exist',
+        },
+      };
+      const result = await saver.getTuple(missConfig);
+
+      expect(result).toBeUndefined();
+    });
   });
 
   describe('put', () => {
