@@ -105,9 +105,19 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
           ADD COLUMN task_id TEXT NOT NULL DEFAULT 'default';
         `);
       }
-    } catch {
-      // If migration fails (e.g., table doesn't exist yet), that's fine.
-      // The CREATE TABLE IF NOT EXISTS above will handle it on first use.
+    } catch (err) {
+      // Only swallow errors if table doesn't exist yet (expected during first initialization).
+      // For other errors (e.g., locked DB, constraint violation), log a warning so
+      // migration failures are surfaced rather than silently failing later.
+      const errMsg = (err as Error).message || '';
+      const isTableNotExist = errMsg.includes('no such table');
+      const isDuplicateColumn = errMsg.includes('duplicate column');
+      if (!isTableNotExist && !isDuplicateColumn) {
+        console.warn(
+          '[LangGraphSqliteSaver] schema migration may have failed:',
+          errMsg,
+        );
+      }
     }
   }
 
@@ -217,12 +227,12 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
   ): Promise<RunnableConfig> {
     const configurable = config.configurable || {};
     const threadId = (configurable as any)['thread_id'] || 'default';
-    // CRITICAL: Compute checkpointId once to match txPutTuple's logic.
-    // txPutTuple uses: checkpoint.id || randomUUID()
-    // Must use the same logic here to return the ID that was actually stored.
-    // If we returned 'default' while storing a randomUUID, callers would get
-    // the wrong checkpoint_id for subsequent putWrites() calls.
+    // CRITICAL: Compute checkpointId once and assign to checkpoint so txPutTuple
+    // uses the same ID for both storage and return value.
+    // If checkpoint.id is falsy, generate a UUID and use it consistently.
     const checkpointId = checkpoint.id || randomUUID();
+    // Assign back to checkpoint so txPutTuple's internal computation uses the same ID
+    checkpoint.id = checkpointId;
     this.txPutTuple(configurable, checkpoint, metadata);
     return {
       configurable: { thread_id: threadId, checkpoint_id: checkpointId },
@@ -240,8 +250,17 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
     taskId: string,
   ): Promise<void> {
     const threadId = (config.configurable as any)?.['thread_id'] || 'default';
-    const checkpointId =
-      (config.configurable as any)?.['checkpoint_id'] || 'default';
+    const checkpointId = (config.configurable as any)?.['checkpoint_id'];
+
+    // checkpoint_id is required — do not default to 'default'.
+    // If missing, it indicates an upstream error (put() should have returned it).
+    // Requiring it here prevents silent corruption if called with incomplete config.
+    if (!checkpointId) {
+      throw new Error(
+        '[LangGraphSqliteSaver.putWrites] checkpoint_id is required in config.configurable. ' +
+          'Did you call put() first to get the checkpoint_id?',
+      );
+    }
 
     // Ensure checkpoint exists before inserting writes
     const existing = this.db

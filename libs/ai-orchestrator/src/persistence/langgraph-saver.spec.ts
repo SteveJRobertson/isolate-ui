@@ -193,6 +193,25 @@ describe('LangGraphSqliteSaver', () => {
         saver.putWrites(writeConfig, [['messages', ['msg']]], 'task-abc'),
       ).resolves.not.toThrow();
     });
+
+    it('throws when checkpoint_id is missing from config', async () => {
+      // Per error-path testing: ensure putWrites rejects if checkpoint_id is absent
+      // (caller forgot to call put() first or pass the wrong config)
+      const configMissingCheckpointId = {
+        configurable: {
+          thread_id: 'thread-writes-2',
+          // checkpoint_id intentionally missing
+        },
+      };
+
+      await expect(
+        saver.putWrites(
+          configMissingCheckpointId,
+          [['messages', ['msg']]],
+          'task-xyz',
+        ),
+      ).rejects.toThrow('checkpoint_id is required');
+    });
   });
 
   describe('list', () => {
@@ -222,6 +241,38 @@ describe('LangGraphSqliteSaver', () => {
         results.push(tuple);
       }
       expect(results).toHaveLength(0);
+    });
+
+    it('rejects (async generator error path) when statement.all() throws', async () => {
+      // Per repo testing guidelines, error-path tests required for exported async APIs.
+      // Mock the underlying stmtGetAllByThread to throw an error and verify
+      // the async generator properly propagates the rejection.
+      const config = makeConfig('thread-error');
+      const checkpoint = makeCheckpoint('ckpt-error');
+      const metadata = makeMetadata();
+
+      await saver.put(config, checkpoint, metadata, {});
+
+      // Monkey-patch the private stmtGetAllByThread to throw
+      const originalStmt = (saver as any).stmtGetAllByThread;
+      (saver as any).stmtGetAllByThread = {
+        all: () => {
+          throw new Error('Database error: simulated failure');
+        },
+      };
+
+      try {
+        // Attempt to iterate the generator — should raise the error
+        const generator = saver.list(config);
+        await generator.next(); // First call triggers the .all() error
+        // If we get here, the test should fail
+        throw new Error('Expected list() to raise on generator iteration');
+      } catch (err) {
+        expect((err as Error).message).toContain('Database error');
+      } finally {
+        // Restore original statement
+        (saver as any).stmtGetAllByThread = originalStmt;
+      }
     });
   });
 });
