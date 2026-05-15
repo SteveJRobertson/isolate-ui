@@ -59,6 +59,8 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
 
   /**
    * Initialize LangGraph checkpoint schema.
+   * Handles both new database creation and migration of existing databases
+   * (e.g., adding task_id column when not present).
    */
   private initSchema(): void {
     this.db.exec(`
@@ -89,6 +91,24 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
       CREATE INDEX IF NOT EXISTS idx_writes_thread ON checkpoint_writes(thread_id);
       CREATE INDEX IF NOT EXISTS idx_writes_version_lookup ON checkpoint_writes(thread_id, checkpoint_id, channel, version);
     `);
+
+    // Migrate existing checkpoint_writes table: add task_id column if missing.
+    // PRAGMA table_info returns empty result if table doesn't exist, so this is safe.
+    try {
+      const columns = this.db
+        .prepare('PRAGMA table_info(checkpoint_writes)')
+        .all() as Array<{ name: string }>;
+      const hasTaskId = columns.some((col) => col.name === 'task_id');
+      if (!hasTaskId) {
+        this.db.exec(`
+          ALTER TABLE checkpoint_writes
+          ADD COLUMN task_id TEXT NOT NULL DEFAULT 'default';
+        `);
+      }
+    } catch {
+      // If migration fails (e.g., table doesn't exist yet), that's fine.
+      // The CREATE TABLE IF NOT EXISTS above will handle it on first use.
+    }
   }
 
   /**
@@ -196,9 +216,14 @@ export class LangGraphSqliteSaver extends (BaseCheckpointSaver as any) {
     _newVersions?: Record<string, unknown>,
   ): Promise<RunnableConfig> {
     const configurable = config.configurable || {};
-    this.txPutTuple(configurable, checkpoint, metadata);
     const threadId = (configurable as any)['thread_id'] || 'default';
-    const checkpointId = checkpoint.id || 'default';
+    // CRITICAL: Compute checkpointId once to match txPutTuple's logic.
+    // txPutTuple uses: checkpoint.id || randomUUID()
+    // Must use the same logic here to return the ID that was actually stored.
+    // If we returned 'default' while storing a randomUUID, callers would get
+    // the wrong checkpoint_id for subsequent putWrites() calls.
+    const checkpointId = checkpoint.id || randomUUID();
+    this.txPutTuple(configurable, checkpoint, metadata);
     return {
       configurable: { thread_id: threadId, checkpoint_id: checkpointId },
     };
