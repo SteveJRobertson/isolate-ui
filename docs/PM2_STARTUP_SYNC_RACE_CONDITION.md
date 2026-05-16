@@ -78,9 +78,11 @@ T7                                               Cursor now points EARLIER (B's 
 
 ## Mitigation Strategies
 
-### Strategy 1: Database Transaction (Recommended for Phase 2)
+### ❌ Strategy 1: Database Transaction (Does NOT Work)
 
-**Approach:** Wrap the entire startup sync in a SQLite transaction with row-level locking.
+**Approach (FLAWED):** Wrap the entire startup sync in a SQLite transaction with row-level locking.
+
+**Why this fails:** Better-sqlite3 transactions are synchronous and bound to a single connection. The async GitHub API call happens between the read and write, **outside the transaction scope**. This means concurrent instances still race. **This approach does not solve the problem.**
 
 **Implementation:**
 

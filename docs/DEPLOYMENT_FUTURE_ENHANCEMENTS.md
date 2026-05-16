@@ -154,27 +154,38 @@ Or manual cron:
 
 ## Deployment Timeline Recommendation
 
-1. **Phase 1 (Now):** Deploy & test workflow with current code, but track health check priority for Phase 1.5
-2. **Phase 1.5 (Within 1 week, BEFORE full production):** Implement health check endpoint (~15 min)
-   - Enables PM2 zombie detection
-   - Required before going fully live on remote Mac Mini
-   - Low-risk, high-value improvement
-   - Follow [docs/mac-mini-deployment.md](mac-mini-deployment.md)
-   - Test webhook workflow end-to-end
-   - Verify startup sync, persona validation, HMAC verification work
+**Phase 1 (Now):** Deploy & test workflow
 
-3. **Phase 2 (1-2 weeks after testing):** Add health check endpoint
-   - Improves PM2 observability
-   - Low effort, high value
+- Cluster mode enabled (with dedup-based mitigation for race condition)
+- Monitor for cursor regression and API quota anomalies
+- Test end-to-end workflow on Mac Mini
+- Follow [docs/MAC_MINI_DEPLOYMENT.md](MAC_MINI_DEPLOYMENT.md) §1-11
 
-4. **Phase 3 (Later):** Add backup automation + version enforcement
-   - Nice-to-have operational improvements
-   - Can be deferred indefinitely if workflow is stable
+**Phase 1.5 (Within 1 week, BEFORE full production):** Implement safety features (~30 min)
+
+- **Health check endpoint** (§4 of MAC_MINI_DEPLOYMENT.md) — enables PM2 zombie detection (~15 min)
+- **Advisory lock for startup sync** (§12 of MAC_MINI_DEPLOYMENT.md) — eliminates cursor regression risk (~20 min)
+- Run 24+ hours of testing with both features enabled
+- Verify GitHub API quota remains stable and predictable
+- Required before going fully live on remote Mac Mini
+
+**Phase 2 (1-2 weeks after Phase 1.5):** Optional operational improvements
+
+- Backup automation script (`scripts/backup-database.sh`)
+- Off-site backup strategy (e.g., daily copies to cloud storage)
+- Can be deferred indefinitely if workflow is stable
+
+**Phase 3 (Later):** Optional code improvements
+
+- Node.js version enforcement in package.json (`engines` field)
+- Can be deferred indefinitely
 
 ---
 
 ## Notes
 
-- All features identified as "already implemented" during deployment review (personas, HMAC, database schema) are production-ready
-- No blocking issues found — deployment can proceed immediately
-- These enhancements are optimizations, not critical path items
+- All critical features for deployment are already implemented (personas validation, HMAC verification, database schema, WAL mode)
+- Startup sync race condition identified but mitigated by deliveries dedup table (prevents data loss but wastes API quota)
+- Advisory lock implementation in Phase 1.5 prevents quota waste and cursor regression
+- Phase 1.5 features are required before full production use but can be implemented in parallel with shakedown testing
+- Deployment can proceed to Phase 1 immediately

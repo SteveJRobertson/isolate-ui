@@ -236,9 +236,24 @@ pm2 start ecosystem.config.js
 # Save PM2 process list for recovery after reboot
 pm2 save
 
+# Install pm2-logrotate module (required for max_size/max_file log rotation)
+pm2 install pm2-logrotate
+
 # Configure PM2 to auto-start on Mac Mini reboot (macOS-specific)
 pm2 startup darwin
-# Follow the prompt to complete the installation
+```
+
+**Note:** The `pm2 startup darwin` command will output a `sudo` command that looks like this:
+
+```bash
+sudo env PATH=$PATH:/usr/local/bin /usr/local/lib/node_modules/pm2/bin/pm2 startup darwin -u USERNAME --hp /Users/USERNAME
+```
+
+Copy and run this exact command to enable auto-start on reboot. Verify with:
+
+```bash
+pm2 save  # Saves current process list
+pm2 startup  # Should show "PM2 activated"
 ```
 
 ### Verify Service is Running
@@ -250,7 +265,10 @@ pm2 monit                                # Real-time monitoring (Ctrl+C to exit)
 pm2 show isolate-ui-webhook-listener    # Show process details
 ```
 
-## 4. Health Check Endpoint (Optional but Recommended)
+## 4. Health Check Endpoint (REQUIRED — Phase 1.5)
+
+**Status:** Must be implemented before full production deployment.  
+**Urgency:** Implement after initial shakedown testing (Phase 1.5, ~15 min).
 
 For PM2 to automatically detect and restart zombie processes, add a `/health` endpoint to the webhook-listener:
 
@@ -537,6 +555,10 @@ pm2 save
 
 ## 11. Data Persistence & Backup Strategy
 
+---
+
+## 12. Startup Sync Race Condition & Advisory Lock (PM2 Clustering) — REQUIRED Phase 1.5
+
 ### SQLite Database Location
 
 Default: `./data/orchestrator.db` (relative to project root)
@@ -594,9 +616,7 @@ The SQLite database is the single point of failure. Consider:
 3. **Monitoring**: Set up alerts if database file is not being updated
 4. **Recovery time**: Keep recent backups (7-14 days) for quick recovery
 
-## 11. Startup Sync Race Condition (PM2 Clustering) ⚠️
-
-### Identified Issue
+### Background: Race Condition Analysis
 
 When multiple PM2 instances start simultaneously, there is an unprotected race condition in the startup sync logic:
 
@@ -628,18 +648,88 @@ When multiple PM2 instances start simultaneously, there is an unprotected race c
 **Operational Efficiency:** ⚠️ Medium concern (quota waste)  
 **Blocking Deployment:** ❌ No (existing mitigation prevents data loss)
 
-### Recommendations
+### Implementation: Advisory Lock (Phase 1.5 — Required)
 
-**Phase 1 (Now):** Deploy with monitoring
+The simple approach is to use an **advisory lock** (a database table row) to serialize startup sync across instances:
 
+**Create `startup_lock` table** (auto-created on first run):
+
+```sql
+CREATE TABLE IF NOT EXISTS startup_lock (
+  instance_id TEXT PRIMARY KEY,
+  locked_at INTEGER NOT NULL,  -- UNIX timestamp (ms)
+  lock_ttl_ms INTEGER NOT NULL DEFAULT 60000  -- 60s TTL
+);
+```
+
+**Modify `apps/webhook-listener/src/sync/startup.ts`** (pseudo-code):
+
+```typescript
+export async function runStartupSync(...) {
+  // Attempt to acquire lock
+  const instanceId = process.env.NODE_APP_INSTANCE ?? 'local';
+  const now = Date.now();
+  const lockTTL = 60000; // 60s TTL
+
+  try {
+    // Try to insert a lock row for this instance
+    db.prepare(
+      'INSERT OR IGNORE INTO startup_lock (instance_id, locked_at, lock_ttl_ms) VALUES (?, ?, ?)'
+    ).run(instanceId, now, lockTTL);
+
+    // Check if we won the lock (our row exists and is not stale)
+    const lock = db.prepare(
+      'SELECT locked_at FROM startup_lock WHERE instance_id = ? AND locked_at = ?'
+    ).get(instanceId, now);
+
+    if (!lock) {
+      // Another instance holds the lock or it's stale — skip sync
+      console.log('[webhook-listener] Startup sync: another instance holds the lock, skipping.');
+      return;
+    }
+
+    // We hold the lock — run the sync
+    const row = db.prepare('SELECT value FROM webhook_sync WHERE key = ?').get(SYNC_KEY);
+    // ... rest of sync logic ...
+
+    // Release the lock
+    db.prepare('DELETE FROM startup_lock WHERE instance_id = ?').run(instanceId);
+  } catch (err) {
+    // Lock cleanup on crash: stale locks (>60s old) are overwritten on next startup
+    console.warn('[webhook-listener] Startup sync lock error:', err);
+  }
+}
+```
+
+**Important:** The TTL (time-to-live) on the lock ensures that if an instance crashes while holding the lock, the next restart will forcibly release it after 60 seconds. Update the lock cleanup check:
+
+```typescript
+// At startup, clean stale locks (>60s old)
+const stale = db.prepare('DELETE FROM startup_lock WHERE (? - locked_at) > lock_ttl_ms').run(now);
+if (stale.changes > 0) {
+  console.log('[webhook-listener] Cleaned ' + stale.changes + ' stale startup lock(s)');
+}
+```
+
+**Effort:** ~20 minutes  
+**Timeline:** Implement in Phase 1.5 (after initial shakedown, before full production)  
+**Blocked By:** Nothing — can be added anytime
+
+### Phase 1 (Now) — Deploy & Monitor
+
+- Deploy with current dedup-based mitigation (safe but inefficient)
 - Monitor PM2 logs for cursor regression patterns
 - Track GitHub API quota usage (should stay consistent)
-- Monitor for unexpected "processing duplicate command" logs (would indicate race condition not caught by dedup)
+- Monitor for unexpected "processing duplicate command" logs
 
-**Phase 2 (Later):** Implement permanent fix
+### Phase 1.5 (1 week after Phase 1) — Add Safety Features
 
-- See [PM2_STARTUP_SYNC_RACE_CONDITION.md](PM2_STARTUP_SYNC_RACE_CONDITION.md) for detailed mitigation options
-- Options: (1) Database transaction wrapping, (2) SELECT ... FOR UPDATE locking, (3) Distributed consensus via leader election
+**Required before full production:**
+
+- Implement health check endpoint (§4)
+- Implement advisory lock for startup sync (this section)
+
+### Phase 2+ (Later) — Optional Improvements
 
 ### Monitoring Post-Deployment
 
@@ -655,7 +745,7 @@ pm2 logs isolate-ui-webhook-listener | grep -i cursor
 # Erratic spikes = potential cursor regression
 ```
 
-## 12. Production Checklist
+## 13. Production Checklist
 
 Before going live:
 
