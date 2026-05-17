@@ -256,6 +256,41 @@ describe('LangGraphSqliteSaver', () => {
         ),
       ).rejects.toThrow('checkpoint_id is required');
     });
+
+    it('rejects when the internal insert statement throws', async () => {
+      const config = makeConfig('thread-writes-insert-error');
+      const checkpoint = makeCheckpoint('ckpt-writes-insert-error');
+      const metadata = makeMetadata();
+      const writeConfig = {
+        configurable: {
+          thread_id: 'thread-writes-insert-error',
+          checkpoint_id: 'ckpt-writes-insert-error',
+        },
+      };
+
+      await saver.put(config, checkpoint, metadata, {});
+
+      const originalPrepare = (saver as any).db.prepare;
+      const expectedError = new Error('insert failed');
+      (saver as any).db.prepare = function (sql: string) {
+        if (sql.includes('INSERT INTO checkpoint_writes')) {
+          return {
+            run: () => {
+              throw expectedError;
+            },
+          };
+        }
+        return originalPrepare.call(this, sql);
+      };
+
+      try {
+        await expect(
+          saver.putWrites(writeConfig, [['messages', ['msg']]], 'task-insert'),
+        ).rejects.toThrow('insert failed');
+      } finally {
+        (saver as any).db.prepare = originalPrepare;
+      }
+    });
   });
 
   describe('list', () => {
