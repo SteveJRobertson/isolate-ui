@@ -187,6 +187,24 @@ describe('LangGraphSqliteSaver', () => {
 
       expect(result).toBeUndefined();
     });
+
+    it('rejects when the latest checkpoint statement throws', async () => {
+      const originalStmt = (saver as any).stmtGetLatest;
+      const expectedError = new Error('DB Locked');
+      (saver as any).stmtGetLatest = {
+        get: () => {
+          throw expectedError;
+        },
+      };
+
+      try {
+        await expect(
+          saver.getTuple(makeConfig('thread-db-error')),
+        ).rejects.toThrow('DB Locked');
+      } finally {
+        (saver as any).stmtGetLatest = originalStmt;
+      }
+    });
   });
 
   describe('put', () => {
