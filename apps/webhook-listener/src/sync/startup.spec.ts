@@ -40,6 +40,11 @@ describe('runStartupSync', () => {
     db.exec(`
       CREATE TABLE deliveries (delivery_id TEXT PRIMARY KEY);
       CREATE TABLE webhook_sync (key TEXT PRIMARY KEY, value TEXT);
+      CREATE TABLE startup_lock (
+        lock_id      TEXT     PRIMARY KEY,
+        acquired_at  INTEGER  NOT NULL,
+        expires_at   INTEGER  NOT NULL
+      );
       CREATE TABLE checkpoints (
         thread_id TEXT NOT NULL,
         checkpoint_id TEXT NOT NULL,
@@ -300,5 +305,96 @@ describe('runStartupSync', () => {
       .prepare('SELECT value FROM webhook_sync WHERE key = ?')
       .get('last_sync_time') as any;
     expect(sync).toBeUndefined(); // Cursor not advanced when no comments seen
+  });
+
+  describe('advisory lock', () => {
+    it('acquires the lock before running sync and releases it after', async () => {
+      insertCheckpoint(
+        db,
+        'issue-1',
+        JSON.stringify({
+          channel_values: { pause_context: 'refinement_limit' },
+        }),
+        1,
+      );
+      octokit.paginate.mockResolvedValue([]);
+
+      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+
+      // Lock should be released after sync completes
+      const lock = db
+        .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
+        .get('startup_sync');
+      expect(lock).toBeUndefined();
+    });
+
+    it('skips sync with a warning when another instance holds the lock', async () => {
+      // Simulate another instance holding the lock
+      const expiresAt = Date.now() + 300_000;
+      db.prepare(
+        'INSERT INTO startup_lock (lock_id, acquired_at, expires_at) VALUES (?, ?, ?)',
+      ).run('startup_sync', Date.now(), expiresAt);
+
+      insertCheckpoint(
+        db,
+        'issue-1',
+        JSON.stringify({
+          channel_values: { pause_context: 'refinement_limit' },
+        }),
+        1,
+      );
+
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+
+      // Sync should have been skipped — no paginate calls
+      expect(octokit.paginate).not.toHaveBeenCalled();
+      // Warning should have been logged
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('startup sync skipped'),
+      );
+
+      warnSpy.mockRestore();
+    });
+
+    it('releases the lock even when sync throws an error', async () => {
+      insertCheckpoint(
+        db,
+        'issue-1',
+        JSON.stringify({
+          channel_values: { pause_context: 'refinement_limit' },
+        }),
+        1,
+      );
+      octokit.paginate.mockRejectedValue(new Error('network failure'));
+
+      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+
+      // Lock should be released even though sync threw
+      const lock = db
+        .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
+        .get('startup_sync');
+      expect(lock).toBeUndefined();
+    });
+
+    it('allows the second instance to acquire lock after first releases it', async () => {
+      octokit.paginate.mockResolvedValue([]);
+
+      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+      // First call: no checkpoints — lock released
+      const lockAfterFirst = db
+        .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
+        .get('startup_sync');
+      expect(lockAfterFirst).toBeUndefined();
+
+      // Second call should succeed (lock available)
+      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+      // Still released
+      const lockAfterSecond = db
+        .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
+        .get('startup_sync');
+      expect(lockAfterSecond).toBeUndefined();
+    });
   });
 });

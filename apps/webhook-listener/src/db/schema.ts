@@ -86,5 +86,16 @@ function applyMigrations(db: Database.Database): void {
       key    TEXT PRIMARY KEY,
       value  TEXT NOT NULL
     );
+
+    -- Advisory lock table: ensures at most one instance runs startup sync
+    -- in a PM2 cluster. Rows expire after LOCK_TTL_MS and are cleaned up
+    -- eagerly on the next acquisition attempt.
+    -- Timestamps are stored as Unix milliseconds (INTEGER) to avoid timezone
+    -- and datetime string format issues across Node.js and SQLite.
+    CREATE TABLE IF NOT EXISTS startup_lock (
+      lock_id      TEXT     PRIMARY KEY,
+      acquired_at  INTEGER  NOT NULL,
+      expires_at   INTEGER  NOT NULL
+    );
   `);
 }
