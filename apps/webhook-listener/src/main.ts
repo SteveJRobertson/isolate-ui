@@ -3,6 +3,7 @@ import rawBody from 'fastify-raw-body';
 import { Octokit } from '@octokit/rest';
 import { OrchestratorGraph } from '@isolate-ui/ai-orchestrator';
 import { openDb, resolveDbPath } from './db/schema';
+import { registerHealthRoute } from './routes/health';
 import { webhookRoute } from './routes/webhook';
 import { runStartupSync } from './sync/startup';
 
@@ -43,6 +44,9 @@ async function start() {
   // Sync the graph's GitHub repo target so the human_review pause comment
   // is posted to the same repo this service is configured to watch.
   graph.setGitHubRepo(owner, repo);
+
+  // Register the health check endpoint (no dependencies; stateless)
+  await server.register(registerHealthRoute);
 
   // Register the webhook route with its dependencies
   await server.register(webhookRoute, { db, graph, octokit, owner, repo });
