@@ -890,3 +890,54 @@ describe('webhookRoute', () => {
     });
   });
 });
+
+describe('webhookRoute — startup guard', () => {
+  let fastify;
+  let db;
+  let previousWebhookSecret: string | undefined;
+
+  beforeEach(() => {
+    fastify = Fastify();
+    db = new Database(':memory:');
+    previousWebhookSecret = process.env.WEBHOOK_SECRET;
+  });
+
+  afterEach(async () => {
+    await fastify.close();
+    if (previousWebhookSecret === undefined) {
+      delete process.env.WEBHOOK_SECRET;
+    } else {
+      process.env.WEBHOOK_SECRET = previousWebhookSecret;
+    }
+  });
+
+  it('throws when WEBHOOK_SECRET is not set', async () => {
+    delete process.env.WEBHOOK_SECRET;
+    await expect(
+      fastify.register(webhookRoute, {
+        db,
+        graph: { getState: vi.fn(), invoke: vi.fn() } as any,
+        octokit: {} as any,
+        owner: 'owner',
+        repo: 'repo',
+      }),
+    ).rejects.toThrow(
+      'WEBHOOK_SECRET must be set and at least 32 characters. Refusing to start.',
+    );
+  });
+
+  it('throws when WEBHOOK_SECRET is shorter than 32 characters', async () => {
+    process.env.WEBHOOK_SECRET = 'too-short';
+    await expect(
+      fastify.register(webhookRoute, {
+        db,
+        graph: { getState: vi.fn(), invoke: vi.fn() } as any,
+        octokit: {} as any,
+        owner: 'owner',
+        repo: 'repo',
+      }),
+    ).rejects.toThrow(
+      'WEBHOOK_SECRET must be set and at least 32 characters. Refusing to start.',
+    );
+  });
+});
