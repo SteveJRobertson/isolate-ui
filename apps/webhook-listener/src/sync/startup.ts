@@ -39,18 +39,22 @@ export async function runStartupSync(
   owner: string,
   repo: string,
 ): Promise<void> {
-  // Acquire the advisory lock to ensure at most one PM2 instance runs startup
-  // sync at a time. Non-holders skip sync gracefully.
-  const lockAcquired = acquireLock(db, LOCK_ID, LOCK_TTL_MS);
-  if (!lockAcquired) {
-    console.warn(
-      '[webhook-listener] startup sync skipped: another instance holds the startup lock. ' +
-        'This instance will rely on the live webhook route for new events.',
-    );
-    return;
-  }
+  // Track the ownership token returned by acquireLock. Declared outside the
+  // try block so the finally can release only when this instance holds the lock.
+  let lockToken: number | null = null;
 
   try {
+    // Acquire the advisory lock inside the try so unexpected DB errors
+    // (e.g. SQLITE_BUSY) are caught below and treated as non-fatal rather
+    // than crashing server startup.
+    lockToken = acquireLock(db, LOCK_ID, LOCK_TTL_MS);
+    if (lockToken === null) {
+      console.warn(
+        '[webhook-listener] startup sync skipped: another instance holds the startup lock. ' +
+          'This instance will rely on the live webhook route for new events.',
+      );
+      return;
+    }
     const row = db
       .prepare('SELECT value FROM webhook_sync WHERE key = ?')
       .get(SYNC_KEY) as { value: string } | undefined;
@@ -259,6 +263,6 @@ export async function runStartupSync(
     // the same window and avoids permanently skipping missed commands.
     console.warn(`[webhook-listener] Startup sync failed: ${String(err)}`);
   } finally {
-    releaseLock(db, LOCK_ID);
+    if (lockToken !== null) releaseLock(db, LOCK_ID, lockToken);
   }
 }

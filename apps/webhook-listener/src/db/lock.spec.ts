@@ -25,8 +25,10 @@ describe('acquireLock', () => {
     db = createTestDb();
   });
 
-  it('returns true when no lock exists', () => {
-    expect(acquireLock(db, LOCK_ID, 300_000)).toBe(true);
+  it('returns a number (ownership token) when no lock exists', () => {
+    const token = acquireLock(db, LOCK_ID, 300_000);
+    expect(typeof token).toBe('number');
+    expect(token).not.toBeNull();
   });
 
   it('inserts a row with a future expires_at', () => {
@@ -39,9 +41,9 @@ describe('acquireLock', () => {
     expect(row!.expires_at).toBeGreaterThanOrEqual(before + 300_000);
   });
 
-  it('returns false when a valid (non-expired) lock already exists', () => {
+  it('returns null when a valid (non-expired) lock already exists', () => {
     acquireLock(db, LOCK_ID, 300_000); // first acquire
-    expect(acquireLock(db, LOCK_ID, 300_000)).toBe(false); // second attempt fails
+    expect(acquireLock(db, LOCK_ID, 300_000)).toBeNull(); // second attempt fails
   });
 
   it('returns true and cleans up an expired lock', () => {
@@ -51,9 +53,7 @@ describe('acquireLock', () => {
       'INSERT INTO startup_lock (lock_id, acquired_at, expires_at) VALUES (?, ?, ?)',
     ).run(LOCK_ID, Date.now() - 2000, expiredAt);
 
-    expect(acquireLock(db, LOCK_ID, 300_000)).toBe(true);
-
-    // Old lock row should be replaced with a future expiry
+    expect(acquireLock(db, LOCK_ID, 300_000)).not.toBeNull();
     const row = db
       .prepare('SELECT expires_at FROM startup_lock WHERE lock_id = ?')
       .get(LOCK_ID) as { expires_at: number } | undefined;
@@ -74,12 +74,19 @@ describe('acquireLock', () => {
     expect(stale).toBeUndefined();
   });
 
-  it('two concurrent attempts: only one succeeds', async () => {
+  it('two concurrent attempts: only one receives a token', async () => {
     // Simulate two attempts arriving at the same time
     const result1 = acquireLock(db, LOCK_ID, 300_000);
     const result2 = acquireLock(db, LOCK_ID, 300_000);
-    const successCount = [result1, result2].filter(Boolean).length;
-    expect(successCount).toBe(1);
+    const tokens = [result1, result2].filter((r) => r !== null);
+    expect(tokens).toHaveLength(1);
+    expect(typeof tokens[0]).toBe('number');
+  });
+
+  it('rethrows non-constraint errors (e.g. unexpected DB failure)', () => {
+    // Drop the table to force a real SQLite error (not a constraint violation)
+    db.exec('DROP TABLE startup_lock');
+    expect(() => acquireLock(db, LOCK_ID, 300_000)).toThrow();
   });
 });
 
@@ -90,23 +97,34 @@ describe('releaseLock', () => {
     db = createTestDb();
   });
 
-  it('deletes the lock row', () => {
-    acquireLock(db, LOCK_ID, 300_000);
-    releaseLock(db, LOCK_ID);
+  it('deletes the lock row when called with the correct ownership token', () => {
+    const token = acquireLock(db, LOCK_ID, 300_000) as number;
+    releaseLock(db, LOCK_ID, token);
     const row = db
       .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
       .get(LOCK_ID);
     expect(row).toBeUndefined();
   });
 
+  it('does not delete the lock when called with a wrong ownership token', () => {
+    acquireLock(db, LOCK_ID, 300_000);
+    // Use a different timestamp to simulate a stale/wrong token
+    releaseLock(db, LOCK_ID, 0);
+    const row = db
+      .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
+      .get(LOCK_ID);
+    // Lock should still exist — wrong token should not release it
+    expect(row).toBeDefined();
+  });
+
   it('does not throw when lock does not exist', () => {
-    expect(() => releaseLock(db, LOCK_ID)).not.toThrow();
+    expect(() => releaseLock(db, LOCK_ID, Date.now())).not.toThrow();
   });
 
   it('allows re-acquisition after release', () => {
-    acquireLock(db, LOCK_ID, 300_000);
-    releaseLock(db, LOCK_ID);
-    expect(acquireLock(db, LOCK_ID, 300_000)).toBe(true);
+    const token = acquireLock(db, LOCK_ID, 300_000) as number;
+    releaseLock(db, LOCK_ID, token);
+    expect(acquireLock(db, LOCK_ID, 300_000)).not.toBeNull();
   });
 });
 

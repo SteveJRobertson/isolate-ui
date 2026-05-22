@@ -3,6 +3,7 @@ import type { Mock } from 'vitest';
 import Database from 'better-sqlite3';
 import type { Database as DatabaseType } from 'better-sqlite3';
 import { runStartupSync } from './startup';
+import * as lockModule from '../db/lock';
 
 vi.mock('../commands/approve');
 vi.mock('../commands/fix');
@@ -395,6 +396,26 @@ describe('runStartupSync', () => {
         .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
         .get('startup_sync');
       expect(lockAfterSecond).toBeUndefined();
+    });
+
+    it('treats lock acquisition failure as non-fatal and logs a warning', async () => {
+      const acquireSpy = vi
+        .spyOn(lockModule, 'acquireLock')
+        .mockImplementation(() => {
+          throw new Error('SQLITE_BUSY simulated');
+        });
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      await expect(
+        runStartupSync(db, graph as any, octokit as any, 'owner', 'repo'),
+      ).resolves.not.toThrow();
+
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Startup sync failed'),
+      );
+
+      acquireSpy.mockRestore();
+      warnSpy.mockRestore();
     });
   });
 });
