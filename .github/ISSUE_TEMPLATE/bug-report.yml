@@ -1,0 +1,132 @@
+name: 🐛 Bug Report
+description: Report a defect or unexpected behavior
+title: 'fix: [brief description]'
+labels: ['type: bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for reporting a bug! Please provide as much detail as possible to help us reproduce and fix the issue quickly.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear summary of what's not working.
+      placeholder: "The Button component doesn't respond to keyboard input in disabled state."
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce the issue?
+      placeholder: |
+        1. Render Button with `disabled` prop
+        2. Tab to the button
+        3. Press Enter
+        4. Button still responds (should not respond)
+      validations:
+        required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: What should happen instead?
+      placeholder: 'Disabled button should not respond to keyboard input or clicks.'
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual Behavior
+      description: What actually happens?
+      placeholder: 'Disabled button still triggers onClick handler on Enter key press.'
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component (if applicable)
+      description: Which component has the issue?
+      options:
+        - Select a component...
+        - Button
+        - Dropdown
+        - Dialog
+        - Other (please specify in description)
+      validations:
+        required: false
+
+  - type: input
+    id: version
+    attributes:
+      label: Package Version
+      description: What version of `@isolate-ui/*` are you using? (e.g., 1.0.0 or main branch)
+      placeholder: '1.0.0 or main'
+      validations:
+        required: false
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      description: Where does the issue occur?
+      options:
+        - Browser (specify version in details)
+        - Node.js (Vitest, Node utilities)
+        - Build/tooling
+        - Other
+      validations:
+        required: false
+
+  - type: textarea
+    id: environment-details
+    attributes:
+      label: Environment Details
+      description: |
+        OS, browser version, pnpm version, Node.js version, etc.
+      placeholder: |
+        - OS: macOS 14.6
+        - Browser: Chrome 125
+        - Node.js: 22.x
+        - pnpm: 10.30.3
+      validations:
+        required: false
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant Log Output or Error Message
+      description: Paste any error messages, console output, or stack traces (if applicable).
+      placeholder: |
+        ```
+        TypeError: Cannot read property 'onClick' of undefined
+          at Button (button.tsx:42)
+        ```
+      validations:
+        required: false
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional Context
+      description: Screenshots, links to CodeSandbox reproduction, or any other relevant context.
+      validations:
+        required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I've searched existing issues to ensure this bug hasn't been reported
+          required: true
+        - label: I've provided clear reproduction steps
+          required: true
+        - label: I've included relevant environment information
+          required: false

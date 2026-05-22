@@ -1,0 +1,100 @@
+name: 🔧 Maintenance
+description: Chores, refactoring, tooling improvements, and DX enhancements
+title: 'chore: [brief description]'
+labels: ['type: chore']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Maintenance work improves the codebase's quality, reliability, and developer experience without adding new features.
+
+  - type: dropdown
+    id: category
+    attributes:
+      label: Category
+      description: What type of maintenance work is this?
+      options:
+        - Select a category...
+        - Dependencies (upgrade, add, remove)
+        - Code refactoring
+        - Documentation
+        - Testing improvements
+        - Tooling/CI-CD
+        - Performance optimization
+        - Type safety improvements
+        - Other (please specify)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: |
+        What needs to be done and why? Be concise and specific.
+      placeholder: |
+        Upgrade Vitest from 3.2.4 to 4.0.0 to improve performance and get new snapshot testing features.
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Rationale
+      description: |
+        Why is this work important? (e.g., performance gains, security fix, improved DX, tech debt reduction)
+      placeholder: |
+        - Vitest 4.0 has 40% faster test runs (relevant as test suite grows)
+        - New `snapshot.inline` feature reduces file clutter
+        - Fixes 2 known bugs with coverage reporting
+    validations:
+      required: true
+
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope & Affected Areas
+      description: |
+        What projects or files will be affected? (e.g., all projects, specific libs, CI/CD config)
+      placeholder: |
+        - Affects all projects using Vitest (utils, react-button, ai-orchestrator)
+        - Changes: vitest.workspace.ts, individual project configs
+        - May need snapshot updates in affected projects
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What does completion look like?
+      placeholder: |
+        - [ ] Dependency upgraded to 4.0.0
+        - [ ] All tests pass locally and in CI
+        - [ ] No new warnings or deprecations
+        - [ ] Snapshots updated where necessary
+    validations:
+      required: false
+
+  - type: textarea
+    id: breaking-changes
+    attributes:
+      label: Breaking Changes or Migration Steps
+      description: |
+        Will this require changes to workflows or breaking changes? If so, document migration steps.
+      placeholder: |
+        No breaking changes for consumers. Internal steps:
+        1. Update vitest config if snapshot syntax changed
+        2. Regenerate snapshots with `pnpm vitest -- -u`
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      options:
+        - label: I've confirmed this is maintenance work (not a feature or bug fix)
+          required: true
+        - label: I've checked if similar work is already in progress
+          required: false
