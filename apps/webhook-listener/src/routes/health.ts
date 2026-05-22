@@ -13,13 +13,28 @@ import { FastifyInstance } from 'fastify';
  *
  * @param fastify - Fastify instance to register the route on
  */
+// Response schema locks the contract so accidental extra fields never leak.
+const healthResponseSchema = {
+  type: 'object',
+  properties: {
+    status: { type: 'string', enum: ['ok'] },
+    timestamp: { type: 'string', format: 'date-time' },
+  },
+  required: ['status', 'timestamp'],
+  additionalProperties: false,
+} as const;
+
 export async function registerHealthRoute(
   fastify: FastifyInstance,
 ): Promise<void> {
-  fastify.get('/health', async () => {
-    return {
-      status: 'ok',
-      timestamp: new Date().toISOString(),
-    };
-  });
+  fastify.get(
+    '/health',
+    { schema: { response: { 200: healthResponseSchema } } },
+    async () => {
+      return {
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+      };
+    },
+  );
 }

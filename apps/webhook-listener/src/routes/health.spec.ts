@@ -57,4 +57,13 @@ describe('registerHealthRoute', () => {
     const body = JSON.parse(response.body);
     expect(Object.keys(body).sort()).toEqual(['status', 'timestamp']);
   });
+
+  it('returns 404 for POST /health (method not registered)', async () => {
+    const response = await fastify.inject({
+      method: 'POST',
+      url: '/health',
+    });
+
+    expect(response.statusCode).toBe(404);
+  });
 });
