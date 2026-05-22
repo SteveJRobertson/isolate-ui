@@ -1,0 +1,100 @@
+name: 🎨 Component Request
+description: Propose a new UI component for the Isolate UI library
+title: 'feat: [component name]'
+labels: ['type: feature', 'component']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for proposing a new component! This form captures the initial context. Your request will be refined through our backlog grooming process (see [issue-refinement skill](https://github.com/SteveJRobertson/isolate-ui/blob/main/.github/skills/issue-refinement/SKILL.md)) before implementation begins.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What design problem does this component solve? Why is it needed?
+      placeholder: |
+        Example: Dropdown is a common pattern in our design system but not yet available as a reusable component. Used in [Feature X, Feature Y].
+    validations:
+      required: true
+
+  - type: textarea
+    id: component-spec
+    attributes:
+      label: Component Specification
+      description: |
+        Describe the component's purpose, states, and variants. Reference [Ark UI primitives](https://ark-ui.com) if applicable.
+      placeholder: |
+        Example:
+        - **Primitive**: Combobox (from Ark UI)
+        - **Variants**: size (sm, md, lg), disabled state
+        - **States**: open/closed, focused, hovered
+        - **Content**: label, trigger button, list items, help text
+    validations:
+      required: true
+
+  - type: textarea
+    id: design-tokens
+    attributes:
+      label: Design Tokens Required
+      description: |
+        List any design tokens from `@isolate-ui/tokens` this component depends on. Reference dot-notation paths (e.g., `color.primary.500`, `spacing.md`).
+      placeholder: |
+        - color.primary.500 (fill)
+        - color.neutral.gray.200 (border)
+        - spacing.sm, spacing.md (padding)
+        - typography.body.md (text)
+    validations:
+      required: false
+
+  - type: textarea
+    id: accessibility
+    attributes:
+      label: Accessibility Requirements
+      description: |
+        What WCAG 2.1 Level AA requirements apply? (e.g., keyboard navigation, ARIA attributes, focus management)
+      placeholder: |
+        - Keyboard navigation (arrow keys, Enter to select, Escape to close)
+        - ARIA role, aria-labelledby, aria-expanded
+        - Focus trap management
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance-criteria
+    attributes:
+      label: Acceptance Criteria
+      description: What does "done" look like? Be specific and measurable.
+      placeholder: |
+        - [ ] Component renders with all variants
+        - [ ] Keyboard navigation works (↑↓ to navigate, Enter to select, Escape to close)
+        - [ ] Passes axe-core a11y audit (WCAG 2.1 AA)
+        - [ ] 80%+ test coverage (Vitest unit + Playwright CT)
+        - [ ] Storybook stories for all variants/states
+    validations:
+      required: true
+
+  - type: textarea
+    id: references
+    attributes:
+      label: References & Context
+      description: Links to design specs, similar components, or related issues.
+      placeholder: |
+        - Design spec: [Figma link]
+        - Similar patterns: [Link to Storybook story or external reference]
+        - Related issues: #XX, #YY
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Pre-submission Checklist
+      description: Ensure your request is well-scoped and aligns with the project.
+      options:
+        - label: I've checked that this component doesn't already exist in the library
+          required: true
+        - label: I've reviewed [Ark UI primitives](https://ark-ui.com) to identify the appropriate base component
+          required: true
+        - label: I understand this will be refined through issue-refinement before implementation
+          required: false

@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/SteveJRobertson/isolate-ui/discussions
+    about: Ask questions or propose ideas in Discussions before opening an issue.
