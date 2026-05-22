@@ -2,7 +2,6 @@ import { describe, it, beforeEach, afterEach, expect, vi } from 'vitest';
 import Fastify from 'fastify';
 import { webhookRoute } from './webhook';
 import Database from 'better-sqlite3';
-import { createHmac } from 'crypto';
 import rawBody from 'fastify-raw-body';
 
 vi.mock('../security/hmac');
@@ -12,15 +11,6 @@ vi.mock('../commands/query');
 
 // WEBHOOK_SECRET must be at least 32 characters
 const WEBHOOK_SECRET = 'a'.repeat(32);
-
-/**
- * Generate a valid GitHub HMAC-SHA256 signature.
- * Returns the signature in the format expected by the X-Hub-Signature-256 header.
- */
-function generateValidSignature(secret: string, rawBody: Buffer): string {
-  const digest = createHmac('sha256', secret).update(rawBody).digest();
-  return `sha256=${digest.toString('hex')}`;
-}
 
 /**
  * Create a minimal valid IssueCommentPayload.
@@ -74,6 +64,9 @@ describe('webhookRoute', () => {
 
     previousWebhookSecret = process.env.WEBHOOK_SECRET;
     process.env.WEBHOOK_SECRET = WEBHOOK_SECRET;
+
+    // Clear all mocks to prevent test state pollution
+    vi.clearAllMocks();
 
     // Register the rawBody plugin so fastify.inject() can work with request.rawBody.
     // The plugin runs before JSON parsing and captures the raw request bytes.
@@ -143,7 +136,7 @@ describe('webhookRoute', () => {
       });
     });
 
-    it('returns 400 when x-hub-signature-256 header is missing', async () => {
+    it('returns 401 when x-hub-signature-256 header is missing', async () => {
       // Mock verifyHmac - shouldn't be called, but set up anyway
       const { verifyHmac } = await import('../security/hmac');
       vi.mocked(verifyHmac).mockReturnValue(false);
@@ -167,18 +160,33 @@ describe('webhookRoute', () => {
     });
 
     it('returns 400 when raw body is unavailable (HMAC cannot be verified)', async () => {
-      const payload = makePayload();
+      // Create a new Fastify instance WITHOUT the rawBody plugin to ensure rawBody is undefined
+      const fastifyNoRawBody = Fastify();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyNoRawBody.register(webhookRoute, {
+        db,
+        graph: { getState: vi.fn(), invoke: vi.fn() } as any,
+        octokit: { rest: { issues: { createComment: vi.fn() } } } as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
 
-      // Send payload as object instead of Buffer - rawBody may not be set properly
-      const response = await fastify.inject({
+      const payload = makePayload();
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyNoRawBody.inject({
         method: 'POST',
         url: '/api/webhook',
         headers: makeHeaders(),
-        payload, // Passing object instead of Buffer may cause rawBody to be undefined
+        payload: rawBody,
       });
 
-      // If rawBody is not available, should return 400
-      expect([400, 401]).toContain(response.statusCode);
+      // Without rawBody plugin, request.rawBody is undefined → 400
+      expect(response.statusCode).toBe(400);
+      const responseBody = JSON.parse(response.payload);
+      expect(responseBody.error).toMatch(/raw body unavailable/i);
+
+      await fastifyNoRawBody.close();
     });
 
     it('returns 200 and processes request when HMAC signature is valid', async () => {
@@ -420,8 +428,8 @@ describe('webhookRoute', () => {
       expect(deliveryRow).toBeUndefined(); // Should be deleted on error
     });
 
-    it('does not process duplicate delivery ID even if it was previously unauthorized', async () => {
-      // Simplified: just verify that when we release a delivery ID (unauthorized case),
+    it('reuses delivery ID after unauthorized comment releases it', async () => {
+      // Verify that when we release a delivery ID (unauthorized case),
       // a subsequent request with the same ID can reuse it (not a duplicate)
       const { verifyHmac } = await import('../security/hmac');
       vi.mocked(verifyHmac).mockReturnValue(true);
@@ -453,15 +461,51 @@ describe('webhookRoute', () => {
       });
 
       expect(response1.statusCode).toBe(200);
-      // Unauthorized request should be skipped
       const responseBody1 = JSON.parse(response1.payload);
       expect(responseBody1.skipped).toBe(true);
 
       // Verify delivery was released (deleted)
-      const deliveryRow1 = db
+      let deliveryRow = db
         .prepare('SELECT * FROM deliveries WHERE delivery_id = ?')
         .get(deliveryId);
-      expect(deliveryRow1).toBeUndefined();
+      expect(deliveryRow).toBeUndefined();
+
+      // Second request with same delivery ID from authorized user
+      // Since first request released the ID, this should claim it (not a duplicate)
+      const authorizedPayload = {
+        action: 'created',
+        issue: { number: 42 },
+        comment: {
+          body: '/approve',
+          user: { login: 'testuser' },
+          author_association: 'OWNER', // Authorized
+        },
+      };
+      const rawBody2 = Buffer.from(JSON.stringify(authorizedPayload));
+
+      const response2 = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issue_comment',
+          'x-github-delivery': deliveryId,
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody2,
+      });
+
+      expect(response2.statusCode).toBe(200);
+      const responseBody2 = JSON.parse(response2.payload);
+      // Not a duplicate — should be claimed (duplicate is undefined)
+      expect(responseBody2.duplicate).toBeUndefined();
+      expect(responseBody2.ok).toBe(true);
+
+      // Delivery should now be claimed
+      deliveryRow = db
+        .prepare('SELECT * FROM deliveries WHERE delivery_id = ?')
+        .get(deliveryId);
+      expect(deliveryRow).toBeDefined();
     });
   });
 
@@ -785,21 +829,22 @@ describe('webhookRoute', () => {
       };
       const rawBody = Buffer.from(JSON.stringify(payload));
 
-      try {
-        await fastify.inject({
-          method: 'POST',
-          url: '/api/webhook',
-          headers: {
-            'x-github-event': 'issue_comment',
-            'x-github-delivery': deliveryId,
-            'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
-            'content-type': 'application/json',
-          },
-          payload: rawBody,
-        });
-      } catch {
-        // Error is expected
-      }
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issue_comment',
+          'x-github-delivery': deliveryId,
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      // Handler error results in 500 response
+      expect(response.statusCode).toBe(500);
+      // Verify handler was invoked
+      expect(vi.mocked(handleApprove)).toHaveBeenCalled();
 
       // Delivery row should be deleted on error (cleanup for retry)
       const deliveryRow = db
@@ -825,7 +870,7 @@ describe('webhookRoute', () => {
       };
       const rawBody = Buffer.from(JSON.stringify(payload));
 
-      await fastify.inject({
+      const response = await fastify.inject({
         method: 'POST',
         url: '/api/webhook',
         headers: makeHeaders({
@@ -833,6 +878,9 @@ describe('webhookRoute', () => {
         }),
         payload: rawBody,
       });
+
+      // Command processed successfully
+      expect(response.statusCode).toBe(200);
 
       // Verify arguments are parsed correctly
       // The route splits on /\s+/ which normalizes multiple spaces to single spaces
