@@ -38,7 +38,7 @@ describe('acquireLock', () => {
       .prepare('SELECT expires_at FROM startup_lock WHERE lock_id = ?')
       .get(LOCK_ID) as { expires_at: number } | undefined;
     expect(row).toBeDefined();
-    expect(row!.expires_at).toBeGreaterThanOrEqual(before + 300_000);
+    expect(row?.expires_at).toBeGreaterThanOrEqual(before + 300_000);
   });
 
   it('returns null when a valid (non-expired) lock already exists', () => {
@@ -57,7 +57,7 @@ describe('acquireLock', () => {
     const row = db
       .prepare('SELECT expires_at FROM startup_lock WHERE lock_id = ?')
       .get(LOCK_ID) as { expires_at: number } | undefined;
-    expect(row!.expires_at).toBeGreaterThan(Date.now());
+    expect(row?.expires_at).toBeGreaterThan(Date.now());
   });
 
   it('cleans up ALL expired locks (not just the one being acquired)', () => {

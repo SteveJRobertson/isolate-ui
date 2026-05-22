@@ -345,7 +345,9 @@ describe('runStartupSync', () => {
         1,
       );
 
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
 
       await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
 
@@ -404,7 +406,9 @@ describe('runStartupSync', () => {
         .mockImplementation(() => {
           throw new Error('SQLITE_BUSY simulated');
         });
-      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const warnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
 
       await expect(
         runStartupSync(db, graph as any, octokit as any, 'owner', 'repo'),
