@@ -12,14 +12,6 @@ describe('Deployment Artifacts', () => {
       expect(fs.existsSync(ecosystemPath)).toBe(true);
     });
 
-    it('is valid JavaScript (parseable without errors)', () => {
-      const content = fs.readFileSync(ecosystemPath, 'utf-8');
-      expect(() => {
-        // eslint-disable-next-line no-eval
-        eval(content);
-      }).not.toThrow();
-    });
-
     it('exports a valid PM2 ecosystem configuration object', () => {
       // eslint-disable-next-line @typescript-eslint/no-var-requires
       const config = require(ecosystemPath);

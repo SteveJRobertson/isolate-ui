@@ -11,9 +11,13 @@
  *   pm2 logs                                    # View logs
  *
  * Environment variables:
- *   Required: GITHUB_TOKEN, WEBHOOK_SECRET, GITHUB_OWNER, GITHUB_REPO
- *   Set these in a .env.production file (not tracked in git)
+ *   Required: GITHUB_TOKEN, WEBHOOK_SECRET
+ *   Optional: GITHUB_OWNER, GITHUB_REPO, HOST, PORT, DATABASE_PATH, STARTUP_SYNC_WINDOW_MS
+ *   Set these in .env.production (loaded automatically below if the file exists)
  */
+
+// Load .env.production if present — keeps secrets out of this file
+require('dotenv').config({ path: '.env.production' });
 
 module.exports = {
   apps: [
@@ -46,18 +50,10 @@ module.exports = {
       // Uncomment once /health endpoint is implemented in webhook-listener
       // http_proxy: 'http://localhost:8080/health',
 
-      // Environment variables loaded from .env.production (recommended for production)
-      // or can be set directly here (not recommended for secrets)
+      // Environment variables: loaded from .env.production via dotenv (above).
+      // Only NODE_ENV is hardcoded here; all other vars come from .env.production.
       env: {
         NODE_ENV: 'production',
-        // Load from .env.production or override here:
-        // GITHUB_TOKEN: process.env.GITHUB_TOKEN,
-        // WEBHOOK_SECRET: process.env.WEBHOOK_SECRET,
-        // GITHUB_OWNER: process.env.GITHUB_OWNER,
-        // GITHUB_REPO: process.env.GITHUB_REPO,
-        // HOST: process.env.HOST || '0.0.0.0',
-        // PORT: process.env.PORT || '8080',
-        // DATABASE_PATH: process.env.DATABASE_PATH,
       },
     },
   ],
