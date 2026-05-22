@@ -15,6 +15,12 @@ export default defineConfig(() => ({
     coverage: {
       reportsDirectory: '../../coverage/apps/webhook-listener',
       provider: 'v8' as const,
+      thresholds: {
+        lines: 80,
+        branches: 80,
+        functions: 80,
+        statements: 80,
+      },
     },
   },
 }));
