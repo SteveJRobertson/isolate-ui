@@ -9,8 +9,13 @@ import { handleApprove } from '../commands/approve';
 import { handleFix } from '../commands/fix';
 import { handleQuery } from '../commands/query';
 import { CommandContext } from '../commands/context';
+import { acquireLock, releaseLock } from '../db/lock';
 
 const SYNC_KEY = 'last_sync_time';
+const LOCK_ID = 'startup_sync';
+// TTL for the advisory lock. If the lock-holder instance crashes, the lock
+// expires after this window and other instances can proceed.
+const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes
 // Default fallback window. Override with STARTUP_SYNC_WINDOW_MS env var so
 // operators can widen the window when the server may be offline for longer
 // periods. If the server was down longer than this window, a warning is logged.
@@ -34,49 +39,64 @@ export async function runStartupSync(
   owner: string,
   repo: string,
 ): Promise<void> {
-  const row = db
-    .prepare('SELECT value FROM webhook_sync WHERE key = ?')
-    .get(SYNC_KEY) as { value: string } | undefined;
-
-  const rawSyncWindow = process.env['STARTUP_SYNC_WINDOW_MS'];
-  const parsedSyncWindow = rawSyncWindow ? Number(rawSyncWindow) : NaN;
-  const syncWindowMs =
-    Number.isFinite(parsedSyncWindow) && parsedSyncWindow > 0
-      ? parsedSyncWindow
-      : DEFAULT_SYNC_WINDOW_MS;
-  if (rawSyncWindow && syncWindowMs === DEFAULT_SYNC_WINDOW_MS) {
-    console.warn(
-      `[webhook-listener] Startup sync: STARTUP_SYNC_WINDOW_MS="${rawSyncWindow}" is not a valid positive number — using default ${DEFAULT_SYNC_WINDOW_MS}ms.`,
-    );
-  }
-
-  const since = row?.value ?? new Date(Date.now() - syncWindowMs).toISOString();
-
-  // Warn when falling back to the default window so operators know they may
-  // have missed commands from a longer outage.
-  if (!row?.value) {
-    console.warn(
-      `[webhook-listener] Startup sync: no cursor found — defaulting to ${syncWindowMs}ms window. ` +
-        'Commands posted before this window may have been missed. ' +
-        'Set STARTUP_SYNC_WINDOW_MS to widen the window if needed.',
-    );
-  }
-
-  console.log(
-    `[webhook-listener] Startup sync: checking comments since ${since}`,
-  );
-
-  // latestSeenAt: max timestamp of any comment fetched in this scan,
-  // regardless of whether it was a bot command or already deduped.
-  // Advancing the cursor to this value prevents re-scanning the same window
-  // on every restart when only non-command or already-deduped comments are
-  // present, avoiding wasted GitHub API quota.
-  let latestSeenAt: string | null = null;
-  // latestProcessedAt: max timestamp of actually-processed commands,
-  // retained for informational logging only.
-  let latestProcessedAt: string | null = null;
+  // Track the ownership token returned by acquireLock. Declared outside the
+  // try block so the finally can release only when this instance holds the lock.
+  let lockToken: number | null = null;
 
   try {
+    // Acquire the advisory lock inside the try so unexpected DB errors
+    // (e.g. SQLITE_BUSY) are caught below and treated as non-fatal rather
+    // than crashing server startup.
+    lockToken = acquireLock(db, LOCK_ID, LOCK_TTL_MS);
+    if (lockToken === null) {
+      console.warn(
+        '[webhook-listener] startup sync skipped: another instance holds the startup lock. ' +
+          'This instance will rely on the live webhook route for new events.',
+      );
+      return;
+    }
+    const row = db
+      .prepare('SELECT value FROM webhook_sync WHERE key = ?')
+      .get(SYNC_KEY) as { value: string } | undefined;
+
+    const rawSyncWindow = process.env['STARTUP_SYNC_WINDOW_MS'];
+    const parsedSyncWindow = rawSyncWindow ? Number(rawSyncWindow) : NaN;
+    const syncWindowMs =
+      Number.isFinite(parsedSyncWindow) && parsedSyncWindow > 0
+        ? parsedSyncWindow
+        : DEFAULT_SYNC_WINDOW_MS;
+    if (rawSyncWindow && syncWindowMs === DEFAULT_SYNC_WINDOW_MS) {
+      console.warn(
+        `[webhook-listener] Startup sync: STARTUP_SYNC_WINDOW_MS="${rawSyncWindow}" is not a valid positive number — using default ${DEFAULT_SYNC_WINDOW_MS}ms.`,
+      );
+    }
+
+    const since =
+      row?.value ?? new Date(Date.now() - syncWindowMs).toISOString();
+
+    // Warn when falling back to the default window so operators know they may
+    // have missed commands from a longer outage.
+    if (!row?.value) {
+      console.warn(
+        `[webhook-listener] Startup sync: no cursor found — defaulting to ${syncWindowMs}ms window. ` +
+          'Commands posted before this window may have been missed. ' +
+          'Set STARTUP_SYNC_WINDOW_MS to widen the window if needed.',
+      );
+    }
+
+    console.log(
+      `[webhook-listener] Startup sync: checking comments since ${since}`,
+    );
+
+    // latestSeenAt: max timestamp of any comment fetched in this scan,
+    // regardless of whether it was a bot command or already deduped.
+    // Advancing the cursor to this value prevents re-scanning the same window
+    // on every restart when only non-command or already-deduped comments are
+    // present, avoiding wasted GitHub API quota.
+    let latestSeenAt: string | null = null;
+    // latestProcessedAt: max timestamp of actually-processed commands,
+    // retained for informational logging only.
+    let latestProcessedAt: string | null = null;
     // Query latest checkpoint per thread (window function)
     const checkpointRows = db
       .prepare(
@@ -242,5 +262,7 @@ export async function runStartupSync(
     // Cursor is intentionally NOT advanced so the next startup re-processes
     // the same window and avoids permanently skipping missed commands.
     console.warn(`[webhook-listener] Startup sync failed: ${String(err)}`);
+  } finally {
+    if (lockToken !== null) releaseLock(db, LOCK_ID, lockToken);
   }
 }
