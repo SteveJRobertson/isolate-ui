@@ -27,8 +27,8 @@ body:
         2. Tab to the button
         3. Press Enter
         4. Button still responds (should not respond)
-      validations:
-        required: true
+    validations:
+      required: true
 
   - type: textarea
     id: expected
@@ -59,8 +59,8 @@ body:
         - Dropdown
         - Dialog
         - Other (please specify in description)
-      validations:
-        required: false
+    validations:
+      required: false
 
   - type: input
     id: version
@@ -68,8 +68,8 @@ body:
       label: Package Version
       description: What version of `@isolate-ui/*` are you using? (e.g., 1.0.0 or main branch)
       placeholder: '1.0.0 or main'
-      validations:
-        required: false
+    validations:
+      required: false
 
   - type: dropdown
     id: environment
@@ -81,8 +81,8 @@ body:
         - Node.js (Vitest, Node utilities)
         - Build/tooling
         - Other
-      validations:
-        required: false
+    validations:
+      required: false
 
   - type: textarea
     id: environment-details
@@ -95,8 +95,8 @@ body:
         - Browser: Chrome 125
         - Node.js: 22.x
         - pnpm: 10.30.3
-      validations:
-        required: false
+    validations:
+      required: false
 
   - type: textarea
     id: logs
@@ -108,16 +108,16 @@ body:
         TypeError: Cannot read property 'onClick' of undefined
           at Button (button.tsx:42)
         ```
-      validations:
-        required: false
+    validations:
+      required: false
 
   - type: textarea
     id: context
     attributes:
       label: Additional Context
       description: Screenshots, links to CodeSandbox reproduction, or any other relevant context.
-      validations:
-        required: false
+    validations:
+      required: false
 
   - type: checkboxes
     id: checklist

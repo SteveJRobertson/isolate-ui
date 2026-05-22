@@ -14,7 +14,6 @@ body:
       label: Category
       description: What type of maintenance work is this?
       options:
-        - Select a category...
         - Dependencies (upgrade, add, remove)
         - Code refactoring
         - Documentation
