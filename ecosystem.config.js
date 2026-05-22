@@ -47,8 +47,9 @@ module.exports = {
       max_file: 14, // Keep 14 rotated log files (14 days of history)
 
       // Health check: HTTP liveness probe every 30s
-      // Uncomment once /health endpoint is implemented in webhook-listener
-      // http_proxy: 'http://localhost:8080/health',
+      // Uses process.env.PORT so the probe stays in sync with runtime configuration.
+      // dotenv.config() above ensures PORT is populated from .env.production before this line evaluates.
+      http_proxy: `http://localhost:${process.env.PORT || 8080}/health`,
 
       // Environment variables: loaded from .env.production via dotenv (above).
       // Only NODE_ENV is hardcoded here; all other vars come from .env.production.
