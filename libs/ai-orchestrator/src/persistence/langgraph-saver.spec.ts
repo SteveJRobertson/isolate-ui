@@ -200,7 +200,7 @@ describe('LangGraphSqliteSaver', () => {
       try {
         await expect(
           saver.getTuple(makeConfig('thread-db-error')),
-        ).rejects.toThrow('DB Locked');
+        ).rejects.toBe(expectedError);
       } finally {
         (saver as any).stmtGetLatest = originalStmt;
       }
