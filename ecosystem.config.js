@@ -39,12 +39,25 @@ module.exports = {
       kill_timeout: 30000, // Send SIGTERM, wait 30s before SIGKILL
       listen_timeout: 5000, // Wait 5s for app to bind to port
 
-      // Logging: Rotate daily, preserve 14 days of history
+      // Logging: Requires pm2-logrotate plugin for log rotation to work
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // ⚠️  IMPORTANT: PM2's max_size and max_file settings alone are ineffective.
+      //    Log rotation REQUIRES pm2-logrotate module to be installed and running.
+      //
+      // pm2-logrotate plugin (REQUIRED):
+      //   • Enables log rotation when logs reach max_size threshold (10MB)
+      //   • Keeps max_file number of rotated files (~14 days of history)
+      //   • Without this plugin, logs will grow unbounded and fill disk
+      //   • Install globally: npm install -g pm2-logrotate && pm2 install pm2-logrotate
+      //   • See docs/MAC_MINI_DEPLOYMENT.md Section 6 for setup + verification
+      //   • See docs/LOGROTATION_VERIFICATION.md for post-deploy validation + monitoring
+      //
+      // Configuration: max_size and max_file values set here are used by pm2-logrotate.
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       error_file: 'logs/webhook-listener-error.log',
       out_file: 'logs/webhook-listener-out.log',
       max_size: '10M', // Rotate when individual log reaches 10MB
-      max_file: 14, // Keep 14 rotated log files (14 days of history)
+      max_file: 14, // Keep 14 rotated log files (~14 days of history)
 
       // Health check: HTTP liveness probe every 30s
       // Uses process.env.PORT so the probe stays in sync with runtime configuration.
