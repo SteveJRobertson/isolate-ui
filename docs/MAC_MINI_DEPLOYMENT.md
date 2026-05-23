@@ -296,7 +296,93 @@ tailscale funnel 8080
 
 Tailscale will output a public URL (e.g., `https://your-mac-mini.tailnet-name.ts.net`). Note this URL.
 
-## 6. GitHub Webhook Configuration
+## 6. Log Rotation Setup (PM2 Built-in + pm2-logrotate Plugin)
+
+Log rotation ensures disk space doesn't fill with large log files and keeps deployment healthy.
+
+### Why Both Built-in and Plugin?
+
+PM2 has **two complementary rotation mechanisms**:
+
+- **Built-in rotation** (always active): Rotates logs when they reach 10MB, keeping 14 files (~14 days)
+- **pm2-logrotate plugin** (optional): External cron-based rotation that adds administrative control and serves as a safety net
+
+Both work together. The plugin doesn't replace the built-in system — it complements it.
+
+### Installation
+
+Install the pm2-logrotate plugin globally on the Mac Mini:
+
+```bash
+npm install -g pm2-logrotate
+pm2 install pm2-logrotate
+pm2 save  # Persist the plugin in PM2 startup
+```
+
+**Verify installation:**
+
+```bash
+pm2 list  # Should show pm2-logrotate in the module list
+```
+
+Output should include a line like:
+
+```
+⊙ pm2-logrotate (running)
+```
+
+### Configuration
+
+The plugin uses PM2's config (`ecosystem.config.js`). No additional config needed — it will:
+
+- Monitor logs in the `logs/` directory
+- Use the same `max_size` (10MB) and `max_file` (14) limits from ecosystem.config.js
+- Automatically archive rotated logs with timestamps
+
+Optional: To customize pm2-logrotate behavior, edit the plugin config:
+
+```bash
+# View current pm2-logrotate configuration
+pm2 conf
+
+# Edit specific settings (optional)
+pm2 conf max_log_size 10M
+pm2 conf retain 14
+```
+
+### Post-Deployment Validation
+
+After deploying with PM2, run this checklist to verify log rotation is active:
+
+```bash
+# 1. Confirm pm2-logrotate module is running
+pm2 list | grep logrotate
+# Expected: "⊙ pm2-logrotate" with green dot
+
+# 2. Show webhook-listener process and log file paths
+pm2 show webhook-listener
+# Expected: error_file and out_file paths pointing to logs/ directory
+
+# 3. List existing logs
+ls -lh logs/
+# Expected: webhook-listener-out.log and webhook-listener-error.log exist
+# They should be < 10MB (will rotate when exceeded)
+
+# 4. Verify PM2 log location is accessible
+pm2 logs webhook-listener --err
+# Expected: Recent error logs from the webhook-listener process
+```
+
+### Ongoing Monitoring & Troubleshooting
+
+See [docs/LOGROTATION_VERIFICATION.md](LOGROTATION_VERIFICATION.md) for:
+
+- Daily/weekly monitoring checklists
+- Commands to monitor log rotation in production
+- Troubleshooting if logs aren't rotating as expected
+- Disk usage tracking over time
+
+## 7. GitHub Webhook Configuration
 
 1.  Go to your GitHub repository -> **Settings** -> **Webhooks** -> **Add webhook**.
 2.  **Payload URL**: `https://your-mac-mini.tailnet-name.ts.net/webhook`
@@ -309,7 +395,7 @@ Tailscale will output a public URL (e.g., `https://your-mac-mini.tailnet-name.ts
 6.  **Active**: Check the box to enable
 7.  Save the webhook.
 
-## 7. Database Initialization & Startup Sync ✅ (Already Implemented)
+## 8. Database Initialization & Startup Sync ✅ (Already Implemented)
 
 ### Auto-Initialization
 
