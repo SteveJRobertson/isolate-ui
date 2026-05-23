@@ -4,6 +4,31 @@ This document tracks optional improvements identified during Mac Mini deployment
 
 ---
 
+## Priority: COMPLETE ✅
+
+### Log Rotation Setup (PM2 Built-in + pm2-logrotate Plugin)
+
+**Status:** ✅ **IMPLEMENTED** (May 26, 2026)  
+**Location:** [docs/MAC_MINI_DEPLOYMENT.md — Section 6](MAC_MINI_DEPLOYMENT.md#6-log-rotation-setup-pm2-built-in--pm2-logrotate-plugin)  
+**Verification Guide:** [docs/LOGROTATION_VERIFICATION.md](LOGROTATION_VERIFICATION.md)
+
+**What's included:**
+
+- PM2 built-in log rotation (max_size=10MB, max_file=14)
+- pm2-logrotate plugin installation and configuration
+- Post-deployment validation checklist
+- Ongoing production monitoring procedures (daily, weekly, monthly)
+- Comprehensive troubleshooting guide
+
+**Operators can now:**
+
+1. Deploy webhook-listener with automatic log rotation enabled
+2. Validate rotation is active immediately post-deploy
+3. Monitor log health in production (disk usage, rotation frequency, file counts)
+4. Troubleshoot rotation issues independently using provided commands
+
+---
+
 ## Priority: HIGH ⚠️
 
 ### Health Check Endpoint (`/health`)
@@ -143,6 +168,7 @@ Or manual cron:
 - [x] SQLite database schema (auto-created)
 - [x] PM2 clustering + WAL mode (verified safe)
 - [x] Startup sync replay (automatic)
+- [x] Log rotation setup — PM2 built-in + pm2-logrotate plugin (May 26, 2026)
 
 ⏳ **Optional Enhancements (for better observability):**
 
@@ -155,17 +181,19 @@ Or manual cron:
 ## Deployment Timeline Recommendation
 
 1. **Phase 1 (Now):** Deploy & test workflow with current code, but track health check priority for Phase 1.5
+   - ✅ Log rotation is **now fully documented and verified** (May 26, 2026)
+
 2. **Phase 1.5 (Within 1 week, BEFORE full production):** Implement health check endpoint (~15 min)
    - Enables PM2 zombie detection
    - Required before going fully live on remote Mac Mini
    - Low-risk, high-value improvement
-   - Follow [docs/mac-mini-deployment.md](mac-mini-deployment.md)
+   - Follow [docs/MAC_MINI_DEPLOYMENT.md](MAC_MINI_DEPLOYMENT.md)
    - Test webhook workflow end-to-end
    - Verify startup sync, persona validation, HMAC verification work
 
-3. **Phase 2 (1-2 weeks after testing):** Add health check endpoint
-   - Improves PM2 observability
-   - Low effort, high value
+3. **Phase 2 (1-2 weeks after testing):** Monitor production & add observability
+   - Use [LOGROTATION_VERIFICATION.md](LOGROTATION_VERIFICATION.md) for production monitoring
+   - Consider health check endpoint if not yet implemented
 
 4. **Phase 3 (Later):** Add backup automation + version enforcement
    - Nice-to-have operational improvements
@@ -176,5 +204,6 @@ Or manual cron:
 ## Notes
 
 - All features identified as "already implemented" during deployment review (personas, HMAC, database schema) are production-ready
+- **Log rotation setup is complete** — both PM2 built-in and pm2-logrotate plugin are documented with validation & monitoring procedures
 - No blocking issues found — deployment can proceed immediately
-- These enhancements are optimizations, not critical path items
+- These remaining enhancements are optimizations, not critical path items
