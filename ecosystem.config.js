@@ -39,21 +39,20 @@ module.exports = {
       kill_timeout: 30000, // Send SIGTERM, wait 30s before SIGKILL
       listen_timeout: 5000, // Wait 5s for app to bind to port
 
-      // Logging: Built-in rotation (size-based) + optional pm2-logrotate plugin (cron-based)
-      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-      // PM2 built-in rotation (ALWAYS ACTIVE):
-      //   • Rotates logs when size reaches max_size (10MB)
-      //   • Keeps max_file number of rotated files (~14 days of history)
-      //   • Triggered automatically by PM2 — no external service needed
-      //   • Archive location: same directory as current logs
+      // Logging: Requires pm2-logrotate plugin for log rotation to work
+      // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+      // ⚠️  IMPORTANT: PM2's max_size and max_file settings alone are ineffective.
+      //    Log rotation REQUIRES pm2-logrotate module to be installed and running.
       //
-      // pm2-logrotate plugin (OPTIONAL — enhances rotation):
-      //   • Provides external cron-based rotation control (complements built-in)
-      //   • Adds administrative oversight for rotation policies
-      //   • Install globally: `npm install -g pm2-logrotate && pm2 install pm2-logrotate`
+      // pm2-logrotate plugin (REQUIRED):
+      //   • Enables log rotation when logs reach max_size threshold (10MB)
+      //   • Keeps max_file number of rotated files (~14 days of history)
+      //   • Without this plugin, logs will grow unbounded and fill disk
+      //   • Install globally: npm install -g pm2-logrotate && pm2 install pm2-logrotate
+      //   • See docs/MAC_MINI_DEPLOYMENT.md Section 6 for setup + verification
       //   • See docs/LOGROTATION_VERIFICATION.md for post-deploy validation + monitoring
       //
-      // Both work together: built-in handles daily rotation, plugin adds external safety net.
+      // Configuration: max_size and max_file values set here are used by pm2-logrotate.
       log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
       error_file: 'logs/webhook-listener-error.log',
       out_file: 'logs/webhook-listener-out.log',

@@ -296,18 +296,15 @@ tailscale funnel 8080
 
 Tailscale will output a public URL (e.g., `https://your-mac-mini.tailnet-name.ts.net`). Note this URL.
 
-## 6. Log Rotation Setup (PM2 Built-in + pm2-logrotate Plugin)
+## 6. Log Rotation Setup (pm2-logrotate Plugin — REQUIRED)
 
-Log rotation ensures disk space doesn't fill with large log files and keeps deployment healthy.
+Log rotation prevents disk space from filling with large log files and is critical for production stability.
 
-### Why Both Built-in and Plugin?
+### Why pm2-logrotate is Required
 
-PM2 has **two complementary rotation mechanisms**:
+**Important:** PM2's `max_size` and `max_file` settings in `ecosystem.config.js` are **ineffective without pm2-logrotate**. Without this plugin installed, logs will grow unbounded and fill disk, crashing the service.
 
-- **Built-in rotation** (always active): Rotates logs when they reach 10MB, keeping 14 files (~14 days)
-- **pm2-logrotate plugin** (optional): External cron-based rotation that adds administrative control and serves as a safety net
-
-Both work together. The plugin doesn't replace the built-in system — it complements it.
+The `max_size: '10M'` and `max_file: 14` values in this config are **placeholders only** — they become active only when pm2-logrotate is installed and running.
 
 ### Installation
 
@@ -333,44 +330,47 @@ Output should include a line like:
 
 ### Configuration
 
-The plugin uses PM2's config (`ecosystem.config.js`). No additional config needed — it will:
+**Single source of truth:** Log rotation settings are defined in `ecosystem.config.js`:
 
-- Monitor logs in the `logs/` directory
-- Use the same `max_size` (10MB) and `max_file` (14) limits from ecosystem.config.js
-- Automatically archive rotated logs with timestamps
-
-Optional: To customize pm2-logrotate behavior, edit the plugin config:
-
-```bash
-# View current pm2-logrotate configuration
-pm2 conf
-
-# Edit specific settings (optional)
-pm2 conf max_log_size 10M
-pm2 conf retain 14
+```javascript
+max_size: '10M',   // Rotate when individual log reaches 10MB
+max_file: 14,      // Keep 14 rotated files (~14 days of history)
 ```
+
+Once pm2-logrotate is installed, it automatically uses these `max_size` and `max_file` values. **Do not use `pm2 conf` to override these settings** — keep all rotation configuration in `ecosystem.config.js` for consistency across deployments.
+
+To adjust rotation limits (e.g., rotate more frequently or keep fewer files):
+
+1. Edit `ecosystem.config.js` and change `max_size` or `max_file`
+2. Restart: `pm2 restart ecosystem.config.js`
+3. Verify: `pm2 show webhook-listener | grep -E 'max_size|max_file'`
 
 ### Post-Deployment Validation
 
-After deploying with PM2, run this checklist to verify log rotation is active:
+After deploying with PM2, run this checklist to verify pm2-logrotate is installed and working:
 
 ```bash
-# 1. Confirm pm2-logrotate module is running
+# 1. Confirm pm2-logrotate module is installed and running
 pm2 list | grep logrotate
-# Expected: "⊙ pm2-logrotate" with green dot
+# Expected: "⊙ pm2-logrotate (running)"
+# If NOT present, rotation is NOT working — see Troubleshooting below
 
-# 2. Show webhook-listener process and log file paths
-pm2 show webhook-listener
-# Expected: error_file and out_file paths pointing to logs/ directory
+# 2. Show webhook-listener process details and rotation settings
+pm2 show webhook-listener | grep -E 'status|error_file|out_file|max_size|max_file'
+# Expected:
+#   status: online
+#   error_file: .../logs/webhook-listener-error.log
+#   out_file: .../logs/webhook-listener-out.log
+#   max_size: 10M
+#   max_file: 14
 
-# 3. List existing logs
-ls -lh logs/
-# Expected: webhook-listener-out.log and webhook-listener-error.log exist
-# They should be < 10MB (will rotate when exceeded)
+# 3. List existing logs and verify they're < 10MB
+ls -lh logs/webhook-listener-*.log
+# Expected: Files < 10MB (will rotate when they reach 10MB)
 
-# 4. Verify PM2 log location is accessible
-pm2 logs webhook-listener --err
-# Expected: Recent error logs from the webhook-listener process
+# 4. Check recent log entries from the webhook-listener process
+pm2 logs webhook-listener
+# Expected: Recent logs from the running process (no errors)
 ```
 
 ### Ongoing Monitoring & Troubleshooting

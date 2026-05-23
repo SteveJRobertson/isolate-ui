@@ -13,10 +13,13 @@ Log rotation prevents:
 - **Data loss** — Disk full conditions can crash the service or corrupt databases
 - **Compliance violations** — Uncontrolled log retention may violate data retention policies
 
-The webhook-listener uses **two complementary systems**:
+**The webhook-listener requires pm2-logrotate to rotate logs.** Without this module:
 
-1. **PM2 built-in rotation** — Automatically triggered when logs exceed 10MB
-2. **pm2-logrotate plugin** — External cron-based rotation (administrative oversight)
+- PM2's `max_size` (10MB) and `max_file` (14) settings in `ecosystem.config.js` have **no effect**
+- Logs grow unbounded until disk fills
+- Service crashes when disk is full
+
+This guide helps you verify pm2-logrotate is installed, validate it's working, and troubleshoot when rotation fails.
 
 ---
 
