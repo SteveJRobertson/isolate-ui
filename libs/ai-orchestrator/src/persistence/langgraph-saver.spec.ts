@@ -286,7 +286,7 @@ describe('LangGraphSqliteSaver', () => {
       try {
         await expect(
           saver.putWrites(writeConfig, [['messages', ['msg']]], 'task-insert'),
-        ).rejects.toThrow('insert failed');
+        ).rejects.toBe(expectedError);
       } finally {
         (saver as any).db.prepare = originalPrepare;
       }
