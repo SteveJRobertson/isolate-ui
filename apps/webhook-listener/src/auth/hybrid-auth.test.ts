@@ -7,7 +7,11 @@ vi.mock('node:fs', async (importOriginal) => {
 });
 
 vi.mock('@octokit/rest', () => ({
-  Octokit: vi.fn().mockImplementation(() => ({ rest: {} })),
+  Octokit: vi
+    .fn()
+    .mockImplementation(
+      () => ({ rest: {} }) as unknown as import('@octokit/rest').Octokit,
+    ),
 }));
 
 import { getAuthenticatedOctokit } from './hybrid-auth';
@@ -35,7 +39,7 @@ describe('getAuthenticatedOctokit', () => {
     delete process.env['GITHUB_TOKEN'];
     mockReadFileSync.mockReset();
     MockOctokit.mockClear();
-    MockOctokit.mockImplementation(() => ({ rest: {} }));
+    MockOctokit.mockImplementation(() => ({ rest: {} }) as unknown as Octokit);
   });
 
   afterEach(() => {
