@@ -20,6 +20,7 @@ export function makeCommandContext(
     threadId: 'issue-1',
     issueNumber: 1,
     username: 'user',
+    commentId: 1, // Phase 3: comment ID for reactions
     db: null as unknown as CommandContext['db'],
     octokit: null as unknown as CommandContext['octokit'],
     owner: 'owner',

@@ -889,4 +889,437 @@ describe('webhookRoute', () => {
       expect(call[1]).toBe('multiple words here');
     });
   });
+
+  describe('Phase 2: Support issues.labeled events (thread bootstrapping)', () => {
+    it('accepts issues.labeled event with authorized issue author', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          title: 'New feature request',
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'component' }],
+        },
+        label: { name: 'component' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-labeled-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      expect(response.statusCode).toBe(202);
+    });
+
+    it('rejects labeled event from unauthorized user (author_association NONE)', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          user: { login: 'unauthorized-user' },
+          author_association: 'NONE',
+          labels: [{ name: 'component' }],
+        },
+        label: { name: 'component' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-labeled-2',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      expect(response.statusCode).toBe(403);
+    });
+
+    it('filters labeled events by whitelist (only component and bug trigger bootstrap)', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'documentation' }],
+        },
+        label: { name: 'documentation' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-labeled-3',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      // Accepted (dedup'd) but not processed
+      expect(response.statusCode).toBe(202);
+      const responseBody = JSON.parse(response.payload);
+      expect(responseBody.skipped).toBe(true);
+    });
+
+    it('prevents duplicate labeled event bootstrap via dedup check', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const deliveryId = 'test-labeled-dedup-1';
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'component' }],
+        },
+        label: { name: 'component' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      // First request
+      const response1 = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': deliveryId,
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      expect(response1.statusCode).toBe(202);
+
+      // Duplicate with same delivery ID
+      const response2 = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': deliveryId,
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      // Should be skipped
+      expect(response2.statusCode).toBe(202);
+      const responseBody = JSON.parse(response2.payload);
+      expect(responseBody.skipped).toBe(true);
+    });
+
+    it('posts "Starting analysis" comment on successful labeled event bootstrap', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const mockCreateComment = vi.fn().mockResolvedValue({});
+      const mockRun = vi.fn().mockResolvedValue(undefined);
+
+      const fastifyForBootstrap = Fastify();
+      await fastifyForBootstrap.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyForBootstrap.register(webhookRoute, {
+        db,
+        graph: { getState: vi.fn(), invoke: vi.fn(), run: mockRun } as any,
+        octokit: {
+          rest: { issues: { createComment: mockCreateComment } },
+        } as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'component' }],
+        },
+        label: { name: 'component' },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyForBootstrap.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-labeled-comment-bootstrap-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(mockRun).toHaveBeenCalledWith('issue-99', {});
+      expect(mockCreateComment).toHaveBeenCalledWith({
+        owner: 'owner',
+        repo: 'repo',
+        issue_number: 99,
+        body: '✅ Starting analysis on #99 with **component** label',
+      });
+
+      await fastifyForBootstrap.close();
+    });
+
+    it('ignores non-labeled actions on issues event', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'opened', // Not 'labeled'
+        issue: {
+          number: 99,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'component' }],
+        },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-labeled-action-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      expect(response.statusCode).toBe(202);
+      const responseBody = JSON.parse(response.payload);
+      expect(responseBody.skipped).toBe(true);
+    });
+  });
+
+  describe('Phase 3: Immediate UI Reactions (command feedback)', () => {
+    it('adds reaction to issue comment before processing /approve command', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      const { handleApprove } = await import('../commands/approve');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+      vi.mocked(handleApprove).mockResolvedValue(undefined);
+
+      // Mock octokit to verify reaction creation
+      const mockCreateReaction = vi.fn().mockResolvedValue({});
+      const octokitWithReactions = {
+        rest: {
+          issues: { createComment: vi.fn() },
+          reactions: { createForIssueComment: mockCreateReaction },
+        },
+      };
+
+      const fastifyWithReactions = Fastify();
+      await fastifyWithReactions.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyWithReactions.register(webhookRoute, {
+        db,
+        graph: {
+          getState: vi.fn().mockReturnValue({}),
+          invoke: vi.fn(),
+        } as any,
+        octokit: octokitWithReactions as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const payload = {
+        action: 'created',
+        issue: { number: 42 },
+        comment: {
+          id: 123,
+          body: '/approve',
+          user: { login: 'testuser' },
+          author_association: 'OWNER',
+        },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyWithReactions.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: makeHeaders({
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+        }),
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      // Verify reaction was attempted (exact emoji may vary by command)
+      expect(mockCreateReaction).toHaveBeenCalled();
+
+      await fastifyWithReactions.close();
+    });
+
+    it('adds different reaction based on command type', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      const { handleFix } = await import('../commands/fix');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+      vi.mocked(handleFix).mockResolvedValue(undefined);
+
+      const mockCreateReaction = vi.fn().mockResolvedValue({});
+      const octokitWithReactions = {
+        rest: {
+          issues: { createComment: vi.fn() },
+          reactions: { createForIssueComment: mockCreateReaction },
+        },
+      };
+
+      const fastifyWithReactions = Fastify();
+      await fastifyWithReactions.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyWithReactions.register(webhookRoute, {
+        db,
+        graph: {
+          getState: vi.fn().mockReturnValue({}),
+          invoke: vi.fn(),
+        } as any,
+        octokit: octokitWithReactions as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const payload = {
+        action: 'created',
+        issue: { number: 42 },
+        comment: {
+          id: 456,
+          body: '/fix provide more feedback',
+          user: { login: 'testuser' },
+          author_association: 'OWNER',
+        },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyWithReactions.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: makeHeaders({
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+        }),
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockCreateReaction).toHaveBeenCalled();
+
+      await fastifyWithReactions.close();
+    });
+
+    it('does not fail webhook if reaction API call fails', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      const { handleQuery } = await import('../commands/query');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+      vi.mocked(handleQuery).mockResolvedValue(undefined);
+
+      const mockCreateReaction = vi
+        .fn()
+        .mockRejectedValue(new Error('Reaction API failed'));
+      const octokitWithReactions = {
+        rest: {
+          issues: { createComment: vi.fn() },
+          reactions: { createForIssueComment: mockCreateReaction },
+        },
+      };
+
+      const fastifyWithReactions = Fastify();
+      await fastifyWithReactions.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyWithReactions.register(webhookRoute, {
+        db,
+        graph: {
+          getState: vi.fn().mockReturnValue({}),
+          invoke: vi.fn(),
+        } as any,
+        octokit: octokitWithReactions as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const payload = {
+        action: 'created',
+        issue: { number: 42 },
+        comment: {
+          id: 789,
+          body: '/query what is the current status',
+          user: { login: 'testuser' },
+          author_association: 'OWNER',
+        },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyWithReactions.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: makeHeaders({
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+        }),
+        payload: rawBodyBuffer,
+      });
+
+      // Webhook should still succeed even if reaction fails
+      expect(response.statusCode).toBe(200);
+
+      await fastifyWithReactions.close();
+    });
+  });
 });

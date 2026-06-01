@@ -27,16 +27,48 @@ describe('handleQuery', () => {
     );
   });
 
-  it('posts error reply when no checkpoint exists', async () => {
-    const { postErrorReply } = await import('./context');
-    graph.getState.mockReturnValue(null);
+  describe('Phase 2: Command Bootstrapping', () => {
+    it('bootstraps new thread when no checkpoint exists', async () => {
+      graph.run = vi.fn().mockResolvedValue(undefined);
+      // First call returns null (no checkpoint), second returns initialized state
+      graph.getState.mockReturnValueOnce(null).mockReturnValueOnce({
+        next_recipient: 'po',
+      });
 
-    await handleQuery(ctx, 'question');
+      await handleQuery(ctx, 'question');
 
-    expect(postErrorReply).toHaveBeenCalledWith(
-      ctx,
-      expect.stringContaining('No active thread'),
-    );
+      // Should call graph.run() to bootstrap
+      expect(graph.run).toHaveBeenCalledWith('issue-1', {});
+
+      // Then invoke with question
+      expect(graph.invoke).toHaveBeenCalled();
+    });
+
+    it('posts error reply when bootstrap fails', async () => {
+      const { postErrorReply } = await import('./context');
+      graph.getState.mockReturnValue(null);
+      graph.run = vi.fn().mockRejectedValue(new Error('Bootstrap failed'));
+
+      await handleQuery(ctx, 'question');
+
+      expect(postErrorReply).toHaveBeenCalledWith(
+        ctx,
+        expect.stringContaining('Failed to bootstrap'),
+      );
+    });
+
+    it('proceeds with query after successful bootstrap', async () => {
+      graph.run = vi.fn().mockResolvedValue(undefined);
+      // After bootstrap, next call to getState returns active thread
+      graph.getState.mockReturnValueOnce(null).mockReturnValueOnce({
+        next_recipient: 'po',
+      });
+
+      await handleQuery(ctx, 'test question');
+
+      expect(graph.run).toHaveBeenCalled();
+      expect(graph.invoke).toHaveBeenCalled();
+    });
   });
 
   it('invokes graph with next_recipient when set', async () => {

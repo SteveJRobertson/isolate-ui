@@ -25,13 +25,27 @@ export async function handleFix(
     return;
   }
 
-  const checkpoint = graph.getState(threadId);
+  let checkpoint = graph.getState(threadId);
   if (!checkpoint) {
-    await postErrorReply(
-      ctx,
-      `No active thread found for issue #${ctx.issueNumber}. The graph may not have been started yet.`,
-    );
-    return;
+    // Bootstrap: initialize a new thread if none exists
+    try {
+      await graph.run(threadId, {});
+      // After bootstrap, fetch the checkpoint again
+      checkpoint = graph.getState(threadId);
+      if (!checkpoint) {
+        await postErrorReply(
+          ctx,
+          `Failed to bootstrap thread for issue #${ctx.issueNumber}.`,
+        );
+        return;
+      }
+    } catch (err) {
+      await postErrorReply(
+        ctx,
+        `Failed to bootstrap thread: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return;
+    }
   }
 
   if (!checkpoint.pause_context) {
