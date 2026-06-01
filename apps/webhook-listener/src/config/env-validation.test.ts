@@ -161,9 +161,9 @@ describe('env-validation', () => {
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi
         .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
       expect(() => validateEnv()).toThrow();
@@ -181,9 +181,9 @@ describe('env-validation', () => {
     it('exits with error when WEBHOOK_SECRET is missing', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi
         .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
       expect(() => validateEnv()).toThrow();
@@ -202,9 +202,9 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] = 'short_secret';
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi
         .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
       expect(() => validateEnv()).toThrow();
@@ -228,9 +228,9 @@ describe('env-validation', () => {
       process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/private.pem';
       // Missing GITHUB_APP_INSTALLATION_ID
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi
         .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
       expect(() => validateEnv()).toThrow();
@@ -263,9 +263,9 @@ describe('env-validation', () => {
         'ghp_very_long_secret_that_should_be_redacted_1234567890';
       process.env['WEBHOOK_SECRET'] = 'short';
 
-      // eslint-disable-next-line @typescript-eslint/no-empty-function
       const consoleSpy = vi
         .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
       expect(() => validateEnv()).toThrow();

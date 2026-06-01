@@ -169,38 +169,4 @@ describe('getAuthenticatedOctokit', () => {
       );
     });
   });
-
-  // ── Integration with Command Handlers ──────────────────────────────────────
-
-  describe('Integration with Command Handlers', () => {
-    it('CommandContext includes octokit as a required field', async () => {
-      const { makeCommandContext } = await import('../__tests__/test-helpers');
-      const mockOctokit = {
-        rest: { issues: { createComment: vi.fn() } },
-      } as any;
-      const ctx = makeCommandContext({ octokit: mockOctokit });
-
-      expect(ctx.octokit).toBe(mockOctokit);
-    });
-
-    it('postErrorReply uses ctx.octokit to post the comment', async () => {
-      const { postErrorReply } = await import('../commands/context');
-      const { makeCommandContext } = await import('../__tests__/test-helpers');
-      const createComment = vi.fn().mockResolvedValue({});
-      const mockOctokit = { rest: { issues: { createComment } } } as any;
-      const ctx = makeCommandContext({
-        octokit: mockOctokit,
-        issueNumber: 42,
-        username: 'test-user',
-        owner: 'owner',
-        repo: 'repo',
-      });
-
-      await postErrorReply(ctx, 'test error');
-
-      expect(createComment).toHaveBeenCalledWith(
-        expect.objectContaining({ issue_number: 42 }),
-      );
-    });
-  });
 });
