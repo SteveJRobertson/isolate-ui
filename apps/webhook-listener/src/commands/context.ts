@@ -11,6 +11,7 @@ export interface CommandContext {
   issueNumber: number;
   threadId: string;
   username: string;
+  commentId: number; // Phase 3: ID of the comment that triggered the command
 }
 
 /**
@@ -31,6 +32,29 @@ export async function postErrorReply(
   } catch (err) {
     console.warn(
       `[webhook-listener] Failed to post error reply: ${String(err)}`,
+    );
+  }
+}
+
+/**
+ * Add an emoji reaction to the issue comment that triggered the command.
+ * Phase 3: Provides immediate UX feedback to the user.
+ */
+export async function addReactionToComment(
+  ctx: CommandContext,
+  emoji: string,
+): Promise<void> {
+  const { octokit, owner, repo, commentId } = ctx;
+  try {
+    await octokit.rest.reactions.createForIssueComment({
+      owner,
+      repo,
+      comment_id: commentId,
+      content: emoji,
+    });
+  } catch (err) {
+    console.warn(
+      `[webhook-listener] Failed to add reaction to comment: ${String(err)}`,
     );
   }
 }

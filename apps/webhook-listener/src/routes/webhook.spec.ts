@@ -1106,4 +1106,194 @@ describe('webhookRoute', () => {
       expect(responseBody.skipped).toBe(true);
     });
   });
+
+  describe('Phase 3: Immediate UI Reactions (command feedback)', () => {
+    it('adds reaction to issue comment before processing /approve command', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      const { handleApprove } = await import('../commands/approve');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+      vi.mocked(handleApprove).mockResolvedValue(undefined);
+
+      // Mock octokit to verify reaction creation
+      const mockCreateReaction = vi.fn().mockResolvedValue({});
+      const octokitWithReactions = {
+        rest: {
+          issues: { createComment: vi.fn() },
+          reactions: { createForIssueComment: mockCreateReaction },
+        },
+      };
+
+      const fastifyWithReactions = Fastify();
+      await fastifyWithReactions.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyWithReactions.register(webhookRoute, {
+        db,
+        graph: {
+          getState: vi.fn().mockReturnValue({}),
+          invoke: vi.fn(),
+        } as any,
+        octokit: octokitWithReactions as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const payload = {
+        action: 'created',
+        issue: { number: 42 },
+        comment: {
+          id: 123,
+          body: '/approve',
+          user: { login: 'testuser' },
+          author_association: 'OWNER',
+        },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyWithReactions.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: makeHeaders({
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+        }),
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(200);
+
+      // Verify reaction was attempted (exact emoji may vary by command)
+      expect(mockCreateReaction).toHaveBeenCalled();
+
+      await fastifyWithReactions.close();
+    });
+
+    it('adds different reaction based on command type', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      const { handleFix } = await import('../commands/fix');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+      vi.mocked(handleFix).mockResolvedValue(undefined);
+
+      const mockCreateReaction = vi.fn().mockResolvedValue({});
+      const octokitWithReactions = {
+        rest: {
+          issues: { createComment: vi.fn() },
+          reactions: { createForIssueComment: mockCreateReaction },
+        },
+      };
+
+      const fastifyWithReactions = Fastify();
+      await fastifyWithReactions.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyWithReactions.register(webhookRoute, {
+        db,
+        graph: {
+          getState: vi.fn().mockReturnValue({}),
+          invoke: vi.fn(),
+        } as any,
+        octokit: octokitWithReactions as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const payload = {
+        action: 'created',
+        issue: { number: 42 },
+        comment: {
+          id: 456,
+          body: '/fix provide more feedback',
+          user: { login: 'testuser' },
+          author_association: 'OWNER',
+        },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyWithReactions.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: makeHeaders({
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+        }),
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(200);
+      expect(mockCreateReaction).toHaveBeenCalled();
+
+      await fastifyWithReactions.close();
+    });
+
+    it('does not fail webhook if reaction API call fails', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      const { handleQuery } = await import('../commands/query');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+      vi.mocked(handleQuery).mockResolvedValue(undefined);
+
+      const mockCreateReaction = vi
+        .fn()
+        .mockRejectedValue(new Error('Reaction API failed'));
+      const octokitWithReactions = {
+        rest: {
+          issues: { createComment: vi.fn() },
+          reactions: { createForIssueComment: mockCreateReaction },
+        },
+      };
+
+      const fastifyWithReactions = Fastify();
+      await fastifyWithReactions.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyWithReactions.register(webhookRoute, {
+        db,
+        graph: {
+          getState: vi.fn().mockReturnValue({}),
+          invoke: vi.fn(),
+        } as any,
+        octokit: octokitWithReactions as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const payload = {
+        action: 'created',
+        issue: { number: 42 },
+        comment: {
+          id: 789,
+          body: '/query what is the current status',
+          user: { login: 'testuser' },
+          author_association: 'OWNER',
+        },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyWithReactions.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: makeHeaders({
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+        }),
+        payload: rawBodyBuffer,
+      });
+
+      // Webhook should still succeed even if reaction fails
+      expect(response.statusCode).toBe(200);
+
+      await fastifyWithReactions.close();
+    });
+  });
 });

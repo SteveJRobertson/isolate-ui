@@ -6,7 +6,7 @@ import { verifyHmac } from '../security/hmac';
 import { handleApprove } from '../commands/approve';
 import { handleFix } from '../commands/fix';
 import { handleQuery } from '../commands/query';
-import { CommandContext } from '../commands/context';
+import { CommandContext, addReactionToComment } from '../commands/context';
 
 interface WebhookRouteOptions {
   db: Database.Database;
@@ -115,6 +115,7 @@ export async function webhookRoute(
 
         // Parse comment details
         const issueNumber = payload.issue.number;
+        const commentId = payload.comment.id;
         const commentBody = payload.comment.body.trim();
         const username = payload.comment.user.login;
         const authorAssociation = payload.comment.author_association;
@@ -137,7 +138,13 @@ export async function webhookRoute(
           issueNumber,
           threadId,
           username,
+          commentId,
         };
+
+        // Phase 3: Add immediate reaction feedback (async, does not block command)
+        addReactionToComment(ctx, '🚀').catch(() => {
+          // Silently ignore reaction failures — they don't block command processing
+        });
 
         // Dispatch command
         const [command, ...rest] = commentBody.split(/\s+/);
