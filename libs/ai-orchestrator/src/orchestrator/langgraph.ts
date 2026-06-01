@@ -99,6 +99,7 @@ export class OrchestratorGraph {
   private nodes: Map<string, AgentNodeFn> = new Map();
   private refinementConfig: RefinementConfig = DEFAULT_REFINEMENT_CONFIG;
   private meshConfig: MeshRouterConfig = DEFAULT_MESH_CONFIG;
+  private octokit?: Octokit;
 
   /**
    * GitHub repo coordinates used when posting refinement loop comments.
@@ -107,7 +108,7 @@ export class OrchestratorGraph {
   private githubOwner = 'SteveJRobertson';
   private githubRepo = 'isolate-ui';
 
-  constructor(dbPath?: string, agentsMdPath?: string) {
+  constructor(dbPath?: string, agentsMdPath?: string, octokit?: Octokit) {
     this.dbPath =
       dbPath ??
       path.resolve(
@@ -123,6 +124,9 @@ export class OrchestratorGraph {
 
     // Initialize LangGraph-compatible SQLite saver
     this.checkpointer = new LangGraphSqliteSaver(this.dbPath);
+
+    // Store Octokit instance for GitHub interactions (refinement reports)
+    this.octokit = octokit;
 
     // Create the state graph
     this.graph = this.buildGraph();
@@ -390,11 +394,6 @@ export class OrchestratorGraph {
     // Build a local graph to avoid mutating shared instance state
     // (which would race under concurrent run() calls).
     const localGraph = this.buildGraph();
-    const githubToken = process.env['GITHUB_TOKEN'];
-    // Create Octokit instance from token if available
-    const octokit = githubToken
-      ? new Octokit({ auth: githubToken })
-      : undefined;
 
     try {
       const result = await this.invokeWithGraph(
@@ -404,26 +403,7 @@ export class OrchestratorGraph {
         { configurable: { thread_id: threadId } },
       );
 
-      // Post GitHub comment only when the full refinement loop completed:
-      // next_recipient is null AND every persona in the sequence has signed off.
-      const allSignedOff =
-        result.finalState.next_recipient === null &&
-        this.refinementConfig.baseSequence.every(
-          (id) => result.finalState.signoffs?.[id] === true,
-        );
-      if (allSignedOff) {
-        await this.tryPostComment(
-          result.finalState,
-          threadId,
-          octokit,
-          undefined,
-        );
-      }
-
-      return {
-        ...result,
-        status: 'completed' as const,
-      };
+      return result;
     } catch (error) {
       // Convert LangGraph recursion limit errors to our custom error
       if (error instanceof Error && error.message.includes('Recursion limit')) {
@@ -436,16 +416,14 @@ export class OrchestratorGraph {
   }
 
   /**
-   * Build and post a refinement loop comment to GitHub.
+   * Build and post a refinement loop report as a GitHub issue comment.
    * Silently no-ops when Octokit is absent or posting fails (non-critical).
    */
   private async tryPostComment(
     state: AgentState,
-    threadId: string,
-    octokit: Octokit | undefined,
     rejectionReason: string | undefined,
   ): Promise<void> {
-    if (!octokit) return;
+    if (!this.octokit) return;
 
     // Require an explicit github_issue_id in metadata — do not derive from
     // threadId by stripping digits, as that can post to the wrong issue.
@@ -468,7 +446,7 @@ export class OrchestratorGraph {
     };
 
     try {
-      const result = await postRefinementLoopComment(payload, octokit);
+      const result = await postRefinementLoopComment(payload, this.octokit);
       if (result) {
         console.log(
           `[ai-orchestrator] GitHub comment posted: ${result.commentUrl}`,
@@ -579,6 +557,12 @@ export class OrchestratorGraph {
         mesh_origin: finalState.mesh_origin,
         mesh_loop_count: finalState.mesh_loop_count,
       };
+
+      // Post GitHub comment when refinement limit is hit
+      if (finalState.pause_context === 'refinement_limit') {
+        await this.tryPostComment(finalState, finalState.rejectionReason);
+      }
+
       return {
         status: 'paused',
         threadId,
@@ -586,6 +570,17 @@ export class OrchestratorGraph {
         stepCount: finalState._step_count,
         pausePayload,
       };
+    }
+
+    // Post GitHub comment only when the full refinement loop completed:
+    // next_recipient is null AND every persona in the sequence has signed off.
+    const allSignedOff =
+      finalState.next_recipient === null &&
+      this.refinementConfig.baseSequence.every(
+        (id) => finalState.signoffs?.[id] === true,
+      );
+    if (allSignedOff) {
+      await this.tryPostComment(finalState, undefined);
     }
 
     return {
