@@ -29,7 +29,7 @@ async function start() {
   const dbPath = resolveDbPath();
   const db = openDb(dbPath);
   const octokit = await getAuthenticatedOctokit();
-  const graph = new OrchestratorGraph(dbPath);
+  const graph = new OrchestratorGraph(dbPath, undefined, octokit);
 
   // Sync the graph's GitHub repo target so the human_review pause comment
   // is posted to the same repo this service is configured to watch.
