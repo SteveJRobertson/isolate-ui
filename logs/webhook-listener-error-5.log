@@ -1,0 +1,12 @@
+You have triggered an unhandledRejection, you may have forgotten to catch a Promise rejection:
+TypeError: Cannot open database because the directory does not exist
+    at new Database (/Users/steverobertson/Projects/isolate-ui/node_modules/.pnpm/better-sqlite3@12.9.0/node_modules/better-sqlite3/lib/database.js:65:9)
+    at openDb (/Users/steverobertson/Projects/isolate-ui/dist/apps/webhook-listener/apps/webhook-listener/src/db/schema.js:40:14)
+    at start (/Users/steverobertson/Projects/isolate-ui/dist/apps/webhook-listener/apps/webhook-listener/src/main.js:43:39)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)
+You have triggered an unhandledRejection, you may have forgotten to catch a Promise rejection:
+TypeError: Cannot open database because the directory does not exist
+    at new Database (/Users/steverobertson/Projects/isolate-ui/node_modules/.pnpm/better-sqlite3@12.9.0/node_modules/better-sqlite3/lib/database.js:65:9)
+    at openDb (/Users/steverobertson/Projects/isolate-ui/dist/apps/webhook-listener/apps/webhook-listener/src/db/schema.js:40:14)
+    at start (/Users/steverobertson/Projects/isolate-ui/dist/apps/webhook-listener/apps/webhook-listener/src/main.js:43:39)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5)

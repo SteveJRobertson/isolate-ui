@@ -91,15 +91,6 @@ describe('getAuthenticatedOctokit', () => {
         /Failed to read/i,
       );
     });
-
-    it('throws with incomplete App credentials message when partial App vars are set', async () => {
-      process.env['GITHUB_APP_ID'] = '12345';
-      // GITHUB_APP_PRIVATE_KEY_PATH and GITHUB_APP_INSTALLATION_ID are absent
-
-      await expect(getAuthenticatedOctokit()).rejects.toThrow(
-        /Incomplete GitHub App credentials/i,
-      );
-    });
   });
 
   // ── PAT (Personal Access Token) Fallback ───────────────────────────────────
@@ -131,12 +122,6 @@ describe('getAuthenticatedOctokit', () => {
   // ── Fallback and Error Handling ────────────────────────────────────────────
 
   describe('Authentication Fallback and Error Handling', () => {
-    it('throws when neither App nor PAT credentials are provided', async () => {
-      await expect(getAuthenticatedOctokit()).rejects.toThrow(
-        /GITHUB_TOKEN|App credentials/i,
-      );
-    });
-
     it('logs the PAT auth method when GITHUB_TOKEN is used', async () => {
       const consoleSpy = vi.spyOn(console, 'log');
       process.env['GITHUB_TOKEN'] = 'ghp_test1234567890abcdef';

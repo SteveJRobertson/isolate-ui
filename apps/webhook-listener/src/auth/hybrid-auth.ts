@@ -18,22 +18,8 @@ export async function getAuthenticatedOctokit(): Promise<Octokit> {
   const privateKeyPath = process.env['GITHUB_APP_PRIVATE_KEY_PATH'];
   const installationId = process.env['GITHUB_APP_INSTALLATION_ID'];
 
-  // Partial App credentials — some but not all vars set means misconfiguration, not a fallback
-  const appVarsDefined = [appId, privateKeyPath, installationId].filter(
-    Boolean,
-  ).length;
-  if (appVarsDefined > 0 && appVarsDefined < 3) {
-    const missing = [
-      !appId && 'GITHUB_APP_ID',
-      !privateKeyPath && 'GITHUB_APP_PRIVATE_KEY_PATH',
-      !installationId && 'GITHUB_APP_INSTALLATION_ID',
-    ].filter(Boolean);
-    throw new Error(
-      `[hybrid-auth] Incomplete GitHub App credentials. Missing: ${missing.join(', ')}. ` +
-        `Set all three to use App authentication, or unset all to fall back to GITHUB_TOKEN.`,
-    );
-  }
-
+  // GitHub App credentials must be all-or-nothing (validated at startup by validateEnv).
+  // If we reach here with partial credentials, something is very wrong.
   if (appId && privateKeyPath && installationId) {
     const appIdNum = Number(appId);
     if (isNaN(appIdNum) || !Number.isInteger(appIdNum) || appIdNum <= 0) {
@@ -73,15 +59,8 @@ export async function getAuthenticatedOctokit(): Promise<Octokit> {
     });
   }
 
-  const token = process.env['GITHUB_TOKEN'];
-  if (token) {
-    console.log('[hybrid-auth] Using PAT (GitHub Token) authentication');
-    return new Octokit({ auth: token });
-  }
-
-  throw new Error(
-    '[hybrid-auth] No GitHub authentication credentials found. ' +
-      'Set GITHUB_TOKEN for PAT authentication, or set GITHUB_APP_ID, ' +
-      'GITHUB_APP_PRIVATE_KEY_PATH, and GITHUB_APP_INSTALLATION_ID for GitHub App authentication.',
-  );
+  // Fallback to GITHUB_TOKEN (guaranteed to be set by startup validation).
+  const token = process.env['GITHUB_TOKEN']!;
+  console.log('[hybrid-auth] Using PAT (GitHub Token) authentication');
+  return new Octokit({ auth: token });
 }

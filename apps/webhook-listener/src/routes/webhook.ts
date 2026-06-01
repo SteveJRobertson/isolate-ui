@@ -49,12 +49,9 @@ export async function webhookRoute(
   opts: WebhookRouteOptions,
 ): Promise<void> {
   const { db, graph, octokit, owner, repo } = opts;
-  const secret = process.env['WEBHOOK_SECRET'];
-  if (!secret || secret.length < 32) {
-    throw new Error(
-      'WEBHOOK_SECRET must be set and at least 32 characters. Refusing to start.',
-    );
-  }
+  // WEBHOOK_SECRET is guaranteed to be set and ≥32 chars by startup validation (validateEnv).
+  // No need to re-validate here; if it were missing/invalid, the app would have exited at startup.
+  const secret = process.env['WEBHOOK_SECRET']!;
 
   fastify.post(
     '/api/webhook',

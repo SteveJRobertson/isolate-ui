@@ -3,42 +3,19 @@ import * as path from 'path';
 import Database from 'better-sqlite3';
 
 /**
- * Walk up from startDir until a directory containing nx.json is found.
- * Mirrors the implementation in libs/ai-orchestrator/src/config/agent-parser.ts
- * so the resolution is consistent across runtimes and build output layouts.
+ * Resolve the default database path by walking up to find the workspace root.
+ * Used as a fallback if no path is provided to openDb().
  */
-function findWorkspaceRoot(startDir: string): string {
-  let dir = startDir;
+function resolveDefaultDatabasePath(): string {
+  let dir = __dirname;
   while (dir !== path.dirname(dir)) {
     if (fs.existsSync(path.join(dir, 'nx.json'))) {
-      return dir;
+      return path.join(dir, 'libs', 'ai-orchestrator', 'data', 'state.db');
     }
     dir = path.dirname(dir);
   }
   throw new Error(
-    `Could not locate workspace root (no nx.json found). Started from: ${startDir}`,
-  );
-}
-
-/**
- * Resolve the SQLite database path.
- *
- * Uses DATABASE_PATH env var when set; otherwise walks up from __dirname to
- * find the workspace root (via nx.json marker) and derives the default path
- * from there — robust across compiled (dist/apps/webhook-listener/...) and
- * development (src/db/schema.ts) layouts.
- */
-export function resolveDbPath(): string {
-  if (process.env['DATABASE_PATH']) {
-    return process.env['DATABASE_PATH'];
-  }
-  const workspaceRoot = findWorkspaceRoot(__dirname);
-  return path.join(
-    workspaceRoot,
-    'libs',
-    'ai-orchestrator',
-    'data',
-    'state.db',
+    `Could not locate workspace root (no nx.json found). Started from: ${__dirname}`,
   );
 }
 
@@ -48,11 +25,17 @@ export function resolveDbPath(): string {
  * Uses the same database file as ai-orchestrator so deliveries and checkpoints
  * are co-located — no extra DB connection or file required.
  *
- * Pass the resolved path explicitly (from resolveDbPath()) so the caller can
- * share the same path with OrchestratorGraph.
+ * The dbPath parameter should be the pre-resolved absolute path from validateEnv().
+ * This ensures all PM2 cluster workers use the exact same database file.
+ *
+ * If dbPath is not provided, attempts to resolve it from DATABASE_PATH env var
+ * or by walking up to find the workspace root — useful for backward compatibility
+ * or local development, but in production the path should always be pre-resolved.
  */
 export function openDb(dbPath?: string): Database.Database {
-  const resolvedPath = dbPath ?? resolveDbPath();
+  // Attempt to use the provided path, or fall back to resolving from env/workspace
+  const resolvedPath =
+    dbPath ?? process.env['DATABASE_PATH'] ?? resolveDefaultDatabasePath();
 
   // Ensure the parent directory exists before opening the DB file.
   // new Database() will throw if the directory is missing; this mirrors
