@@ -1,4 +1,4 @@
-import { Octokit } from '@octokit/rest';
+import type { Octokit } from '@octokit/rest';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -169,20 +169,20 @@ export function buildCommentBody(payload: RefinementCommentPayload): string {
 /**
  * Post a refinement loop report as a GitHub issue comment.
  *
- * Requires a valid GITHUB_TOKEN with `repo` scope.
- * Silently skips posting and returns null when token is absent.
+ * Requires an authenticated Octokit instance with permission to create issue
+ * comments (PAT `repo` scope, or GitHub App `issues: write` permission).
+ * Silently skips posting and returns null when Octokit is absent.
  *
  * @param payload - Comment data
- * @param token   - GitHub personal access token (GITHUB_TOKEN)
- * @returns PostCommentResult on success, null when token is absent
+ * @param octokit - Authenticated Octokit instance
+ * @returns PostCommentResult on success, null when octokit is absent
  */
 export async function postRefinementLoopComment(
   payload: RefinementCommentPayload,
-  token: string | undefined,
+  octokit: Octokit | undefined,
 ): Promise<PostCommentResult | null> {
-  if (!token) return null;
+  if (!octokit) return null;
 
-  const octokit = new Octokit({ auth: token });
   const body = buildCommentBody(payload);
 
   const response = await octokit.rest.issues.createComment({
@@ -269,20 +269,20 @@ export function buildStalemateCommentBody(
 /**
  * Post a mesh stalemate notification as a GitHub issue comment.
  *
- * Requires a valid GITHUB_TOKEN with `repo` scope.
- * Silently skips posting and returns null when token is absent.
+ * Requires an authenticated Octokit instance with permission to create issue
+ * comments (PAT `repo` scope, or GitHub App `issues: write` permission).
+ * Silently skips posting and returns null when Octokit is absent.
  *
  * @param payload - Stalemate comment data
- * @param token   - GitHub personal access token (GITHUB_TOKEN)
- * @returns PostCommentResult on success, null when token is absent
+ * @param octokit - Authenticated Octokit instance
+ * @returns PostCommentResult on success, null when octokit is absent
  */
 export async function postMeshStalemateComment(
   payload: MeshStalematePayload,
-  token: string | undefined,
+  octokit: Octokit | undefined,
 ): Promise<PostCommentResult | null> {
-  if (!token) return null;
+  if (!octokit) return null;
 
-  const octokit = new Octokit({ auth: token });
   const body = buildStalemateCommentBody(payload);
 
   const response = await octokit.rest.issues.createComment({

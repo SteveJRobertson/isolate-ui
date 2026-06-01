@@ -1,4 +1,5 @@
 import * as path from 'path';
+import { Octokit } from '@octokit/rest';
 import {
   StateGraph,
   START,
@@ -390,6 +391,10 @@ export class OrchestratorGraph {
     // (which would race under concurrent run() calls).
     const localGraph = this.buildGraph();
     const githubToken = process.env['GITHUB_TOKEN'];
+    // Create Octokit instance from token if available
+    const octokit = githubToken
+      ? new Octokit({ auth: githubToken })
+      : undefined;
 
     try {
       const result = await this.invokeWithGraph(
@@ -410,7 +415,7 @@ export class OrchestratorGraph {
         await this.tryPostComment(
           result.finalState,
           threadId,
-          githubToken,
+          octokit,
           undefined,
         );
       }
@@ -432,15 +437,15 @@ export class OrchestratorGraph {
 
   /**
    * Build and post a refinement loop comment to GitHub.
-   * Silently no-ops when GITHUB_TOKEN is absent or posting fails (non-critical).
+   * Silently no-ops when Octokit is absent or posting fails (non-critical).
    */
   private async tryPostComment(
     state: AgentState,
     threadId: string,
-    token: string | undefined,
+    octokit: Octokit | undefined,
     rejectionReason: string | undefined,
   ): Promise<void> {
-    if (!token) return;
+    if (!octokit) return;
 
     // Require an explicit github_issue_id in metadata — do not derive from
     // threadId by stripping digits, as that can post to the wrong issue.
@@ -463,7 +468,7 @@ export class OrchestratorGraph {
     };
 
     try {
-      const result = await postRefinementLoopComment(payload, token);
+      const result = await postRefinementLoopComment(payload, octokit);
       if (result) {
         console.log(
           `[ai-orchestrator] GitHub comment posted: ${result.commentUrl}`,
