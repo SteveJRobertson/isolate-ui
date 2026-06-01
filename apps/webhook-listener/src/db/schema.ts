@@ -45,8 +45,16 @@ function sleep(ms: number): Promise<void> {
 }
 
 function isRetriableInitError(err: unknown): boolean {
+  const sqliteCode =
+    typeof err === 'object' && err !== null && 'code' in err
+      ? String((err as { code?: unknown }).code)
+      : '';
   const message = err instanceof Error ? err.message : String(err);
   return (
+    sqliteCode === 'SQLITE_BUSY' ||
+    sqliteCode === 'SQLITE_CANTOPEN' ||
+    sqliteCode === 'ENOENT' ||
+    sqliteCode === 'ELOCKED' ||
     message.includes('directory does not exist') ||
     message.includes('SQLITE_BUSY') ||
     message.includes('database is locked') ||
@@ -55,6 +63,7 @@ function isRetriableInitError(err: unknown): boolean {
 }
 
 function ensureFile(filePath: string): void {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
   if (!fs.existsSync(filePath)) {
     fs.closeSync(fs.openSync(filePath, 'a'));
   }
@@ -70,12 +79,7 @@ async function initializeWithFileLock(
   const release = await lockfile.lock(lockPath, {
     realpath: false,
     stale: DB_INIT_LOCK_STALE_MS,
-    retries: {
-      retries: DB_INIT_MAX_ATTEMPTS,
-      factor: 2,
-      minTimeout: DB_INIT_INITIAL_BACKOFF_MS,
-      maxTimeout: DB_INIT_MAX_BACKOFF_MS,
-    },
+    retries: 0,
   });
 
   try {
@@ -93,6 +97,7 @@ export async function openDb(dbPath?: string): Promise<Database.Database> {
     dbPath ?? process.env['DATABASE_PATH'] ?? resolveDefaultDatabasePath();
 
   let backoffMs = DB_INIT_INITIAL_BACKOFF_MS;
+  let lastError: unknown;
   for (let attempt = 1; attempt <= DB_INIT_MAX_ATTEMPTS; attempt++) {
     let db: Database.Database | null = null;
     try {
@@ -109,22 +114,29 @@ export async function openDb(dbPath?: string): Promise<Database.Database> {
 
       return db;
     } catch (err) {
+      lastError = err;
       if (db) {
         try {
           db.close();
         } catch {
-          // no-op
+          // Ignore close errors in failure paths; connection may already be invalid.
         }
       }
 
       const shouldRetry =
         attempt < DB_INIT_MAX_ATTEMPTS && isRetriableInitError(err);
       if (!shouldRetry) {
-        throw err;
+        break;
       }
       await sleep(backoffMs);
       backoffMs = Math.min(backoffMs * 2, DB_INIT_MAX_BACKOFF_MS);
     }
+  }
+
+  if (lastError instanceof Error) {
+    throw new Error(
+      `[webhook-listener] Failed to initialize database after ${DB_INIT_MAX_ATTEMPTS} attempts: ${lastError.message}`,
+    );
   }
 
   throw new Error(

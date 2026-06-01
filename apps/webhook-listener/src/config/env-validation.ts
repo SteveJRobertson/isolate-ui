@@ -56,14 +56,14 @@ function resolveAbsoluteDatabasePath(): string {
   );
 }
 
-function normalizeQuotedNumberEnv(raw: unknown): unknown {
+function normalizeQuotedEnvValue(raw: unknown): unknown {
   if (typeof raw !== 'string') return raw;
   const trimmed = raw.trim();
   if (trimmed.length < 2) return trimmed;
-  const startsWithQuote =
+  const hasMatchingQuotes =
     (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
     (trimmed.startsWith("'") && trimmed.endsWith("'"));
-  return startsWithQuote ? trimmed.slice(1, -1).trim() : trimmed;
+  return hasMatchingQuotes ? trimmed.slice(1, -1).trim() : trimmed;
 }
 
 /**
@@ -85,7 +85,7 @@ const envSchema = z
     GITHUB_OWNER: z.string().default('SteveJRobertson'),
     GITHUB_REPO: z.string().default('isolate-ui'),
     STARTUP_SYNC_WINDOW_MS: z.preprocess(
-      normalizeQuotedNumberEnv,
+      normalizeQuotedEnvValue,
       z.coerce
         .number()
         .int()

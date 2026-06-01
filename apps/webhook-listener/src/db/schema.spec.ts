@@ -16,6 +16,7 @@ describe('openDb', () => {
         Array.from({ length: 4 }, () => openDb(dbPath)),
       );
       connections.push(...opened);
+      expect(fs.existsSync(`${dbPath}.init.lock`)).toBe(true);
 
       for (const db of connections) {
         const deliveries = db
