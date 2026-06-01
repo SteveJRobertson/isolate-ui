@@ -553,7 +553,7 @@ See [docs/LOGROTATION_VERIFICATION.md](LOGROTATION_VERIFICATION.md) for:
 ## 7. GitHub Webhook Configuration
 
 1.  Go to your GitHub repository -> **Settings** -> **Webhooks** -> **Add webhook**.
-2.  **Payload URL**: `https://your-mac-mini.tailnet-name.ts.net/webhook`
+2.  **Payload URL**: `https://your-mac-mini.tailnet-name.ts.net/api/webhook`
 3.  **Content type**: `application/json`
 4.  **Secret**: Paste the same `WEBHOOK_SECRET` from your `ecosystem.config.js` or `.env.production`
 5.  **Events**: Select:
