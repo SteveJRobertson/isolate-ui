@@ -113,6 +113,17 @@ describe('env-validation', () => {
       expect(result.STARTUP_SYNC_WINDOW_MS).toBe(7200000);
     });
 
+    it('parses quoted STARTUP_SYNC_WINDOW_MS values', () => {
+      process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
+      process.env['WEBHOOK_SECRET'] =
+        'this_is_a_webhook_secret_thats_long_enough';
+      process.env['STARTUP_SYNC_WINDOW_MS'] = '"3600000"';
+
+      const result = validateEnv();
+
+      expect(result.STARTUP_SYNC_WINDOW_MS).toBe(3600000);
+    });
+
     it('resolves database path to absolute path when DATABASE_PATH not set', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =

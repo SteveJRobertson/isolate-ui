@@ -56,6 +56,16 @@ function resolveAbsoluteDatabasePath(): string {
   );
 }
 
+function normalizeQuotedEnvValue(raw: unknown): unknown {
+  if (typeof raw !== 'string') return raw;
+  const trimmed = raw.trim();
+  if (trimmed.length < 2) return trimmed;
+  const hasMatchingQuotes =
+    (trimmed.startsWith('"') && trimmed.endsWith('"')) ||
+    (trimmed.startsWith("'") && trimmed.endsWith("'"));
+  return hasMatchingQuotes ? trimmed.slice(1, -1).trim() : trimmed;
+}
+
 /**
  * Zod schema for webhook-listener environment variables.
  * Separates required vars from optional vars with sensible defaults.
@@ -74,11 +84,14 @@ const envSchema = z
     PORT: z.coerce.number().default(8080),
     GITHUB_OWNER: z.string().default('SteveJRobertson'),
     GITHUB_REPO: z.string().default('isolate-ui'),
-    STARTUP_SYNC_WINDOW_MS: z.coerce
-      .number()
-      .int()
-      .positive('STARTUP_SYNC_WINDOW_MS must be a positive integer')
-      .default(3600000), // 1 hour
+    STARTUP_SYNC_WINDOW_MS: z.preprocess(
+      normalizeQuotedEnvValue,
+      z.coerce
+        .number()
+        .int()
+        .positive('STARTUP_SYNC_WINDOW_MS must be a positive integer')
+        .default(3600000),
+    ), // 1 hour
 
     // GitHub App authentication (optional, all-or-nothing)
     GITHUB_APP_ID: z.string().optional(),
