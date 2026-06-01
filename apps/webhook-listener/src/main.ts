@@ -1,26 +1,16 @@
 import Fastify from 'fastify';
 import rawBody from 'fastify-raw-body';
-import { Octokit } from '@octokit/rest';
 import { OrchestratorGraph } from '@isolate-ui/ai-orchestrator';
 import { openDb, resolveDbPath } from './db/schema';
 import { registerHealthRoute } from './routes/health';
 import { webhookRoute } from './routes/webhook';
 import { runStartupSync } from './sync/startup';
+import { getAuthenticatedOctokit } from './auth/hybrid-auth';
 
 const host = process.env.HOST ?? '0.0.0.0'; // bind to all interfaces so GitHub/Tailscale can reach the service
 const port = process.env.PORT ? Number(process.env.PORT) : 8080;
 const owner = process.env.GITHUB_OWNER ?? 'SteveJRobertson';
 const repo = process.env.GITHUB_REPO ?? 'isolate-ui';
-
-// GITHUB_TOKEN is required: startup sync and all error replies depend on it.
-// Fail immediately with a clear message so misconfiguration is obvious.
-if (!process.env['GITHUB_TOKEN']) {
-  console.error(
-    '[webhook-listener] GITHUB_TOKEN is not set. ' +
-      'Set it to a PAT with `repo` scope before starting the service.',
-  );
-  process.exit(1);
-}
 
 async function start() {
   const server = Fastify({ logger: true });
@@ -38,7 +28,7 @@ async function start() {
   // same SQLite file (important when DATABASE_PATH env var is set).
   const dbPath = resolveDbPath();
   const db = openDb(dbPath);
-  const octokit = new Octokit({ auth: process.env['GITHUB_TOKEN'] });
+  const octokit = await getAuthenticatedOctokit();
   const graph = new OrchestratorGraph(dbPath);
 
   // Sync the graph's GitHub repo target so the human_review pause comment
