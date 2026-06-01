@@ -74,8 +74,12 @@ module.exports = {
       http_proxy: `http://localhost:${process.env.PORT || 8080}/health`,
 
       // Environment variables: loaded from .env.production via dotenv (above).
-      // Only NODE_ENV is hardcoded here; all other vars come from .env.production.
+      // Spread all process.env vars (populated by dotenv.config() earlier in this file)
+      // into the PM2 cluster worker environment so each worker receives DATABASE_PATH,
+      // GITHUB_TOKEN, WEBHOOK_SECRET, and all other config vars.
+      // NODE_ENV is set last to ensure 'production' is always the effective value.
       env: {
+        ...process.env,
         NODE_ENV: 'production',
       },
     },

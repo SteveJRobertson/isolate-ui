@@ -16,11 +16,6 @@ const LOCK_ID = 'startup_sync';
 // TTL for the advisory lock. If the lock-holder instance crashes, the lock
 // expires after this window and other instances can proceed.
 const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes
-// Default fallback window. Override with STARTUP_SYNC_WINDOW_MS env var so
-// operators can widen the window when the server may be offline for longer
-// periods. If the server was down longer than this window, a warning is logged.
-const DEFAULT_SYNC_WINDOW_MS = 3_600_000; // 1 hour
-
 // Minimum association required to run /approve, /fix, /query during startup sync.
 // Must match the check in routes/webhook.ts.
 const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
@@ -38,6 +33,7 @@ export async function runStartupSync(
   octokit: Octokit,
   owner: string,
   repo: string,
+  syncWindowMs: number,
 ): Promise<void> {
   // Track the ownership token returned by acquireLock. Declared outside the
   // try block so the finally can release only when this instance holds the lock.
@@ -59,17 +55,8 @@ export async function runStartupSync(
       .prepare('SELECT value FROM webhook_sync WHERE key = ?')
       .get(SYNC_KEY) as { value: string } | undefined;
 
-    const rawSyncWindow = process.env['STARTUP_SYNC_WINDOW_MS'];
-    const parsedSyncWindow = rawSyncWindow ? Number(rawSyncWindow) : NaN;
-    const syncWindowMs =
-      Number.isFinite(parsedSyncWindow) && parsedSyncWindow > 0
-        ? parsedSyncWindow
-        : DEFAULT_SYNC_WINDOW_MS;
-    if (rawSyncWindow && syncWindowMs === DEFAULT_SYNC_WINDOW_MS) {
-      console.warn(
-        `[webhook-listener] Startup sync: STARTUP_SYNC_WINDOW_MS="${rawSyncWindow}" is not a valid positive number — using default ${DEFAULT_SYNC_WINDOW_MS}ms.`,
-      );
-    }
+    // STARTUP_SYNC_WINDOW_MS is guaranteed to be a valid positive number by startup validation.
+    // Use the validated value passed by the caller instead of re-reading process.env.
 
     const since =
       row?.value ?? new Date(Date.now() - syncWindowMs).toISOString();
