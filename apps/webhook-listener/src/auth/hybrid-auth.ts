@@ -18,6 +18,22 @@ export async function getAuthenticatedOctokit(): Promise<Octokit> {
   const privateKeyPath = process.env['GITHUB_APP_PRIVATE_KEY_PATH'];
   const installationId = process.env['GITHUB_APP_INSTALLATION_ID'];
 
+  // Partial App credentials — some but not all vars set means misconfiguration, not a fallback
+  const appVarsDefined = [appId, privateKeyPath, installationId].filter(
+    Boolean,
+  ).length;
+  if (appVarsDefined > 0 && appVarsDefined < 3) {
+    const missing = [
+      !appId && 'GITHUB_APP_ID',
+      !privateKeyPath && 'GITHUB_APP_PRIVATE_KEY_PATH',
+      !installationId && 'GITHUB_APP_INSTALLATION_ID',
+    ].filter(Boolean);
+    throw new Error(
+      `[hybrid-auth] Incomplete GitHub App credentials. Missing: ${missing.join(', ')}. ` +
+        `Set all three to use App authentication, or unset all to fall back to GITHUB_TOKEN.`,
+    );
+  }
+
   if (appId && privateKeyPath && installationId) {
     const appIdNum = Number(appId);
     if (isNaN(appIdNum) || !Number.isInteger(appIdNum) || appIdNum <= 0) {
@@ -39,7 +55,7 @@ export async function getAuthenticatedOctokit(): Promise<Octokit> {
 
     let privateKey: string;
     try {
-      privateKey = readFileSync(privateKeyPath, 'utf8') as string;
+      privateKey = readFileSync(privateKeyPath, 'utf8');
     } catch (err) {
       throw new Error(
         `[hybrid-auth] Failed to read GitHub App private key file at "${privateKeyPath}": ${String(err)}`,

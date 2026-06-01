@@ -6,24 +6,47 @@ vi.mock('node:fs', async (importOriginal) => {
   return { ...actual, readFileSync: vi.fn() };
 });
 
+vi.mock('@octokit/rest', () => ({
+  Octokit: vi.fn().mockImplementation(() => ({ rest: {} })),
+}));
+
 import { getAuthenticatedOctokit } from './hybrid-auth';
+import { Octokit } from '@octokit/rest';
 
 const mockReadFileSync = vi.mocked(readFileSync);
+const MockOctokit = vi.mocked(Octokit);
 
 const FAKE_PEM =
   '-----BEGIN RSA PRIVATE KEY-----\nfakekey\n-----END RSA PRIVATE KEY-----';
 
 describe('getAuthenticatedOctokit', () => {
+  let savedEnv: Record<string, string | undefined>;
+
   beforeEach(() => {
+    savedEnv = {
+      GITHUB_APP_ID: process.env['GITHUB_APP_ID'],
+      GITHUB_APP_PRIVATE_KEY_PATH: process.env['GITHUB_APP_PRIVATE_KEY_PATH'],
+      GITHUB_APP_INSTALLATION_ID: process.env['GITHUB_APP_INSTALLATION_ID'],
+      GITHUB_TOKEN: process.env['GITHUB_TOKEN'],
+    };
     delete process.env['GITHUB_APP_ID'];
     delete process.env['GITHUB_APP_PRIVATE_KEY_PATH'];
     delete process.env['GITHUB_APP_INSTALLATION_ID'];
     delete process.env['GITHUB_TOKEN'];
     mockReadFileSync.mockReset();
+    MockOctokit.mockClear();
+    MockOctokit.mockImplementation(() => ({ rest: {} }));
   });
 
   afterEach(() => {
-    vi.clearAllMocks();
+    for (const [key, value] of Object.entries(savedEnv)) {
+      if (value === undefined) {
+        delete process.env[key];
+      } else {
+        process.env[key] = value;
+      }
+    }
+    vi.restoreAllMocks();
   });
 
   // ── GitHub App Authentication ─────────────────────────────────────────────
@@ -65,12 +88,12 @@ describe('getAuthenticatedOctokit', () => {
       );
     });
 
-    it('throws when not all App env vars are set and no PAT is available', async () => {
+    it('throws with incomplete App credentials message when partial App vars are set', async () => {
       process.env['GITHUB_APP_ID'] = '12345';
       // GITHUB_APP_PRIVATE_KEY_PATH and GITHUB_APP_INSTALLATION_ID are absent
 
       await expect(getAuthenticatedOctokit()).rejects.toThrow(
-        /GITHUB_TOKEN|App credentials/i,
+        /Incomplete GitHub App credentials/i,
       );
     });
   });
