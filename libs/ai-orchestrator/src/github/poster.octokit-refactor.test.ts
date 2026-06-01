@@ -11,7 +11,6 @@ import {
 //
 // This test suite verifies that postRefinementLoopComment and postMeshStalemateComment
 // accept an Octokit instance as a parameter instead of a token string.
-// Tests will fail until the refactoring is implemented.
 
 const minimalRefinementPayload: RefinementCommentPayload = {
   issueNumber: 19,
@@ -36,7 +35,7 @@ const minimalMeshPayload: MeshStalematePayload = {
 // ── postRefinementLoopComment with Octokit instance ────────────────────────────
 
 describe('postRefinementLoopComment (Octokit refactor)', () => {
-  it('FAILING: accepts an Octokit instance parameter', async () => {
+  it('accepts an Octokit instance parameter', async () => {
     const mockCreateComment = vi.fn().mockResolvedValue({
       data: {
         id: 12345,
@@ -51,8 +50,6 @@ describe('postRefinementLoopComment (Octokit refactor)', () => {
       },
     } as unknown as Octokit;
 
-    // TODO: Update function signature to accept octokit: Octokit | undefined
-    // Currently expects (payload, token) — should be (payload, octokit)
     const result = await postRefinementLoopComment(
       minimalRefinementPayload,
       mockOctokit,
@@ -65,8 +62,7 @@ describe('postRefinementLoopComment (Octokit refactor)', () => {
     });
   });
 
-  it('FAILING: returns null when Octokit instance is not provided', async () => {
-    // TODO: Update function to check for undefined Octokit and return null
+  it('returns null when Octokit instance is not provided', async () => {
     const result = await postRefinementLoopComment(
       minimalRefinementPayload,
       undefined,
@@ -74,7 +70,7 @@ describe('postRefinementLoopComment (Octokit refactor)', () => {
     expect(result).toBeNull();
   });
 
-  it('FAILING: calls issues.createComment with correct parameters', async () => {
+  it('calls issues.createComment with correct parameters', async () => {
     const mockCreateComment = vi.fn().mockResolvedValue({
       data: {
         id: 12345,
@@ -106,7 +102,7 @@ describe('postRefinementLoopComment (Octokit refactor)', () => {
     });
   });
 
-  it('FAILING: throws when Octokit call fails', async () => {
+  it('throws when Octokit call fails', async () => {
     const mockCreateComment = vi.fn().mockRejectedValue(new Error('API Error'));
 
     const mockOctokit = {
@@ -124,7 +120,7 @@ describe('postRefinementLoopComment (Octokit refactor)', () => {
 // ── postMeshStalemateComment with Octokit instance ────────────────────────────
 
 describe('postMeshStalemateComment (Octokit refactor)', () => {
-  it('FAILING: accepts an Octokit instance parameter', async () => {
+  it('accepts an Octokit instance parameter', async () => {
     const mockCreateComment = vi.fn().mockResolvedValue({
       data: {
         id: 54321,
@@ -139,8 +135,6 @@ describe('postMeshStalemateComment (Octokit refactor)', () => {
       },
     } as unknown as Octokit;
 
-    // TODO: Update function signature to accept octokit: Octokit | undefined
-    // Currently expects (payload, token) — should be (payload, octokit)
     const result = await postMeshStalemateComment(
       minimalMeshPayload,
       mockOctokit,
@@ -153,8 +147,7 @@ describe('postMeshStalemateComment (Octokit refactor)', () => {
     });
   });
 
-  it('FAILING: returns null when Octokit instance is not provided', async () => {
-    // TODO: Update function to check for undefined Octokit and return null
+  it('returns null when Octokit instance is not provided', async () => {
     const result = await postMeshStalemateComment(
       minimalMeshPayload,
       undefined,
@@ -162,7 +155,7 @@ describe('postMeshStalemateComment (Octokit refactor)', () => {
     expect(result).toBeNull();
   });
 
-  it('FAILING: calls issues.createComment with correct mesh stalemate body', async () => {
+  it('calls issues.createComment with correct mesh stalemate body', async () => {
     const mockCreateComment = vi.fn().mockResolvedValue({
       data: {
         id: 54321,
@@ -194,7 +187,7 @@ describe('postMeshStalemateComment (Octokit refactor)', () => {
     });
   });
 
-  it('FAILING: throws when Octokit call fails', async () => {
+  it('throws when Octokit call fails', async () => {
     const mockCreateComment = vi
       .fn()
       .mockRejectedValue(new Error('Network Error'));
