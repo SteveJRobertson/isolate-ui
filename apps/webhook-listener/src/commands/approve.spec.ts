@@ -16,16 +16,53 @@ describe('handleApprove', () => {
     ctx = makeCommandContext({ graph });
   });
 
-  it('posts error reply when no checkpoint exists', async () => {
-    const { postErrorReply } = await import('./context');
-    graph.getState.mockReturnValue(null);
+  describe('Phase 2: Command Bootstrapping', () => {
+    it('bootstraps new thread when no checkpoint exists', async () => {
+      graph.getState.mockReturnValue(null);
+      graph.run = vi.fn().mockResolvedValue(undefined);
 
-    await handleApprove(ctx);
+      await handleApprove(ctx);
 
-    expect(postErrorReply).toHaveBeenCalledWith(
-      ctx,
-      expect.stringContaining('No active thread'),
-    );
+      // Should call graph.run() to bootstrap
+      expect(graph.run).toHaveBeenCalledWith(
+        'issue-1',
+        {},
+        { configurable: { thread_id: 'issue-1' } },
+      );
+
+      // But /approve still requires pause_context to proceed
+      // So after bootstrap, should get error about not being paused
+      const { postErrorReply } = await import('./context');
+      expect(postErrorReply).toHaveBeenCalled();
+    });
+
+    it('posts error reply when bootstrap fails', async () => {
+      const { postErrorReply } = await import('./context');
+      graph.getState.mockReturnValue(null);
+      graph.run = vi.fn().mockRejectedValue(new Error('Bootstrap failed'));
+
+      await handleApprove(ctx);
+
+      expect(postErrorReply).toHaveBeenCalledWith(
+        ctx,
+        expect.stringContaining('Failed to bootstrap'),
+      );
+    });
+
+    it('proceeds with approve after bootstrap when thread is paused', async () => {
+      graph.getState.mockReturnValue(null);
+      graph.run = vi.fn().mockResolvedValue(undefined);
+      // After bootstrap, next call to getState returns paused thread
+      graph.getState.mockReturnValueOnce(null).mockReturnValueOnce({
+        pause_context: 'refinement_limit',
+      });
+
+      await handleApprove(ctx);
+
+      expect(graph.run).toHaveBeenCalled();
+      // After bootstrap, should invoke with approval
+      expect(graph.invoke).toHaveBeenCalled();
+    });
   });
 
   it('posts error reply when pause_context is null', async () => {

@@ -27,16 +27,53 @@ describe('handleFix', () => {
     );
   });
 
-  it('posts error reply when no checkpoint exists', async () => {
-    const { postErrorReply } = await import('./context');
-    graph.getState.mockReturnValue(null);
+  describe('Phase 2: Command Bootstrapping', () => {
+    it('bootstraps new thread when no checkpoint exists', async () => {
+      graph.getState.mockReturnValue(null);
+      graph.run = vi.fn().mockResolvedValue(undefined);
 
-    await handleFix(ctx, 'feedback');
+      await handleFix(ctx, 'feedback');
 
-    expect(postErrorReply).toHaveBeenCalledWith(
-      ctx,
-      expect.stringContaining('No active thread'),
-    );
+      // Should call graph.run() to bootstrap
+      expect(graph.run).toHaveBeenCalledWith(
+        'issue-1',
+        {},
+        { configurable: { thread_id: 'issue-1' } },
+      );
+
+      // But /fix still requires pause_context to proceed
+      // So after bootstrap, should get error about not being paused
+      const { postErrorReply } = await import('./context');
+      expect(postErrorReply).toHaveBeenCalled();
+    });
+
+    it('posts error reply when bootstrap fails', async () => {
+      const { postErrorReply } = await import('./context');
+      graph.getState.mockReturnValue(null);
+      graph.run = vi.fn().mockRejectedValue(new Error('Bootstrap failed'));
+
+      await handleFix(ctx, 'feedback');
+
+      expect(postErrorReply).toHaveBeenCalledWith(
+        ctx,
+        expect.stringContaining('Failed to bootstrap'),
+      );
+    });
+
+    it('proceeds with fix after bootstrap when thread is paused', async () => {
+      graph.getState.mockReturnValue(null);
+      graph.run = vi.fn().mockResolvedValue(undefined);
+      // After bootstrap, next call to getState returns paused thread
+      graph.getState.mockReturnValueOnce(null).mockReturnValueOnce({
+        pause_context: 'refinement_limit',
+      });
+
+      await handleFix(ctx, 'feedback');
+
+      expect(graph.run).toHaveBeenCalled();
+      // After bootstrap, should invoke with feedback
+      expect(graph.invoke).toHaveBeenCalled();
+    });
   });
 
   it('posts error reply when pause_context is null', async () => {
