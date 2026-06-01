@@ -81,6 +81,7 @@
   },
   "dependencies": {
     "@ark-ui/react": "^5.34.1",
+    "@octokit/auth-app": "^8.2.0",
     "@octokit/rest": "^22.0.1",
     "better-sqlite3": "^12.9.0",
     "fastify": "~5.2.1",

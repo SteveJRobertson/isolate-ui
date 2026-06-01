@@ -1,19 +1,25 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
 
-/**
- * Test skeleton for hybrid GitHub authentication (App + PAT fallback).
- * Tests will be filled in during #111 implementation.
- *
- * Requirements from Issue #111:
- * - Support authenticating via GITHUB_APP_ID + GITHUB_APP_PRIVATE_KEY_PATH + GITHUB_APP_INSTALLATION_ID
- * - Fallback to GITHUB_TOKEN (PAT) when App credentials are not available
- * - Fail gracefully when neither auth method is provided
- * - Pass the authenticated Octokit instance to command handlers
- */
+vi.mock('node:fs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:fs')>();
+  return { ...actual, readFileSync: vi.fn() };
+});
 
-describe('Hybrid GitHub Authentication', () => {
+import { getAuthenticatedOctokit } from './hybrid-auth';
+
+const mockReadFileSync = vi.mocked(readFileSync);
+
+const FAKE_PEM =
+  '-----BEGIN RSA PRIVATE KEY-----\nfakekey\n-----END RSA PRIVATE KEY-----';
+
+describe('getAuthenticatedOctokit', () => {
   beforeEach(() => {
-    vi.clearAllEnv();
+    delete process.env['GITHUB_APP_ID'];
+    delete process.env['GITHUB_APP_PRIVATE_KEY_PATH'];
+    delete process.env['GITHUB_APP_INSTALLATION_ID'];
+    delete process.env['GITHUB_TOKEN'];
+    mockReadFileSync.mockReset();
   });
 
   afterEach(() => {
@@ -23,117 +29,166 @@ describe('Hybrid GitHub Authentication', () => {
   // ── GitHub App Authentication ─────────────────────────────────────────────
 
   describe('GitHub App Authentication', () => {
-    it('FAILING: creates Octokit instance with App credentials', async () => {
-      // TODO: Set up environment variables
-      process.env.GITHUB_APP_ID = '12345';
-      process.env.GITHUB_APP_PRIVATE_KEY_PATH = '/path/to/key.pem';
-      process.env.GITHUB_APP_INSTALLATION_ID = '67890';
+    it('returns an Octokit instance when App credentials are provided', async () => {
+      process.env['GITHUB_APP_ID'] = '12345';
+      process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/key.pem';
+      process.env['GITHUB_APP_INSTALLATION_ID'] = '67890';
+      mockReadFileSync.mockReturnValue(FAKE_PEM);
 
-      // TODO: Create and call getAuthenticatedOctokit()
-      // const octokit = await getAuthenticatedOctokit();
+      const octokit = await getAuthenticatedOctokit();
 
-      // Should use @octokit/auth-app to create an authenticated client
-      // expect(octokit).toBeDefined();
-      // expect(octokit.rest).toBeDefined();
+      expect(octokit).toBeDefined();
+      expect(octokit.rest).toBeDefined();
     });
 
-    it('FAILING: reads private key from file path', async () => {
-      // TODO: Mock filesystem
-      // TODO: Verify that the key file is read correctly from GITHUB_APP_PRIVATE_KEY_PATH
-      // Should not embed the key in environment; should read from filesystem
+    it('reads the private key from GITHUB_APP_PRIVATE_KEY_PATH', async () => {
+      process.env['GITHUB_APP_ID'] = '12345';
+      process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/key.pem';
+      process.env['GITHUB_APP_INSTALLATION_ID'] = '67890';
+      mockReadFileSync.mockReturnValue(FAKE_PEM);
+
+      await getAuthenticatedOctokit();
+
+      expect(mockReadFileSync).toHaveBeenCalledWith('/path/to/key.pem', 'utf8');
     });
 
-    it('FAILING: fails gracefully when private key file is missing', async () => {
-      // TODO: Set invalid path for GITHUB_APP_PRIVATE_KEY_PATH
-      // Should throw with clear error message
-      // expect(getAuthenticatedOctokit()).rejects.toThrow(/key file|not found/i);
+    it('throws when the private key file cannot be read', async () => {
+      process.env['GITHUB_APP_ID'] = '12345';
+      process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/nonexistent/key.pem';
+      process.env['GITHUB_APP_INSTALLATION_ID'] = '67890';
+      mockReadFileSync.mockImplementation(() => {
+        throw new Error('ENOENT: no such file or directory');
+      });
+
+      await expect(getAuthenticatedOctokit()).rejects.toThrow(
+        /Failed to read/i,
+      );
     });
 
-    it('FAILING: fails gracefully when required App env var is missing', async () => {
-      // TODO: Test each missing App environment variable:
-      // - GITHUB_APP_ID missing
-      // - GITHUB_APP_PRIVATE_KEY_PATH missing
-      // - GITHUB_APP_INSTALLATION_ID missing
-      // Should throw or return null with clear error
+    it('throws when not all App env vars are set and no PAT is available', async () => {
+      process.env['GITHUB_APP_ID'] = '12345';
+      // GITHUB_APP_PRIVATE_KEY_PATH and GITHUB_APP_INSTALLATION_ID are absent
+
+      await expect(getAuthenticatedOctokit()).rejects.toThrow(
+        /GITHUB_TOKEN|App credentials/i,
+      );
     });
   });
 
   // ── PAT (Personal Access Token) Fallback ───────────────────────────────────
 
   describe('PAT Fallback Authentication', () => {
-    it('FAILING: creates Octokit instance with GITHUB_TOKEN', async () => {
-      // TODO: Set only GITHUB_TOKEN (no App credentials)
-      process.env.GITHUB_TOKEN = 'ghp_test1234567890abcdef';
+    it('returns an Octokit instance when GITHUB_TOKEN is set', async () => {
+      process.env['GITHUB_TOKEN'] = 'ghp_test1234567890abcdef';
 
-      // TODO: Call getAuthenticatedOctokit()
-      // Should create Octokit with token auth
+      const octokit = await getAuthenticatedOctokit();
 
-      // const octokit = await getAuthenticatedOctokit();
-      // expect(octokit).toBeDefined();
+      expect(octokit).toBeDefined();
+      expect(octokit.rest).toBeDefined();
     });
 
-    it('FAILING: prefers App auth when both App and PAT are available', async () => {
-      // TODO: Set both GITHUB_APP_* and GITHUB_TOKEN
-      process.env.GITHUB_APP_ID = '12345';
-      process.env.GITHUB_APP_PRIVATE_KEY_PATH = '/path/to/key.pem';
-      process.env.GITHUB_APP_INSTALLATION_ID = '67890';
-      process.env.GITHUB_TOKEN = 'ghp_test1234567890abcdef';
+    it('prefers App auth over PAT when both are available', async () => {
+      process.env['GITHUB_APP_ID'] = '12345';
+      process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/key.pem';
+      process.env['GITHUB_APP_INSTALLATION_ID'] = '67890';
+      process.env['GITHUB_TOKEN'] = 'ghp_test1234567890abcdef';
+      mockReadFileSync.mockReturnValue(FAKE_PEM);
 
-      // TODO: Should use App auth, not PAT
-      // const octokit = await getAuthenticatedOctokit();
-      // Verify that it's using App auth (possibly by checking auth type)
+      await getAuthenticatedOctokit();
+
+      // App auth was selected — readFileSync was called for the private key
+      expect(mockReadFileSync).toHaveBeenCalledWith('/path/to/key.pem', 'utf8');
     });
   });
 
   // ── Fallback and Error Handling ────────────────────────────────────────────
 
   describe('Authentication Fallback and Error Handling', () => {
-    it('FAILING: fails when neither App nor PAT credentials are provided', async () => {
-      // TODO: Clear all auth environment variables
-      // No GITHUB_TOKEN, no GITHUB_APP_*
-      // Should throw with clear error message telling user to set one method
-      // expect(getAuthenticatedOctokit()).rejects.toThrow(/GitHub Token|App credentials/i);
+    it('throws when neither App nor PAT credentials are provided', async () => {
+      await expect(getAuthenticatedOctokit()).rejects.toThrow(
+        /GITHUB_TOKEN|App credentials/i,
+      );
     });
 
-    it('FAILING: logs which auth method is being used (for debugging)', async () => {
-      // TODO: Mock console.log or a logger
-      // TODO: Verify that startup logs indicate which auth method was selected
-      // Should log: "Using GitHub App authentication" or "Using PAT (GitHub Token) authentication"
-    });
-  });
+    it('logs the PAT auth method when GITHUB_TOKEN is used', async () => {
+      const consoleSpy = vi.spyOn(console, 'log');
+      process.env['GITHUB_TOKEN'] = 'ghp_test1234567890abcdef';
 
-  // ── Integration with Command Handlers ──────────────────────────────────────
+      await getAuthenticatedOctokit();
 
-  describe('Integration with Command Handlers', () => {
-    it('FAILING: passes authenticated Octokit instance to webhook route', async () => {
-      // TODO: Create a test that verifies the Octokit instance is passed through
-      // to the webhook route handler
-      // Command handlers (approve, fix, query) should receive the Octokit instance
-      // and use it to make API calls, not create their own from a token
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/PAT|GitHub Token/i),
+      );
     });
 
-    it('FAILING: all command handlers use the passed Octokit instance', async () => {
-      // TODO: Verify that approve, fix, and query handlers don't create their own Octokit
-      // They should accept it as a parameter and use it
-      // This ensures that the auth method (App or PAT) is centralized and consistent
+    it('logs the GitHub App auth method when App credentials are used', async () => {
+      const consoleSpy = vi.spyOn(console, 'log');
+      process.env['GITHUB_APP_ID'] = '12345';
+      process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/key.pem';
+      process.env['GITHUB_APP_INSTALLATION_ID'] = '67890';
+      mockReadFileSync.mockReturnValue(FAKE_PEM);
+
+      await getAuthenticatedOctokit();
+
+      expect(consoleSpy).toHaveBeenCalledWith(
+        expect.stringMatching(/GitHub App/i),
+      );
     });
   });
 
   // ── Environment Variable Validation ────────────────────────────────────────
 
   describe('Environment Variable Validation', () => {
-    it('FAILING: startup fails with clear error when GITHUB_APP_ID is invalid', async () => {
-      // TODO: Test non-numeric GITHUB_APP_ID
-      process.env.GITHUB_APP_ID = 'not-a-number';
+    it('throws when GITHUB_APP_ID is not a valid integer', async () => {
+      process.env['GITHUB_APP_ID'] = 'not-a-number';
+      process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/key.pem';
+      process.env['GITHUB_APP_INSTALLATION_ID'] = '67890';
 
-      // Should reject or log a clear error
+      await expect(getAuthenticatedOctokit()).rejects.toThrow(/GITHUB_APP_ID/i);
     });
 
-    it('FAILING: startup fails with clear error when GITHUB_APP_INSTALLATION_ID is invalid', async () => {
-      // TODO: Test non-numeric GITHUB_APP_INSTALLATION_ID
-      process.env.GITHUB_APP_INSTALLATION_ID = 'not-a-number';
+    it('throws when GITHUB_APP_INSTALLATION_ID is not a valid integer', async () => {
+      process.env['GITHUB_APP_ID'] = '12345';
+      process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/key.pem';
+      process.env['GITHUB_APP_INSTALLATION_ID'] = 'not-a-number';
 
-      // Should reject or log a clear error
+      await expect(getAuthenticatedOctokit()).rejects.toThrow(
+        /GITHUB_APP_INSTALLATION_ID/i,
+      );
+    });
+  });
+
+  // ── Integration with Command Handlers ──────────────────────────────────────
+
+  describe('Integration with Command Handlers', () => {
+    it('CommandContext includes octokit as a required field', async () => {
+      const { makeCommandContext } = await import('../__tests__/test-helpers');
+      const mockOctokit = {
+        rest: { issues: { createComment: vi.fn() } },
+      } as any;
+      const ctx = makeCommandContext({ octokit: mockOctokit });
+
+      expect(ctx.octokit).toBe(mockOctokit);
+    });
+
+    it('postErrorReply uses ctx.octokit to post the comment', async () => {
+      const { postErrorReply } = await import('../commands/context');
+      const { makeCommandContext } = await import('../__tests__/test-helpers');
+      const createComment = vi.fn().mockResolvedValue({});
+      const mockOctokit = { rest: { issues: { createComment } } } as any;
+      const ctx = makeCommandContext({
+        octokit: mockOctokit,
+        issueNumber: 42,
+        username: 'test-user',
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      await postErrorReply(ctx, 'test error');
+
+      expect(createComment).toHaveBeenCalledWith(
+        expect.objectContaining({ issue_number: 42 }),
+      );
     });
   });
 });
