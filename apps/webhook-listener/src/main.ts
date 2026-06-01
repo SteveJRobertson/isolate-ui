@@ -27,7 +27,7 @@ async function start() {
 
   // Open the database using the pre-resolved absolute path from env validation.
   // This ensures all PM2 cluster workers use the same database file path.
-  const db = openDb(env.resolvedDatabasePath);
+  const db = await openDb(env.resolvedDatabasePath);
   const octokit = await getAuthenticatedOctokit();
   const graph = new OrchestratorGraph(
     env.resolvedDatabasePath,

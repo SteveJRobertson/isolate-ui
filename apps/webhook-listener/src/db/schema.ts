@@ -2,6 +2,14 @@ import * as fs from 'fs';
 import * as path from 'path';
 import Database from 'better-sqlite3';
 
+import lockfile from 'proper-lockfile';
+
+const DB_BUSY_TIMEOUT_MS = 5000;
+const DB_INIT_MAX_ATTEMPTS = 6;
+const DB_INIT_INITIAL_BACKOFF_MS = 50;
+const DB_INIT_MAX_BACKOFF_MS = 1000;
+const DB_INIT_LOCK_STALE_MS = 30_000;
+
 /**
  * Resolve the default database path by walking up to find the workspace root.
  * Used as a fallback if no path is provided to openDb().
@@ -32,26 +40,96 @@ function resolveDefaultDatabasePath(): string {
  * or by walking up to find the workspace root — useful for backward compatibility
  * or local development, but in production the path should always be pre-resolved.
  */
-export function openDb(dbPath?: string): Database.Database {
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function isRetriableInitError(err: unknown): boolean {
+  const message = err instanceof Error ? err.message : String(err);
+  return (
+    message.includes('directory does not exist') ||
+    message.includes('SQLITE_BUSY') ||
+    message.includes('database is locked') ||
+    message.includes('SQLITE_CANTOPEN')
+  );
+}
+
+function ensureFile(filePath: string): void {
+  if (!fs.existsSync(filePath)) {
+    fs.closeSync(fs.openSync(filePath, 'a'));
+  }
+}
+
+async function initializeWithFileLock(
+  db: Database.Database,
+  resolvedPath: string,
+): Promise<void> {
+  const lockPath = `${resolvedPath}.init.lock`;
+  ensureFile(lockPath);
+
+  const release = await lockfile.lock(lockPath, {
+    realpath: false,
+    stale: DB_INIT_LOCK_STALE_MS,
+    retries: {
+      retries: DB_INIT_MAX_ATTEMPTS,
+      factor: 2,
+      minTimeout: DB_INIT_INITIAL_BACKOFF_MS,
+      maxTimeout: DB_INIT_MAX_BACKOFF_MS,
+    },
+  });
+
+  try {
+    db.pragma('journal_mode = WAL');
+    db.pragma('foreign_keys = ON');
+    applyMigrations(db);
+  } finally {
+    await release();
+  }
+}
+
+export async function openDb(dbPath?: string): Promise<Database.Database> {
   // Attempt to use the provided path, or fall back to resolving from env/workspace
   const resolvedPath =
     dbPath ?? process.env['DATABASE_PATH'] ?? resolveDefaultDatabasePath();
 
-  // Ensure the parent directory exists before opening the DB file.
-  // new Database() will throw if the directory is missing; this mirrors
-  // LangGraphSqliteSaver's behaviour so both connections are consistent.
-  fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
+  let backoffMs = DB_INIT_INITIAL_BACKOFF_MS;
+  for (let attempt = 1; attempt <= DB_INIT_MAX_ATTEMPTS; attempt++) {
+    let db: Database.Database | null = null;
+    try {
+      // Ensure the parent directory exists before opening the DB file.
+      // new Database() will throw if the directory is missing; this mirrors
+      // LangGraphSqliteSaver's behaviour so both connections are consistent.
+      fs.mkdirSync(path.dirname(resolvedPath), { recursive: true });
 
-  const db = new Database(resolvedPath);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  // Match the busy_timeout set in LangGraphSqliteSaver so both connections
-  // give writers a grace period before erroring on SQLITE_BUSY.
-  db.pragma('busy_timeout = 5000');
+      db = new Database(resolvedPath);
+      // Set as early as possible to reduce SQLITE_BUSY failures during startup.
+      db.pragma(`busy_timeout = ${DB_BUSY_TIMEOUT_MS}`);
 
-  applyMigrations(db);
+      await initializeWithFileLock(db, resolvedPath);
 
-  return db;
+      return db;
+    } catch (err) {
+      if (db) {
+        try {
+          db.close();
+        } catch {
+          // no-op
+        }
+      }
+
+      const shouldRetry =
+        attempt < DB_INIT_MAX_ATTEMPTS && isRetriableInitError(err);
+      if (!shouldRetry) {
+        throw err;
+      }
+      await sleep(backoffMs);
+      backoffMs = Math.min(backoffMs * 2, DB_INIT_MAX_BACKOFF_MS);
+    }
+  }
+
+  throw new Error(
+    `[webhook-listener] Failed to initialize database after ${DB_INIT_MAX_ATTEMPTS} attempts`,
+  );
 }
 
 function applyMigrations(db: Database.Database): void {
