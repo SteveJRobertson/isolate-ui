@@ -35,7 +35,7 @@ const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
 /**
  * Register the POST /api/webhook route.
  *
- * Pipeline:
+ * Pipeline for issue_comment events:
  * 1. Filter: only process 'issue_comment' events
  * 2. HMAC verification → 401 on failure
  * 3. Require X-GitHub-Delivery header → 400 if absent
@@ -43,6 +43,17 @@ const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
  * 5. Deduplication: INSERT delivery ID → 200 if already seen
  * 6. Dispatch to command handler (/approve, /fix, /query)
  * 7. Reply 200
+ *
+ * Pipeline for issues.labeled events (thread bootstrapping):
+ * 1. Filter: only process 'issues' events with 'labeled' action
+ * 2. HMAC verification → 401 on failure
+ * 3. Require X-GitHub-Delivery header → 400 if absent
+ * 4. Deduplication: INSERT delivery ID → 200 if already seen
+ * 5. Check label whitelist (component, bug) → 200 skipped if not whitelisted
+ * 6. Authorization: issue author must be OWNER, MEMBER, or COLLABORATOR → 403 if not
+ * 7. Call graph.run() to bootstrap new thread
+ * 8. Post "Starting analysis" comment
+ * 9. Reply 202 Accepted
  */
 export async function webhookRoute(
   fastify: FastifyInstance,
@@ -53,16 +64,16 @@ export async function webhookRoute(
   // No need to re-validate here; if it were missing/invalid, the app would have exited at startup.
   const secret = process.env['WEBHOOK_SECRET']!;
 
+  // Whitelist of labels that trigger thread bootstrapping
+  const BOOTSTRAP_LABELS = new Set(['component', 'bug']);
+
   fastify.post(
     '/api/webhook',
     async (request: FastifyRequest, reply: FastifyReply) => {
       // Step 1: event type filter
       const event = request.headers['x-github-event'] as string | undefined;
-      if (event !== 'issue_comment') {
-        return reply.status(200).send({ ok: true, skipped: true });
-      }
 
-      // Step 2: HMAC verification
+      // Step 2: HMAC verification (applies to both event types)
       const signature = request.headers['x-hub-signature-256'] as
         | string
         | undefined;
@@ -76,9 +87,7 @@ export async function webhookRoute(
         return reply.status(401).send({ error: 'Invalid signature' });
       }
 
-      // Step 3: require X-GitHub-Delivery header — GitHub always sends it;
-      // absence indicates a malformed or non-GitHub request. Rejecting here
-      // also ensures every processed request has a dedup key.
+      // Step 3: require X-GitHub-Delivery header
       const deliveryId = request.headers['x-github-delivery'] as
         | string
         | undefined;
@@ -88,85 +97,142 @@ export async function webhookRoute(
           .send({ error: 'Missing X-GitHub-Delivery header' });
       }
 
-      // Step 4: filter to 'created' actions before claiming the delivery ID
-      // so non-'created' events (edited, deleted) don't pollute the deliveries
-      // table with rows for events we never act on.
-      const payload = request.body as IssueCommentPayload;
-      if (payload.action !== 'created') {
-        return reply.status(200).send({ ok: true, skipped: true });
-      }
+      // Handle issue_comment events (existing flow)
+      if (event === 'issue_comment') {
+        // Filter to 'created' actions before claiming the delivery ID
+        const payload = request.body as IssueCommentPayload;
+        if (payload.action !== 'created') {
+          return reply.status(200).send({ ok: true, skipped: true });
+        }
 
-      // Step 5: deduplication — claim the delivery ID.
-      // INSERT after the action filter so only actionable events are tracked.
-      // Two concurrent identical deliveries: only the request whose INSERT
-      // changes a row proceeds; the other returns 200 immediately.
-      const inserted = db
-        .prepare('INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)')
-        .run(deliveryId);
-      if (inserted.changes === 0) {
-        return reply.status(200).send({ ok: true, duplicate: true });
-      }
+        // Deduplication — claim the delivery ID
+        const inserted = db
+          .prepare('INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)')
+          .run(deliveryId);
+        if (inserted.changes === 0) {
+          return reply.status(200).send({ ok: true, duplicate: true });
+        }
 
-      // Step 6 detail: parse comment details
-      const issueNumber = payload.issue.number;
-      const commentBody = payload.comment.body.trim();
-      const username = payload.comment.user.login;
-      const authorAssociation = payload.comment.author_association;
-      const threadId = `issue-${issueNumber}`;
+        // Parse comment details
+        const issueNumber = payload.issue.number;
+        const commentBody = payload.comment.body.trim();
+        const username = payload.comment.user.login;
+        const authorAssociation = payload.comment.author_association;
+        const threadId = `issue-${issueNumber}`;
 
-      // Authorization check: only repo collaborators and above may run commands.
-      // The delivery row was claimed in step 5 (before this check); release it
-      // now so unauthorized comments do not permanently occupy a dedup slot.
-      if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
-        // Release the delivery claim — unauthorized comments are not commands
-        // and should not permanently occupy a dedup slot.
-        db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
-          deliveryId,
-        );
-        return reply.status(200).send({ ok: true, skipped: true });
-      }
-
-      const ctx: CommandContext = {
-        db,
-        graph,
-        octokit,
-        owner,
-        repo,
-        issueNumber,
-        threadId,
-        username,
-      };
-
-      // Step 6: dispatch command.
-      // If dispatch fails, delete the delivery row so GitHub can retry.
-      // Keeping the row on failure would permanently drop the command.
-      const [command, ...rest] = commentBody.split(/\s+/);
-      const args = rest.join(' ');
-
-      try {
-        if (command === '/approve') {
-          await handleApprove(ctx);
-        } else if (command === '/fix') {
-          await handleFix(ctx, args);
-        } else if (command === '/query') {
-          await handleQuery(ctx, args);
-        } else {
-          // Not a bot command — release the delivery claim and ignore silently.
+        // Authorization check
+        if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
           db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
             deliveryId,
           );
           return reply.status(200).send({ ok: true, skipped: true });
         }
-      } catch (dispatchErr) {
-        // Delete the claimed delivery row so GitHub can retry successfully.
-        db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
-          deliveryId,
-        );
-        throw dispatchErr;
+
+        const ctx: CommandContext = {
+          db,
+          graph,
+          octokit,
+          owner,
+          repo,
+          issueNumber,
+          threadId,
+          username,
+        };
+
+        // Dispatch command
+        const [command, ...rest] = commentBody.split(/\s+/);
+        const args = rest.join(' ');
+
+        try {
+          if (command === '/approve') {
+            await handleApprove(ctx);
+          } else if (command === '/fix') {
+            await handleFix(ctx, args);
+          } else if (command === '/query') {
+            await handleQuery(ctx, args);
+          } else {
+            // Not a bot command — release the delivery claim and ignore silently.
+            db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+              deliveryId,
+            );
+            return reply.status(200).send({ ok: true, skipped: true });
+          }
+        } catch (dispatchErr) {
+          // Delete the claimed delivery row so GitHub can retry successfully.
+          db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+            deliveryId,
+          );
+          throw dispatchErr;
+        }
+
+        // Reply 200 (delivery already claimed)
+        return reply.status(200).send({ ok: true });
       }
 
-      // Step 7: reply 200 (delivery already claimed in step 5)
-      return reply.status(200).send({ ok: true });
+      // Handle issues.labeled events (thread bootstrapping)
+      if (event === 'issues') {
+        const payload = request.body as any;
+
+        // Deduplication — claim the delivery ID first
+        const inserted = db
+          .prepare('INSERT OR IGNORE INTO deliveries (delivery_id) VALUES (?)')
+          .run(deliveryId);
+        if (inserted.changes === 0) {
+          return reply.status(202).send({ ok: true, skipped: true });
+        }
+
+        // Filter to 'labeled' action only
+        if (payload.action !== 'labeled') {
+          return reply.status(202).send({ ok: true, skipped: true });
+        }
+
+        // Check label whitelist
+        const labelName = payload.label?.name;
+        if (!labelName || !BOOTSTRAP_LABELS.has(labelName)) {
+          return reply.status(202).send({ ok: true, skipped: true });
+        }
+
+        // Authorization check: issue author must be authorized
+        const issueNumber = payload.issue.number;
+        const authorAssociation = payload.issue?.author_association;
+        if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
+          return reply.status(403).send({ error: 'Unauthorized' });
+        }
+
+        // Bootstrap the thread by calling graph.run()
+        const threadId = `issue-${issueNumber}`;
+        try {
+          await graph.run(
+            threadId,
+            {},
+            { configurable: { thread_id: threadId } },
+          );
+
+          // Post comment to acknowledge
+          await octokit.issues.createComment({
+            owner,
+            repo,
+            issue_number: issueNumber,
+            body: `✅ Starting analysis on #${issueNumber} with **${labelName}** label`,
+          });
+        } catch (err) {
+          // Non-retriable errors: log and mark processed
+          // Retriable errors: re-throw for GitHub retry
+          if (err instanceof Error && err.message.includes('SQLITE')) {
+            throw err; // Retriable: SQLite error
+          }
+          // Log non-retriable errors
+          console.error(
+            `[webhook] Failed to bootstrap thread for #${issueNumber}:`,
+            err,
+          );
+        }
+
+        return reply.status(202).send({ ok: true });
+      }
+
+      // Unknown event type
+      return reply.status(200).send({ ok: true, skipped: true });
     },
   );
 }
