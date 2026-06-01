@@ -7,6 +7,12 @@ import { openDb } from './schema';
 
 describe('openDb', () => {
   it('initializes a fresh database path safely across concurrent startup attempts', async () => {
+    // This test exercises both the happy path and the retry/backoff error path:
+    // - 4 processes attempt to initialize the same DB path concurrently
+    // - File lock coordination ensures only one process runs schema setup
+    // - Others hit lock contention (ELOCKED or lock acquisition timeout) and retry
+    // - Exponential backoff spreads retry attempts across 50-1000ms intervals
+    // - All processes eventually acquire the lock, initialize, and return a valid DB
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'webhook-db-'));
     const dbPath = path.join(tmpRoot, 'nested', 'state.db');
     const connections: Database.Database[] = [];
