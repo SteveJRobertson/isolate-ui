@@ -169,7 +169,8 @@ export function buildCommentBody(payload: RefinementCommentPayload): string {
 /**
  * Post a refinement loop report as a GitHub issue comment.
  *
- * Requires an authenticated Octokit instance with `repo` scope.
+ * Requires an authenticated Octokit instance with permission to create issue
+ * comments (PAT `repo` scope, or GitHub App `issues: write` permission).
  * Silently skips posting and returns null when Octokit is absent.
  *
  * @param payload - Comment data
@@ -268,7 +269,8 @@ export function buildStalemateCommentBody(
 /**
  * Post a mesh stalemate notification as a GitHub issue comment.
  *
- * Requires an authenticated Octokit instance with `repo` scope.
+ * Requires an authenticated Octokit instance with permission to create issue
+ * comments (PAT `repo` scope, or GitHub App `issues: write` permission).
  * Silently skips posting and returns null when Octokit is absent.
  *
  * @param payload - Stalemate comment data
