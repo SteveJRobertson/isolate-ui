@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import type { Octokit } from '@octokit/rest';
 import {
   formatTechnicalSpecTable,
   formatEdgeCaseList,
@@ -10,18 +11,6 @@ import {
   type RefinementCommentPayload,
   type MeshStalematePayload,
 } from './poster';
-
-// ── Mock @octokit/rest at module level so it's hoisted before imports ─────────
-
-const mockCreateComment = vi.fn();
-
-vi.mock('@octokit/rest', () => ({
-  Octokit: vi.fn().mockImplementation(() => ({
-    rest: {
-      issues: { createComment: mockCreateComment },
-    },
-  })),
-}));
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -183,21 +172,22 @@ describe('buildCommentBody', () => {
 // ── postRefinementLoopComment ─────────────────────────────────────────────────
 
 describe('postRefinementLoopComment', () => {
+  let mockCreateComment: ReturnType<typeof vi.fn>;
+  let mockOctokit: Octokit;
+
   beforeEach(() => {
-    // Clear call history only — do NOT reset implementations (that removes the mock)
-    vi.clearAllMocks();
-    mockCreateComment.mockResolvedValue({
+    mockCreateComment = vi.fn().mockResolvedValue({
       data: { html_url: '', id: 0 },
     });
+    mockOctokit = {
+      rest: {
+        issues: { createComment: mockCreateComment },
+      },
+    } as unknown as Octokit;
   });
 
-  it('returns null when token is undefined', async () => {
+  it('returns null when octokit is undefined', async () => {
     const result = await postRefinementLoopComment(fullPayload, undefined);
-    expect(result).toBeNull();
-  });
-
-  it('returns null when token is empty string', async () => {
-    const result = await postRefinementLoopComment(fullPayload, '');
     expect(result).toBeNull();
   });
 
@@ -210,10 +200,7 @@ describe('postRefinementLoopComment', () => {
       },
     });
 
-    const result = await postRefinementLoopComment(
-      fullPayload,
-      'ghp_faketoken',
-    );
+    const result = await postRefinementLoopComment(fullPayload, mockOctokit);
 
     expect(mockCreateComment).toHaveBeenCalledWith({
       owner: 'SteveJRobertson',
@@ -307,6 +294,9 @@ describe('buildStalemateCommentBody', () => {
 // ── postMeshStalemateComment ──────────────────────────────────────────────────
 
 describe('postMeshStalemateComment', () => {
+  let mockCreateComment: ReturnType<typeof vi.fn>;
+  let mockOctokit: Octokit;
+
   const stalematePayload: MeshStalematePayload = {
     issueNumber: 20,
     owner: 'SteveJRobertson',
@@ -319,16 +309,18 @@ describe('postMeshStalemateComment', () => {
   };
 
   beforeEach(() => {
-    mockCreateComment.mockReset();
+    mockCreateComment = vi.fn().mockResolvedValue({
+      data: { html_url: '', id: 0 },
+    });
+    mockOctokit = {
+      rest: {
+        issues: { createComment: mockCreateComment },
+      },
+    } as unknown as Octokit;
   });
 
-  it('returns null when token is undefined', async () => {
+  it('returns null when octokit is undefined', async () => {
     const result = await postMeshStalemateComment(stalematePayload, undefined);
-    expect(result).toBeNull();
-  });
-
-  it('returns null when token is empty string', async () => {
-    const result = await postMeshStalemateComment(stalematePayload, '');
     expect(result).toBeNull();
   });
 
@@ -343,7 +335,7 @@ describe('postMeshStalemateComment', () => {
 
     const result = await postMeshStalemateComment(
       stalematePayload,
-      'ghp_faketoken',
+      mockOctokit,
     );
 
     expect(mockCreateComment).toHaveBeenCalledWith({
