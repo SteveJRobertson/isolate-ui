@@ -45,8 +45,8 @@ describe('openDb', () => {
   it('rejects with a descriptive error after exhausting retries on a non-retriable failure', async () => {
     // Place a regular file where the parent directory should be so that
     // mkdirSync throws ENOTDIR — an error that is NOT in the retriable list.
-    // openDb must propagate it immediately (no retry loop) and wrap it in
-    // a message that names the failing operation and attempt count.
+    // openDb breaks out of the retry loop on the first attempt and wraps
+    // the error in a message that names the failing operation and attempt count.
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'webhook-db-err-'));
     // Write a file at the path that openDb will try to use as a directory.
     const blockerFile = path.join(tmpRoot, 'not-a-dir');

@@ -64,9 +64,9 @@ function isRetriableInitError(err: unknown): boolean {
 
 function ensureFile(filePath: string): void {
   fs.mkdirSync(path.dirname(filePath), { recursive: true });
-  if (!fs.existsSync(filePath)) {
-    fs.closeSync(fs.openSync(filePath, 'a'));
-  }
+  // Open with 'a' flag: creates the file if absent, no-ops if it already exists.
+  // Avoids the TOCTOU race of existsSync + openSync.
+  fs.closeSync(fs.openSync(filePath, 'a'));
 }
 
 async function initializeWithFileLock(
