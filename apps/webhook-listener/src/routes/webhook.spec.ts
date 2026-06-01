@@ -1043,6 +1043,27 @@ describe('webhookRoute', () => {
       const { verifyHmac } = await import('../security/hmac');
       vi.mocked(verifyHmac).mockReturnValue(true);
 
+      const mockCreateComment = vi.fn().mockResolvedValue({});
+      const mockRun = vi.fn().mockResolvedValue(undefined);
+
+      const fastifyForBootstrap = Fastify();
+      await fastifyForBootstrap.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await fastifyForBootstrap.register(webhookRoute, {
+        db,
+        graph: { getState: vi.fn(), invoke: vi.fn(), run: mockRun } as any,
+        octokit: {
+          rest: { issues: { createComment: mockCreateComment } },
+        } as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
       const payload = {
         action: 'labeled',
         issue: {
@@ -1053,25 +1074,30 @@ describe('webhookRoute', () => {
         },
         label: { name: 'component' },
       };
-      const rawBody = Buffer.from(JSON.stringify(payload));
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
 
-      const response = await fastify.inject({
+      const response = await fastifyForBootstrap.inject({
         method: 'POST',
         url: '/api/webhook',
         headers: {
           'x-github-event': 'issues',
-          'x-github-delivery': 'test-labeled-comment-1',
+          'x-github-delivery': 'test-labeled-comment-bootstrap-1',
           'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
           'content-type': 'application/json',
         },
-        payload: rawBody,
+        payload: rawBodyBuffer,
       });
 
       expect(response.statusCode).toBe(202);
+      expect(mockRun).toHaveBeenCalledWith('issue-99', {});
+      expect(mockCreateComment).toHaveBeenCalledWith({
+        owner: 'owner',
+        repo: 'repo',
+        issue_number: 99,
+        body: '✅ Starting analysis on #99 with **component** label',
+      });
 
-      // Get the mocked octokit from fastify context
-      const mockIssuesCreateComment = vi.fn();
-      // This test will verify the helper is called correctly once implemented
+      await fastifyForBootstrap.close();
     });
 
     it('ignores non-labeled actions on issues event', async () => {

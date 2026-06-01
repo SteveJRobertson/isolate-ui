@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import Database from 'better-sqlite3';
 import { Octokit } from '@octokit/rest';
+import { z } from 'zod';
 import { OrchestratorGraph } from '@isolate-ui/ai-orchestrator';
 import { verifyHmac } from '../security/hmac';
 import { handleApprove } from '../commands/approve';
@@ -142,14 +143,19 @@ export async function webhookRoute(
           commentId,
         };
 
-        // Phase 3: Add immediate reaction feedback (async, does not block command)
-        addReactionToComment(ctx, 'rocket').catch(() => {
-          // Silently ignore reaction failures — they don't block command processing
-        });
-
-        // Dispatch command
+        // Dispatch command — parse first so reaction only fires for real bot commands
         const [command, ...rest] = commentBody.split(/\s+/);
         const args = rest.join(' ');
+
+        // Phase 3: Add immediate reaction feedback for recognized commands only.
+        // Awaited best-effort: addReactionToComment catches all API errors internally.
+        if (
+          command === '/approve' ||
+          command === '/fix' ||
+          command === '/query'
+        ) {
+          await addReactionToComment(ctx, 'rocket');
+        }
 
         try {
           if (command === '/approve') {
@@ -179,7 +185,20 @@ export async function webhookRoute(
 
       // Handle issues.labeled events (thread bootstrapping)
       if (event === 'issues') {
-        const payload = request.body as any;
+        const LabeledEventPayloadSchema = z.object({
+          action: z.string(),
+          issue: z.object({
+            number: z.number(),
+            author_association: z.string(),
+          }),
+          label: z.object({ name: z.string() }).optional(),
+        });
+
+        const parseResult = LabeledEventPayloadSchema.safeParse(request.body);
+        if (!parseResult.success) {
+          return reply.status(400).send({ error: 'Invalid payload' });
+        }
+        const payload = parseResult.data;
 
         // Deduplication — claim the delivery ID first
         const inserted = db
@@ -202,7 +221,7 @@ export async function webhookRoute(
 
         // Authorization check: issue author must be authorized
         const issueNumber = payload.issue.number;
-        const authorAssociation = payload.issue?.author_association;
+        const authorAssociation = payload.issue.author_association;
         if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
           return reply.status(403).send({ error: 'Unauthorized' });
         }
@@ -213,19 +232,21 @@ export async function webhookRoute(
           await graph.run(threadId, {});
 
           // Post comment to acknowledge
-          await octokit.issues.createComment({
+          await octokit.rest.issues.createComment({
             owner,
             repo,
             issue_number: issueNumber,
             body: `✅ Starting analysis on #${issueNumber} with **${labelName}** label`,
           });
         } catch (err) {
-          // Non-retriable errors: log and mark processed
-          // Retriable errors: re-throw for GitHub retry
+          // Retriable errors: delete the dedup row so GitHub can retry, then re-throw
           if (err instanceof Error && err.message.includes('SQLITE')) {
-            throw err; // Retriable: SQLite error
+            db.prepare('DELETE FROM deliveries WHERE delivery_id = ?').run(
+              deliveryId,
+            );
+            throw err;
           }
-          // Log non-retriable errors
+          // Non-retriable errors: log and continue (delivery row stays to prevent loops)
           console.error(
             `[webhook] Failed to bootstrap thread for #${issueNumber}:`,
             err,

@@ -18,18 +18,24 @@ describe('handleApprove', () => {
 
   describe('Phase 2: Command Bootstrapping', () => {
     it('bootstraps new thread when no checkpoint exists', async () => {
-      graph.getState.mockReturnValue(null);
       graph.run = vi.fn().mockResolvedValue(undefined);
+      // First call: null (no checkpoint, needs bootstrap).
+      // Second call: checkpoint with no pause_context (bootstrap succeeded, but not paused).
+      graph.getState
+        .mockReturnValueOnce(null)
+        .mockReturnValueOnce({ pause_context: null });
 
       await handleApprove(ctx);
 
       // Should call graph.run() to bootstrap
       expect(graph.run).toHaveBeenCalledWith('issue-1', {});
 
-      // But /approve still requires pause_context to proceed
-      // So after bootstrap, should get error about not being paused
+      // /approve requires a paused thread; after bootstrap it is not paused
       const { postErrorReply } = await import('./context');
-      expect(postErrorReply).toHaveBeenCalled();
+      expect(postErrorReply).toHaveBeenCalledWith(
+        ctx,
+        expect.stringContaining('not currently paused'),
+      );
     });
 
     it('posts error reply when bootstrap fails', async () => {
