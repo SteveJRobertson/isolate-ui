@@ -41,4 +41,25 @@ describe('openDb', () => {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
     }
   });
+
+  it('rejects with a descriptive error after exhausting retries on a non-retriable failure', async () => {
+    // Place a regular file where the parent directory should be so that
+    // mkdirSync throws ENOTDIR — an error that is NOT in the retriable list.
+    // openDb must propagate it immediately (no retry loop) and wrap it in
+    // a message that names the failing operation and attempt count.
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'webhook-db-err-'));
+    // Write a file at the path that openDb will try to use as a directory.
+    const blockerFile = path.join(tmpRoot, 'not-a-dir');
+    fs.writeFileSync(blockerFile, '');
+    // Attempt to open a DB whose parent directory is blocked by the file above.
+    const dbPath = path.join(blockerFile, 'state.db');
+
+    try {
+      await expect(openDb(dbPath)).rejects.toThrow(
+        /Failed to initialize database after \d+ attempts/,
+      );
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
 });
