@@ -11,8 +11,17 @@
  *   pm2 logs                                    # View logs
  *
  * Environment variables:
- *   Required: GITHUB_TOKEN, WEBHOOK_SECRET
- *   Optional: GITHUB_OWNER, GITHUB_REPO, HOST, PORT, DATABASE_PATH, STARTUP_SYNC_WINDOW_MS
+ *   GitHub App Auth (preferred):
+ *     GITHUB_APP_ID              — Numeric App ID from GitHub App settings
+ *     GITHUB_APP_PRIVATE_KEY_PATH — Absolute path to .pem private key (e.g., /etc/secrets/github-app-key.pem). Required for App auth.
+ *     GITHUB_APP_INSTALLATION_ID  — Numeric installation ID (found in App settings > Install App). Required for App auth.
+ *     Note: If ANY of the three App vars are set but incomplete, startup will throw an error and NOT fall back to PAT.
+ *   PAT Fallback (legacy):
+ *     GITHUB_TOKEN               — GitHub Personal Access Token with 'repo' scope. Used only if ALL three App vars are unset.
+ *   Always required:
+ *     WEBHOOK_SECRET             — Webhook signing secret (32+ characters)
+ *   Optional:
+ *     GITHUB_OWNER, GITHUB_REPO, HOST, PORT, DATABASE_PATH, STARTUP_SYNC_WINDOW_MS
  *   Set these in .env.production (loaded automatically below if the file exists)
  */
 
