@@ -16,11 +16,6 @@ const LOCK_ID = 'startup_sync';
 // TTL for the advisory lock. If the lock-holder instance crashes, the lock
 // expires after this window and other instances can proceed.
 const LOCK_TTL_MS = 5 * 60 * 1000; // 5 minutes
-// Default fallback window. Override with STARTUP_SYNC_WINDOW_MS env var so
-// operators can widen the window when the server may be offline for longer
-// periods. If the server was down longer than this window, a warning is logged.
-const DEFAULT_SYNC_WINDOW_MS = 3_600_000; // 1 hour
-
 // Minimum association required to run /approve, /fix, /query during startup sync.
 // Must match the check in routes/webhook.ts.
 const AUTHORIZED_ASSOCIATIONS = new Set(['OWNER', 'MEMBER', 'COLLABORATOR']);
@@ -38,6 +33,7 @@ export async function runStartupSync(
   octokit: Octokit,
   owner: string,
   repo: string,
+  syncWindowMs: number,
 ): Promise<void> {
   // Track the ownership token returned by acquireLock. Declared outside the
   // try block so the finally can release only when this instance holds the lock.
@@ -60,10 +56,7 @@ export async function runStartupSync(
       .get(SYNC_KEY) as { value: string } | undefined;
 
     // STARTUP_SYNC_WINDOW_MS is guaranteed to be a valid positive number by startup validation.
-    // No need to re-parse or validate; just convert to number.
-    const syncWindowMs = Number(
-      process.env['STARTUP_SYNC_WINDOW_MS'] ?? DEFAULT_SYNC_WINDOW_MS,
-    );
+    // Use the validated value passed by the caller instead of re-reading process.env.
 
     const since =
       row?.value ?? new Date(Date.now() - syncWindowMs).toISOString();

@@ -83,7 +83,14 @@ describe('runStartupSync', () => {
       1,
     );
     octokit.paginate.mockResolvedValue([]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     // Only issue-1 should be processed
     expect(octokit.paginate).toHaveBeenCalledTimes(1);
     expect(octokit.paginate.mock.calls[0][1].issue_number).toBe(1);
@@ -104,7 +111,14 @@ describe('runStartupSync', () => {
       1,
     );
     octokit.paginate.mockResolvedValue([]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     // Both should be processed
     expect(octokit.paginate).toHaveBeenCalledTimes(2);
     const calledIssues = octokit.paginate.mock.calls
@@ -141,7 +155,14 @@ describe('runStartupSync', () => {
       1,
     );
     octokit.paginate.mockResolvedValue([]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     // Only issue-1 and issue-2 should be processed
     expect(octokit.paginate).toHaveBeenCalledTimes(2);
     const calledIssues = octokit.paginate.mock.calls
@@ -160,7 +181,14 @@ describe('runStartupSync', () => {
       1,
     );
     octokit.paginate.mockResolvedValue([]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     // Only valid one should be processed
     expect(octokit.paginate).toHaveBeenCalledTimes(1);
     expect(octokit.paginate.mock.calls[0][1].issue_number).toBe(2);
@@ -169,7 +197,14 @@ describe('runStartupSync', () => {
   it('handles zero checkpoints without error', async () => {
     // No checkpoints inserted
     octokit.paginate.mockResolvedValue([]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
 
     expect(octokit.paginate).not.toHaveBeenCalled();
   });
@@ -182,7 +217,14 @@ describe('runStartupSync', () => {
       1,
     );
     octokit.paginate.mockResolvedValue([]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     expect(octokit.paginate).toHaveBeenCalled();
   });
 
@@ -206,7 +248,14 @@ describe('runStartupSync', () => {
         author_association: 'OWNER',
       },
     ]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     expect(octokit.paginate).toHaveBeenCalled();
   });
 
@@ -227,7 +276,14 @@ describe('runStartupSync', () => {
         author_association: 'OWNER',
       },
     ]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     const deliveries = db.prepare('SELECT * FROM deliveries').all();
     expect(deliveries).toHaveLength(0);
   });
@@ -249,7 +305,14 @@ describe('runStartupSync', () => {
         author_association: 'NONE', // Not authorized
       },
     ]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     const deliveries = db.prepare('SELECT * FROM deliveries').all();
     expect(deliveries).toHaveLength(0);
   });
@@ -271,7 +334,14 @@ describe('runStartupSync', () => {
         author_association: 'OWNER',
       },
     ]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     const sync = db
       .prepare('SELECT value FROM webhook_sync WHERE key = ?')
       .get('last_sync_time') as any;
@@ -286,7 +356,14 @@ describe('runStartupSync', () => {
       1,
     );
     octokit.paginate.mockRejectedValue(new Error('API error'));
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     const sync = db
       .prepare('SELECT value FROM webhook_sync WHERE key = ?')
       .get('last_sync_time') as any;
@@ -301,7 +378,14 @@ describe('runStartupSync', () => {
       1,
     );
     octokit.paginate.mockResolvedValue([]);
-    await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+    await runStartupSync(
+      db,
+      graph as any,
+      octokit as any,
+      'owner',
+      'repo',
+      3600000,
+    );
     const sync = db
       .prepare('SELECT value FROM webhook_sync WHERE key = ?')
       .get('last_sync_time') as any;
@@ -320,7 +404,14 @@ describe('runStartupSync', () => {
       );
       octokit.paginate.mockResolvedValue([]);
 
-      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+      await runStartupSync(
+        db,
+        graph as any,
+        octokit as any,
+        'owner',
+        'repo',
+        3600000,
+      );
 
       // Lock should be released after sync completes
       const lock = db
@@ -349,7 +440,14 @@ describe('runStartupSync', () => {
         .spyOn(console, 'warn')
         .mockImplementation(() => undefined);
 
-      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+      await runStartupSync(
+        db,
+        graph as any,
+        octokit as any,
+        'owner',
+        'repo',
+        3600000,
+      );
 
       // Sync should have been skipped — no paginate calls
       expect(octokit.paginate).not.toHaveBeenCalled();
@@ -372,7 +470,14 @@ describe('runStartupSync', () => {
       );
       octokit.paginate.mockRejectedValue(new Error('network failure'));
 
-      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+      await runStartupSync(
+        db,
+        graph as any,
+        octokit as any,
+        'owner',
+        'repo',
+        3600000,
+      );
 
       // Lock should be released even though sync threw
       const lock = db
@@ -384,7 +489,14 @@ describe('runStartupSync', () => {
     it('allows the second instance to acquire lock after first releases it', async () => {
       octokit.paginate.mockResolvedValue([]);
 
-      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+      await runStartupSync(
+        db,
+        graph as any,
+        octokit as any,
+        'owner',
+        'repo',
+        3600000,
+      );
       // First call: no checkpoints — lock released
       const lockAfterFirst = db
         .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
@@ -392,7 +504,14 @@ describe('runStartupSync', () => {
       expect(lockAfterFirst).toBeUndefined();
 
       // Second call should succeed (lock available)
-      await runStartupSync(db, graph as any, octokit as any, 'owner', 'repo');
+      await runStartupSync(
+        db,
+        graph as any,
+        octokit as any,
+        'owner',
+        'repo',
+        3600000,
+      );
       // Still released
       const lockAfterSecond = db
         .prepare('SELECT lock_id FROM startup_lock WHERE lock_id = ?')
@@ -411,7 +530,14 @@ describe('runStartupSync', () => {
         .mockImplementation(() => undefined);
 
       await expect(
-        runStartupSync(db, graph as any, octokit as any, 'owner', 'repo'),
+        runStartupSync(
+          db,
+          graph as any,
+          octokit as any,
+          'owner',
+          'repo',
+          3600000,
+        ),
       ).resolves.not.toThrow();
 
       expect(warnSpy).toHaveBeenCalledWith(

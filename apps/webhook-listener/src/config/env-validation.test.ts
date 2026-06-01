@@ -166,12 +166,13 @@ describe('env-validation', () => {
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
-      expect(() => validateEnv()).toThrow();
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
 
       expect(consoleSpy).toHaveBeenCalled();
       expect(
         consoleSpy.mock.calls.some((call) =>
-          String(call[0]).includes('GITHUB_TOKEN'),
+          String(call[0]).includes('At least one authentication method'),
         ),
       ).toBe(true);
 
@@ -186,7 +187,8 @@ describe('env-validation', () => {
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
-      expect(() => validateEnv()).toThrow();
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
 
       expect(consoleSpy).toHaveBeenCalled();
       expect(
@@ -207,7 +209,8 @@ describe('env-validation', () => {
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
-      expect(() => validateEnv()).toThrow();
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
 
       expect(consoleSpy).toHaveBeenCalled();
       expect(
@@ -233,7 +236,8 @@ describe('env-validation', () => {
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
-      expect(() => validateEnv()).toThrow();
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
 
       expect(consoleSpy).toHaveBeenCalled();
       expect(
@@ -254,6 +258,7 @@ describe('env-validation', () => {
 
       expect(result).toBeDefined();
       expect(process.exit).not.toHaveBeenCalled();
+      expect(process.exit).not.toHaveBeenCalled();
     });
   });
 
@@ -268,7 +273,8 @@ describe('env-validation', () => {
         // eslint-disable-next-line @typescript-eslint/no-empty-function
         .mockImplementation(() => {});
 
-      expect(() => validateEnv()).toThrow();
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
 
       const errorOutput = consoleSpy.mock.calls
         .map((call) => String(call[0]))

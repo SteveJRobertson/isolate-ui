@@ -52,7 +52,14 @@ async function start() {
   });
 
   // Run startup sync before accepting traffic so missed commands are replayed
-  await runStartupSync(db, graph, octokit, env.GITHUB_OWNER, env.GITHUB_REPO);
+  await runStartupSync(
+    db,
+    graph,
+    octokit,
+    env.GITHUB_OWNER,
+    env.GITHUB_REPO,
+    env.STARTUP_SYNC_WINDOW_MS,
+  );
 
   // Start listening
   server.listen({ port: env.PORT, host: env.HOST }, (err) => {

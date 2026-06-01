@@ -22,8 +22,14 @@ function findWorkspaceRoot(startDir: string): string {
 /**
  * Redact sensitive values in error messages.
  * Shows only first 4 chars + *** to avoid exposing secrets in logs.
+ * Note: GITHUB_APP_PRIVATE_KEY_PATH is a filesystem path, not a secret, so it is not redacted.
  */
-function redactSecret(value: string): string {
+function redactSecret(value: string, fieldName: string): string {
+  // Don't redact filesystem paths
+  if (fieldName === 'GITHUB_APP_PRIVATE_KEY_PATH') {
+    return value;
+  }
+
   if (!value || value.length <= 4) {
     return '***';
   }
@@ -57,8 +63,8 @@ function resolveAbsoluteDatabasePath(): string {
  */
 const envSchema = z
   .object({
-    // Required
-    GITHUB_TOKEN: z.string().min(1, 'GITHUB_TOKEN is required'),
+    // GITHUB_TOKEN: optional here, but required by all-or-nothing check with GitHub App vars below
+    GITHUB_TOKEN: z.string().optional(),
     WEBHOOK_SECRET: z
       .string()
       .min(32, 'WEBHOOK_SECRET must be at least 32 characters'),
@@ -68,7 +74,11 @@ const envSchema = z
     PORT: z.coerce.number().default(8080),
     GITHUB_OWNER: z.string().default('SteveJRobertson'),
     GITHUB_REPO: z.string().default('isolate-ui'),
-    STARTUP_SYNC_WINDOW_MS: z.coerce.number().default(3600000), // 1 hour
+    STARTUP_SYNC_WINDOW_MS: z.coerce
+      .number()
+      .int()
+      .positive('STARTUP_SYNC_WINDOW_MS must be a positive integer')
+      .default(3600000), // 1 hour
 
     // GitHub App authentication (optional, all-or-nothing)
     GITHUB_APP_ID: z.string().optional(),
@@ -84,17 +94,24 @@ const envSchema = z
       const appIdSet = !!data.GITHUB_APP_ID;
       const keyPathSet = !!data.GITHUB_APP_PRIVATE_KEY_PATH;
       const installationIdSet = !!data.GITHUB_APP_INSTALLATION_ID;
+      const tokenSet = !!data.GITHUB_TOKEN;
 
-      // All three must be set together, or all three must be absent
-      const allSet = appIdSet && keyPathSet && installationIdSet;
-      const noneSet = !appIdSet && !keyPathSet && !installationIdSet;
+      // All GitHub App vars must be set together, or all must be absent
+      const allAppSet = appIdSet && keyPathSet && installationIdSet;
+      const noAppSet = !appIdSet && !keyPathSet && !installationIdSet;
 
-      return allSet || noneSet;
+      if (allAppSet || noAppSet) {
+        // Valid: all App vars present, or none present
+        // If App vars absent, GITHUB_TOKEN is required as fallback
+        return noAppSet ? tokenSet : true;
+      }
+
+      return false;
     },
     {
       message:
-        'GitHub App authentication requires all three vars: GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY_PATH, and GITHUB_APP_INSTALLATION_ID. Either set all three or set none (fallback to GITHUB_TOKEN).',
-      path: ['GITHUB_APP_ID'],
+        'At least one authentication method is required: (1) GITHUB_TOKEN for PAT, or (2) all three of GITHUB_APP_ID, GITHUB_APP_PRIVATE_KEY_PATH, and GITHUB_APP_INSTALLATION_ID for GitHub App auth.',
+      path: ['GITHUB_TOKEN'],
     },
   );
 
@@ -105,7 +122,7 @@ export type ValidatedEnv = z.infer<typeof envSchema> & {
 /**
  * Validate all environment variables at startup.
  * Returns a typed ValidatedEnv object with all resolved values.
- * Throws an error with a clear, redacted message if validation fails.
+ * Calls process.exit(1) with a clear, redacted error message if validation fails.
  */
 export function validateEnv(): ValidatedEnv {
   try {
@@ -127,14 +144,10 @@ export function validateEnv(): ValidatedEnv {
           const path = issue.path.join('.');
           const currentValue = process.env[path];
 
-          if (
-            path === 'GITHUB_TOKEN' ||
-            path === 'WEBHOOK_SECRET' ||
-            path === 'GITHUB_APP_PRIVATE_KEY_PATH'
-          ) {
+          if (path === 'GITHUB_TOKEN' || path === 'WEBHOOK_SECRET') {
             // Redact sensitive values
             const redacted = currentValue
-              ? redactSecret(currentValue)
+              ? redactSecret(currentValue, path)
               : '(not set)';
             return `${path}: ${issue.message} [current: ${redacted}]`;
           }
@@ -145,7 +158,7 @@ export function validateEnv(): ValidatedEnv {
 
       const message = `[webhook-listener] Environment validation failed:\n  ${issues}`;
       console.error(message);
-      throw new Error(message);
+      process.exit(1);
     }
 
     // If workspace root lookup failed or other error
@@ -153,6 +166,6 @@ export function validateEnv(): ValidatedEnv {
       '[webhook-listener] Unexpected error during env validation:',
       err,
     );
-    throw err;
+    process.exit(1);
   }
 }
