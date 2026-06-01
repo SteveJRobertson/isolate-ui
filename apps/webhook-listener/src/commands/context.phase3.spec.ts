@@ -19,29 +19,38 @@ describe('Phase 3: Immediate UI Reactions', () => {
     };
     ctx = makeCommandContext({
       octokit,
-      commentId: 42, // Phase 3 addition: comment ID
+      commentId: 42,
     });
   });
 
   describe('addReactionToComment', () => {
     it('adds emoji reaction to issue comment via Octokit API', async () => {
-      await addReactionToComment(ctx, '🚀');
+      await addReactionToComment(ctx, 'rocket');
 
       expect(octokit.rest.reactions.createForIssueComment).toHaveBeenCalledWith(
         {
           owner: 'owner',
           repo: 'repo',
           comment_id: 42,
-          content: '🚀',
+          content: 'rocket',
         },
       );
     });
 
-    it('supports various emoji reactions', async () => {
-      const emojis = ['👍', '❤️', '🎉', '🔄'];
+    it('supports various GitHub reactions', async () => {
+      const reactions: (
+        | '+1'
+        | '-1'
+        | 'laugh'
+        | 'confused'
+        | 'heart'
+        | 'hooray'
+        | 'rocket'
+        | 'eyes'
+      )[] = ['+1', 'heart', 'rocket', 'eyes'];
 
-      for (const emoji of emojis) {
-        await addReactionToComment(ctx, emoji);
+      for (const reaction of reactions) {
+        await addReactionToComment(ctx, reaction);
       }
 
       expect(
@@ -50,13 +59,14 @@ describe('Phase 3: Immediate UI Reactions', () => {
     });
 
     it('logs warning and continues on API failure', async () => {
-      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation();
+      const consoleWarnSpy = vi
+        .spyOn(console, 'warn')
+        .mockImplementation(() => undefined);
       octokit.rest.reactions.createForIssueComment.mockRejectedValue(
         new Error('API error'),
       );
 
-      // Should not throw
-      await addReactionToComment(ctx, '🚀');
+      await addReactionToComment(ctx, 'rocket');
 
       expect(consoleWarnSpy).toHaveBeenCalled();
       consoleWarnSpy.mockRestore();

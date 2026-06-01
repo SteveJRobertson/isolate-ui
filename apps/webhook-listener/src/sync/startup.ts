@@ -186,6 +186,7 @@ export async function runStartupSync(
           issueNumber,
           threadId: thread_id,
           username,
+          commentId: comment.id,
         };
 
         const [command, ...rest] = commentBody.split(/\s+/);

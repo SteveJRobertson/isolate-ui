@@ -36,13 +36,24 @@ export async function postErrorReply(
   }
 }
 
+// Valid reaction emoji values supported by GitHub API
+type GitHubReaction =
+  | '+1'
+  | '-1'
+  | 'laugh'
+  | 'confused'
+  | 'heart'
+  | 'hooray'
+  | 'rocket'
+  | 'eyes';
+
 /**
  * Add an emoji reaction to the issue comment that triggered the command.
  * Phase 3: Provides immediate UX feedback to the user.
  */
 export async function addReactionToComment(
   ctx: CommandContext,
-  emoji: string,
+  emoji: GitHubReaction,
 ): Promise<void> {
   const { octokit, owner, repo, commentId } = ctx;
   try {

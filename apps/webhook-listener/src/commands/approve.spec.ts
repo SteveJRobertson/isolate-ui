@@ -24,11 +24,7 @@ describe('handleApprove', () => {
       await handleApprove(ctx);
 
       // Should call graph.run() to bootstrap
-      expect(graph.run).toHaveBeenCalledWith(
-        'issue-1',
-        {},
-        { configurable: { thread_id: 'issue-1' } },
-      );
+      expect(graph.run).toHaveBeenCalledWith('issue-1', {});
 
       // But /approve still requires pause_context to proceed
       // So after bootstrap, should get error about not being paused

@@ -38,11 +38,7 @@ describe('handleQuery', () => {
       await handleQuery(ctx, 'question');
 
       // Should call graph.run() to bootstrap
-      expect(graph.run).toHaveBeenCalledWith(
-        'issue-1',
-        {},
-        { configurable: { thread_id: 'issue-1' } },
-      );
+      expect(graph.run).toHaveBeenCalledWith('issue-1', {});
 
       // Then invoke with question
       expect(graph.invoke).toHaveBeenCalled();

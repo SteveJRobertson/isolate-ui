@@ -29,7 +29,7 @@ export async function handleFix(
   if (!checkpoint) {
     // Bootstrap: initialize a new thread if none exists
     try {
-      await graph.run(threadId, {}, { configurable: { thread_id: threadId } });
+      await graph.run(threadId, {});
       // After bootstrap, fetch the checkpoint again
       checkpoint = graph.getState(threadId);
       if (!checkpoint) {

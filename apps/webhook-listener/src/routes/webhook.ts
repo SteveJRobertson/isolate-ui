@@ -20,6 +20,7 @@ interface IssueCommentPayload {
   action: string;
   issue: { number: number };
   comment: {
+    id: number;
     body: string;
     user: { login: string };
     // GitHub's association of the commenter with the repo.
@@ -142,7 +143,7 @@ export async function webhookRoute(
         };
 
         // Phase 3: Add immediate reaction feedback (async, does not block command)
-        addReactionToComment(ctx, '🚀').catch(() => {
+        addReactionToComment(ctx, 'rocket').catch(() => {
           // Silently ignore reaction failures — they don't block command processing
         });
 
@@ -209,11 +210,7 @@ export async function webhookRoute(
         // Bootstrap the thread by calling graph.run()
         const threadId = `issue-${issueNumber}`;
         try {
-          await graph.run(
-            threadId,
-            {},
-            { configurable: { thread_id: threadId } },
-          );
+          await graph.run(threadId, {});
 
           // Post comment to acknowledge
           await octokit.issues.createComment({

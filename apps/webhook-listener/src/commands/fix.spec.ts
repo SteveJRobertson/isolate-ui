@@ -35,11 +35,7 @@ describe('handleFix', () => {
       await handleFix(ctx, 'feedback');
 
       // Should call graph.run() to bootstrap
-      expect(graph.run).toHaveBeenCalledWith(
-        'issue-1',
-        {},
-        { configurable: { thread_id: 'issue-1' } },
-      );
+      expect(graph.run).toHaveBeenCalledWith('issue-1', {});
 
       // But /fix still requires pause_context to proceed
       // So after bootstrap, should get error about not being paused
