@@ -126,6 +126,174 @@ mkdir -p data
 | `LANGCHAIN_TRACING_V2`   | Enable LangChain debug tracing                        | `'false'`                | Set to `'true'` for debugging            |
 | `LANGCHAIN_API_KEY`      | LangChain API key (pairs with LANGCHAIN_TRACING_V2)   | —                        | Only if LANGCHAIN_TRACING_V2 is `'true'` |
 
+## 2.5 GitHub App Authentication (Preferred)
+
+### Why GitHub App Auth?
+
+The webhook-listener supports two authentication methods:
+
+1. **GitHub App Authentication** (preferred) — Fine-grained permissions, higher rate limits, per-installation tokens
+2. **Personal Access Token (PAT)** (fallback) — Simpler setup, less secure for production
+
+**Recommended:** Use GitHub App authentication for production deployments.
+
+### Setting Up GitHub App Authentication
+
+#### Step 1: Create a GitHub App (if not already created)
+
+1. Go to [Settings > Developer settings > GitHub Apps](https://github.com/settings/apps)
+2. Click **New GitHub App**
+3. Fill in the application name: `isolate-ui-webhook-listener`
+4. Set **Homepage URL**: `https://github.com/SteveJRobertson/isolate-ui`
+5. Uncheck **Active** for now (check after installation)
+6. Leave other fields as default
+7. Click **Create GitHub App**
+
+#### Step 2: Generate a Private Key
+
+1. In your GitHub App settings, scroll to **Private keys**
+2. Click **Generate a private key**
+3. A `.pem` file will download automatically
+4. **Security:** Store this file securely with restricted permissions:
+
+   ```bash
+   # Save the downloaded key to your home directory
+   # (Use the actual filename from your GitHub App download)
+   mv ~/Downloads/isolate-ui-webhook-listener.*.pem /Users/yourusername/.github-app-key.pem
+
+   # Restrict permissions to owner only (required for security)
+   chmod 600 /Users/yourusername/.github-app-key.pem
+
+   # Verify permissions
+   ls -la /Users/yourusername/.github-app-key.pem
+   # Should show: -rw------- (600)
+
+   # ⚠️ WARNING: Never commit this key to git or share publicly
+   ```
+
+#### Step 3: Find Your App ID and Installation ID
+
+1. From the **About** section of your GitHub App, note your **App ID** (e.g., `12345`)
+2. Go to **Install App** in the left sidebar
+3. Install the app on your repositories (if not already)
+4. Copy the installation URL and extract the **Installation ID**:
+   - URL: `https://github.com/settings/installations/67890`
+   - Installation ID: `67890`
+
+#### Step 4: Set Environment Variables
+
+Add to `.env.production`:
+
+```bash
+GITHUB_APP_ID=12345
+GITHUB_APP_PRIVATE_KEY_PATH=/Users/yourusername/.github-app-key.pem
+GITHUB_APP_INSTALLATION_ID=67890
+```
+
+⚠️ **Important:** Use an **absolute path** for `GITHUB_APP_PRIVATE_KEY_PATH` (e.g., `/Users/yourusername/...`). Dotenv does not expand `~` or `$HOME`, so relative paths and tilde shortcuts will fail.
+
+If all three App variables are set and complete, the webhook-listener will use GitHub App authentication. If any App variable is missing or incomplete, startup will throw an error. PAT fallback only occurs if ALL three App variables are completely unset.
+
+### Security Best Practices
+
+⚠️ **Critical Security Guidelines:**
+
+- **Never embed the private key in ecosystem.config.js or version control** — Always use `.env.production`
+- **File permissions:** Key file must be `chmod 600` (read/write for owner only)
+- **Storage:** Keep the private key on the Mac Mini local filesystem, not networked
+- **Rotation:** Regenerate and rotate the private key every 90 days
+- **Audit:** Check GitHub App recent activity regularly for suspicious API calls
+
+### Comparing Authentication Methods
+
+| Aspect                  | GitHub App             | Personal Access Token (PAT) |
+| ----------------------- | ---------------------- | --------------------------- |
+| **Setup complexity**    | Moderate (5 steps)     | Simple (2 steps)            |
+| **Permissions**         | Fine-grained per app   | Broad (entire account)      |
+| **Rate limits**         | Higher (12,000/hr)     | Lower (5,000/hr)            |
+| **Token expiration**    | App-scoped, no expiry  | Optional, manual renewal    |
+| **Security**            | Better for production  | Suitable for dev/test       |
+| **Rotation complexity** | Key rotation needed    | Token can be quickly cycled |
+| **Fallback supported**  | Yes, falls back to PAT | Final auth method           |
+
+**Choose GitHub App if:**
+
+- Running in production
+- Want higher rate limits
+- Concerned about token security
+- Plan long-term operation
+
+**Use PAT if:**
+
+- Quick testing/debugging
+- Personal development environment
+- No GitHub App infrastructure available
+
+### Troubleshooting GitHub App Auth
+
+#### Error: "Incomplete GitHub App credentials"
+
+**Cause:** Only some of the required env vars are set.
+
+**Fix:** Ensure all three are present:
+
+```bash
+# Check each variable
+echo $GITHUB_APP_ID
+echo $GITHUB_APP_PRIVATE_KEY_PATH
+echo $GITHUB_APP_INSTALLATION_ID
+
+# All must be non-empty
+# If any are missing, add them to .env.production and reload
+```
+
+#### Error: "Failed to read GitHub App private key file"
+
+**Cause:** The path in `GITHUB_APP_PRIVATE_KEY_PATH` is incorrect, uses tilde/shell expansion, or file doesn't exist.
+
+**Fix:**
+
+```bash
+# Verify the file exists
+ls -la /Users/yourusername/.github-app-key.pem
+
+# Check the exact path in .env.production
+cat .env.production | grep GITHUB_APP_PRIVATE_KEY_PATH
+
+# ⚠️ KEY POINT: The path must be ABSOLUTE (not relative or using ~)
+# Dotenv does NOT expand ~ or $HOME variables
+# Correct: GITHUB_APP_PRIVATE_KEY_PATH=/Users/yourusername/.github-app-key.pem
+# Wrong:   GITHUB_APP_PRIVATE_KEY_PATH=~/.github-app-key.pem
+# Wrong:   GITHUB_APP_PRIVATE_KEY_PATH=$HOME/.github-app-key.pem
+```
+
+#### Error: "Permission denied" when reading key
+
+**Cause:** Key file permissions are too permissive or too restrictive.
+
+**Fix:**
+
+```bash
+# Correct permissions (600 = read/write owner only)
+chmod 600 ~/.github-app-key.pem
+
+# Verify
+ls -la ~/.github-app-key.pem
+# Should show: -rw------- (that's 600)
+```
+
+#### Verifying App Auth is Working
+
+Once configured, check the startup logs:
+
+```bash
+pm2 logs webhook-listener | grep 'GitHub App\|Using.*auth'
+# Should output:
+# [hybrid-auth] Using GitHub App authentication
+```
+
+If it says "Using PAT (GitHub Token) authentication", the App credentials were not found; check the env vars above.
+
 ## 3. PM2 Configuration
 
 Create an `ecosystem.config.js` file in the repository root:
