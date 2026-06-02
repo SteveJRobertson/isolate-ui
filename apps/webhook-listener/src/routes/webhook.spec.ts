@@ -43,6 +43,7 @@ function makeHeaders(overrides: Record<string, any> = {}) {
 describe('webhookRoute', () => {
   let fastify;
   let db;
+  let mockGraph;
   let previousWebhookSecret: string | undefined;
   let previousAllowedBootstrapLabels: string | undefined;
 
@@ -88,10 +89,16 @@ describe('webhookRoute', () => {
     vi.mocked(handleFix).mockResolvedValue(undefined);
     vi.mocked(handleQuery).mockResolvedValue(undefined);
 
+    mockGraph = {
+      getState: vi.fn(),
+      invoke: vi.fn(),
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await fastify.register(webhookRoute, {
       db,
-      graph: { getState: vi.fn(), invoke: vi.fn() } as any,
+      graph: mockGraph as any,
       octokit: { rest: { issues: { createComment: vi.fn() } } } as any,
       owner: 'owner',
       repo: 'repo',
@@ -1174,6 +1181,7 @@ describe('webhookRoute', () => {
 
       // Should trigger bootstrap (graph.run will be called)
       expect(response.statusCode).toBe(202);
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-99', {});
     });
 
     it('normalizes mixed case labels (Type: Chore)', async () => {
@@ -1208,6 +1216,7 @@ describe('webhookRoute', () => {
 
       // Should trigger bootstrap after normalization
       expect(response.statusCode).toBe(202);
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-100', {});
     });
 
     it('rejects unlisted labels (documentation)', async () => {
@@ -1243,6 +1252,7 @@ describe('webhookRoute', () => {
       expect(response.statusCode).toBe(202);
       const responseBody = JSON.parse(response.payload);
       expect(responseBody.skipped).toBe(true);
+      expect(mockGraph.run).not.toHaveBeenCalled();
     });
 
     it('respects custom ALLOWED_BOOTSTRAP_LABELS env var', async () => {
@@ -1280,9 +1290,15 @@ describe('webhookRoute', () => {
       vi.mocked(handleFix).mockResolvedValue(undefined);
       vi.mocked(handleQuery).mockResolvedValue(undefined);
 
+      const mockGraphCustom = {
+        getState: vi.fn(),
+        invoke: vi.fn(),
+        run: vi.fn().mockResolvedValue(undefined),
+      };
+
       await fastifyCustom.register(webhookRoute, {
         db: dbCustom,
-        graph: { getState: vi.fn(), invoke: vi.fn() } as any,
+        graph: mockGraphCustom as any,
         octokit: { rest: { issues: { createComment: vi.fn() } } } as any,
         owner: 'owner',
         repo: 'repo',
@@ -1317,6 +1333,7 @@ describe('webhookRoute', () => {
       });
 
       expect(response.statusCode).toBe(202);
+      expect(mockGraphCustom.run).toHaveBeenCalledWith('issue-102', {});
 
       await fastifyCustom.close();
 

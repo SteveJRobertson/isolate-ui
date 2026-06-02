@@ -93,7 +93,7 @@ export async function handleQuery(
     const finalState = graph.getState(threadId);
     const aiResponse =
       extractLatestAIMessage(finalState?.messages) ||
-      'I could not generate a response';
+      'I could not generate a response.';
 
     try {
       await octokit.rest.issues.createComment({
@@ -103,10 +103,11 @@ export async function handleQuery(
         body: `🤖 ${aiResponse}`,
       });
     } catch (commentErr) {
-      // Log but don't re-throw — the query was successful, just the comment posting failed
+      // Log and re-throw so the webhook route can delete the delivery row and allow GitHub to retry
       console.warn(
         `[webhook-listener] Failed to post query response comment: ${String(commentErr)}`,
       );
+      throw commentErr;
     }
   } catch (err) {
     // Post a user-facing reply first, then re-throw so the webhook route's

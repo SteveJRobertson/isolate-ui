@@ -208,9 +208,8 @@ describe('createLLMPersonaNode', () => {
       // Messages array should be passed
       expect(Array.isArray(messageArgs)).toBe(true);
       expect(messageArgs.length).toBeGreaterThan(0);
-      // First message should contain the system prompt (as SystemMessage)
-      // Verify persona system prompt is used
-      expect(persona.systemPrompt).toContain('Product Owner');
+      // First message should be a SystemMessage containing the persona's system prompt
+      expect(messageArgs[0].content).toBe(persona.systemPrompt);
     });
   });
 

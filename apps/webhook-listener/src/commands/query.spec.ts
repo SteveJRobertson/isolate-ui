@@ -201,13 +201,12 @@ describe('handleQuery', () => {
 
       expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith(
         expect.objectContaining({
-          body: expect.stringContaining('🤖 I could not generate a response'),
+          body: expect.stringContaining('🤖 I could not generate a response.'),
         }),
       );
     });
 
-    it('does not post comment if createComment fails', async () => {
-      const { postErrorReply } = await import('./context');
+    it('rethrows error when createComment fails', async () => {
       graph.getState
         .mockReturnValueOnce({ next_recipient: 'po' })
         .mockReturnValueOnce({
@@ -224,9 +223,11 @@ describe('handleQuery', () => {
         new Error('Comment API failed'),
       );
 
-      await handleQuery(ctx, 'what is foo?');
-
-      // Should still attempt to post the comment
+      // createComment failure should propagate so the webhook route can retry
+      await expect(handleQuery(ctx, 'what is foo?')).rejects.toThrow(
+        'Comment API failed',
+      );
+      // Verify createComment was still attempted
       expect(mockOctokit.rest.issues.createComment).toHaveBeenCalled();
     });
   });
