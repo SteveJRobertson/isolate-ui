@@ -46,7 +46,7 @@ export function getAnthropicClient(): ChatAnthropic {
       );
     }
     anthropicClient = new ChatAnthropic({
-      modelName: 'claude-3-5-sonnet-20241022',
+      modelName: 'claude-3-5-sonnet-latest',
       apiKey: env.ANTHROPIC_API_KEY,
       temperature: 0.7,
       maxTokens: 4096,
