@@ -68,6 +68,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const result = validateEnv();
 
@@ -84,6 +86,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const result = validateEnv();
 
@@ -98,6 +102,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
       process.env['HOST'] = '127.0.0.1';
       process.env['PORT'] = '9000';
       process.env['GITHUB_OWNER'] = 'custom-owner';
@@ -117,6 +123,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
       process.env['STARTUP_SYNC_WINDOW_MS'] = '"3600000"';
 
       const result = validateEnv();
@@ -128,6 +136,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const result = validateEnv();
 
@@ -143,6 +153,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
       process.env['DATABASE_PATH'] = '/custom/path/to/db.sqlite';
 
       const result = validateEnv();
@@ -154,6 +166,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
       process.env['GITHUB_APP_ID'] = '12345';
       process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/private.pem';
       process.env['GITHUB_APP_INSTALLATION_ID'] = '67890';
@@ -171,6 +185,8 @@ describe('env-validation', () => {
     it('exits with error when GITHUB_TOKEN is missing', () => {
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const consoleSpy = vi
         .spyOn(console, 'error')
@@ -192,6 +208,8 @@ describe('env-validation', () => {
 
     it('exits with error when WEBHOOK_SECRET is missing', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const consoleSpy = vi
         .spyOn(console, 'error')
@@ -214,6 +232,8 @@ describe('env-validation', () => {
     it('exits with error when WEBHOOK_SECRET is less than 32 characters', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] = 'short_secret';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const consoleSpy = vi
         .spyOn(console, 'error')
@@ -237,6 +257,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
       // Only set two of three required App vars
       process.env['GITHUB_APP_ID'] = '12345';
       process.env['GITHUB_APP_PRIVATE_KEY_PATH'] = '/path/to/private.pem';
@@ -259,18 +281,6 @@ describe('env-validation', () => {
 
       consoleSpy.mockRestore();
     });
-
-    it('does not exit when LLM keys are missing (optional)', () => {
-      process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
-      process.env['WEBHOOK_SECRET'] =
-        'this_is_a_webhook_secret_thats_long_enough';
-
-      const result = validateEnv();
-
-      expect(result).toBeDefined();
-      expect(process.exit).not.toHaveBeenCalled();
-      expect(process.exit).not.toHaveBeenCalled();
-    });
   });
 
   describe('error messages', () => {
@@ -278,6 +288,8 @@ describe('env-validation', () => {
       process.env['GITHUB_TOKEN'] =
         'ghp_very_long_secret_that_should_be_redacted_1234567890';
       process.env['WEBHOOK_SECRET'] = 'short';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const consoleSpy = vi
         .spyOn(console, 'error')
@@ -300,11 +312,107 @@ describe('env-validation', () => {
     });
   });
 
+  describe('LLM API Key Validation', () => {
+    it('exits with error when OPENAI_API_KEY is missing', () => {
+      process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
+      process.env['WEBHOOK_SECRET'] =
+        'this_is_a_webhook_secret_thats_long_enough';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key-here';
+      // Missing OPENAI_API_KEY
+
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        .mockImplementation(() => {});
+
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(
+        consoleSpy.mock.calls.some((call) =>
+          String(call[0]).includes('OPENAI_API_KEY'),
+        ),
+      ).toBe(true);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('exits with error when ANTHROPIC_API_KEY is missing', () => {
+      process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
+      process.env['WEBHOOK_SECRET'] =
+        'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key-here';
+      // Missing ANTHROPIC_API_KEY
+
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        .mockImplementation(() => {});
+
+      validateEnv();
+      expect(process.exit).toHaveBeenCalledWith(1);
+
+      expect(consoleSpy).toHaveBeenCalled();
+      expect(
+        consoleSpy.mock.calls.some((call) =>
+          String(call[0]).includes('ANTHROPIC_API_KEY'),
+        ),
+      ).toBe(true);
+
+      consoleSpy.mockRestore();
+    });
+
+    it('succeeds when both LLM API keys are present', () => {
+      process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
+      process.env['WEBHOOK_SECRET'] =
+        'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key-here';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key-here';
+
+      const result = validateEnv();
+
+      expect(result).toBeDefined();
+      expect(result.OPENAI_API_KEY).toBe('sk-proj-test-key-here');
+      expect(result.ANTHROPIC_API_KEY).toBe('sk-ant-v3-test-key-here');
+      expect(process.exit).not.toHaveBeenCalled();
+    });
+
+    it('redacts API keys in error messages', () => {
+      process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
+      process.env['WEBHOOK_SECRET'] =
+        'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] =
+        'sk-proj-full-api-key-that-should-not-appear-in-logs';
+      // Missing ANTHROPIC_API_KEY - this will cause validation error
+
+      const consoleSpy = vi
+        .spyOn(console, 'error')
+        // eslint-disable-next-line @typescript-eslint/no-empty-function
+        .mockImplementation(() => {});
+
+      validateEnv();
+
+      const errorMessage = consoleSpy.mock.calls[0][0];
+      // Verify the error message doesn't contain the full ANTHROPIC key and redacts as (not set)
+      expect(String(errorMessage)).toContain('ANTHROPIC_API_KEY');
+      expect(String(errorMessage)).toContain('(not set)');
+      // Verify no unredacted keys appear
+      expect(String(errorMessage)).not.toContain(
+        'sk-proj-full-api-key-that-should-not-appear-in-logs',
+      );
+
+      consoleSpy.mockRestore();
+    });
+  });
+
   describe('type exports', () => {
     it('exports ValidatedEnv type correctly', () => {
       process.env['GITHUB_TOKEN'] = 'ghp_1234567890abcdefghijklmnopqrstu';
       process.env['WEBHOOK_SECRET'] =
         'this_is_a_webhook_secret_thats_long_enough';
+      process.env['OPENAI_API_KEY'] = 'sk-proj-test-key';
+      process.env['ANTHROPIC_API_KEY'] = 'sk-ant-v3-test-key';
 
       const result = validateEnv();
 
