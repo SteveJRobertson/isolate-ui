@@ -1,10 +1,10 @@
 import Database from 'better-sqlite3';
 import { Octokit } from '@octokit/rest';
-import {
+import type {
   OrchestratorGraph,
-  deserializeCheckpointBody,
+  AgentState,
 } from '@isolate-ui/ai-orchestrator';
-import type { AgentState } from '@isolate-ui/ai-orchestrator';
+import { deserializeCheckpointBody } from '@isolate-ui/ai-orchestrator';
 import { handleApprove } from '../commands/approve';
 import { handleFix } from '../commands/fix';
 import { handleQuery } from '../commands/query';

@@ -98,9 +98,16 @@ const envSchema = z
     GITHUB_APP_PRIVATE_KEY_PATH: z.string().optional(),
     GITHUB_APP_INSTALLATION_ID: z.string().optional(),
 
-    // LLM keys (optional, lazy validation)
-    OPENAI_API_KEY: z.string().optional(),
-    ANTHROPIC_API_KEY: z.string().optional(),
+    // LLM keys (required for persona initialization)
+    OPENAI_API_KEY: z
+      .string()
+      .min(1, 'OPENAI_API_KEY is required for AI persona initialization'),
+    ANTHROPIC_API_KEY: z
+      .string()
+      .min(1, 'ANTHROPIC_API_KEY is required for AI persona initialization'),
+
+    // Label whitelist for thread bootstrapping
+    ALLOWED_BOOTSTRAP_LABELS: z.string().default('component,bug,type: chore'),
   })
   .refine(
     (data) => {
@@ -157,7 +164,12 @@ export function validateEnv(): ValidatedEnv {
           const path = issue.path.join('.');
           const currentValue = process.env[path];
 
-          if (path === 'GITHUB_TOKEN' || path === 'WEBHOOK_SECRET') {
+          if (
+            path === 'GITHUB_TOKEN' ||
+            path === 'WEBHOOK_SECRET' ||
+            path === 'OPENAI_API_KEY' ||
+            path === 'ANTHROPIC_API_KEY'
+          ) {
             // Redact sensitive values
             const redacted = currentValue
               ? redactSecret(currentValue, path)

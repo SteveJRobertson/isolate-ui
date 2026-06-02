@@ -1,6 +1,25 @@
 import { CommandContext, postErrorReply } from './context';
 
 /**
+ * Extract the latest AI message from the state's messages array.
+ * Returns the message content, or null if no AI message found.
+ */
+function extractLatestAIMessage(
+  messages: Array<{ type?: string; content?: string }> | undefined,
+): string | null {
+  if (!messages || messages.length === 0) {
+    return null;
+  }
+  // Find the last message with type 'ai'
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].type === 'ai' && messages[i].content) {
+      return messages[i].content;
+    }
+  }
+  return null;
+}
+
+/**
  * Handle the /query [question] command.
  *
  * Injects the question as a HumanMessage prefixed with '@isolate-' so the
@@ -15,7 +34,7 @@ export async function handleQuery(
   ctx: CommandContext,
   question: string,
 ): Promise<void> {
-  const { graph, threadId } = ctx;
+  const { graph, threadId, octokit, owner, repo, issueNumber } = ctx;
 
   const trimmed = question.trim();
   if (!trimmed) {
@@ -69,6 +88,27 @@ export async function handleQuery(
       next_recipient: nextRecipient as any,
       messages: [{ type: 'human', content: `@isolate- ${trimmed}` }],
     });
+
+    // Phase 5: Extract latest AI message and post to GitHub
+    const finalState = graph.getState(threadId);
+    const aiResponse =
+      extractLatestAIMessage(finalState?.messages) ||
+      'I could not generate a response.';
+
+    try {
+      await octokit.rest.issues.createComment({
+        owner,
+        repo,
+        issue_number: issueNumber,
+        body: `🤖 ${aiResponse}`,
+      });
+    } catch (commentErr) {
+      // Log and re-throw so the webhook route can delete the delivery row and allow GitHub to retry
+      console.warn(
+        `[webhook-listener] Failed to post query response comment: ${String(commentErr)}`,
+      );
+      throw commentErr;
+    }
   } catch (err) {
     // Post a user-facing reply first, then re-throw so the webhook route's
     // catch block can delete the delivery row and allow GitHub to retry.

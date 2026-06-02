@@ -9,11 +9,22 @@ vi.mock('./context', () => ({
 describe('handleQuery', () => {
   let graph;
   let ctx;
+  let mockOctokit;
 
   beforeEach(() => {
     vi.clearAllMocks();
     graph = { getState: vi.fn(), invoke: vi.fn() };
-    ctx = makeCommandContext({ graph });
+    mockOctokit = {
+      rest: {
+        issues: {
+          createComment: vi.fn().mockResolvedValue({ data: { id: 123 } }),
+        },
+      },
+    };
+    ctx = makeCommandContext({
+      graph,
+      octokit: mockOctokit,
+    });
   });
 
   it('posts error reply when question is empty', async () => {
@@ -140,5 +151,84 @@ describe('handleQuery', () => {
 
     // Verify next_recipient fallback logic still works
     expect(invokePayload.next_recipient).toBe('po');
+  });
+
+  describe('Phase 5: Extract & Post AI Response', () => {
+    it('extracts and posts latest AI message after query succeeds', async () => {
+      const { postErrorReply } = await import('./context');
+      graph.getState
+        .mockReturnValueOnce({ next_recipient: 'po' })
+        .mockReturnValueOnce({
+          // After invoke
+          next_recipient: 'architect',
+          messages: [
+            { type: 'human', content: '@isolate- what is foo?' },
+            {
+              type: 'ai',
+              content:
+                'Foo is a placeholder variable commonly used in examples.',
+            },
+            { type: 'human', content: 'thanks' },
+            {
+              type: 'ai',
+              content: 'You are welcome!',
+            },
+          ],
+        });
+
+      await handleQuery(ctx, 'what is foo?');
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          owner: ctx.owner,
+          repo: ctx.repo,
+          issue_number: ctx.issueNumber,
+          body: expect.stringContaining('🤖 You are welcome!'),
+        }),
+      );
+    });
+
+    it('posts fallback message when no AI message found', async () => {
+      graph.getState
+        .mockReturnValueOnce({ next_recipient: 'po' })
+        .mockReturnValueOnce({
+          // After invoke — no AI messages
+          next_recipient: 'architect',
+          messages: [{ type: 'human', content: '@isolate- what is foo?' }],
+        });
+
+      await handleQuery(ctx, 'what is foo?');
+
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.stringContaining('🤖 I could not generate a response.'),
+        }),
+      );
+    });
+
+    it('rethrows error when createComment fails', async () => {
+      graph.getState
+        .mockReturnValueOnce({ next_recipient: 'po' })
+        .mockReturnValueOnce({
+          next_recipient: 'architect',
+          messages: [
+            { type: 'human', content: '@isolate- what is foo?' },
+            {
+              type: 'ai',
+              content: 'Foo is a placeholder variable.',
+            },
+          ],
+        });
+      mockOctokit.rest.issues.createComment.mockRejectedValue(
+        new Error('Comment API failed'),
+      );
+
+      // createComment failure should propagate so the webhook route can retry
+      await expect(handleQuery(ctx, 'what is foo?')).rejects.toThrow(
+        'Comment API failed',
+      );
+      // Verify createComment was still attempted
+      expect(mockOctokit.rest.issues.createComment).toHaveBeenCalled();
+    });
   });
 });

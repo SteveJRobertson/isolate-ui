@@ -43,7 +43,9 @@ function makeHeaders(overrides: Record<string, any> = {}) {
 describe('webhookRoute', () => {
   let fastify;
   let db;
+  let mockGraph;
   let previousWebhookSecret: string | undefined;
+  let previousAllowedBootstrapLabels: string | undefined;
 
   beforeEach(async () => {
     fastify = Fastify();
@@ -63,7 +65,9 @@ describe('webhookRoute', () => {
     `);
 
     previousWebhookSecret = process.env.WEBHOOK_SECRET;
+    previousAllowedBootstrapLabels = process.env['ALLOWED_BOOTSTRAP_LABELS'];
     process.env.WEBHOOK_SECRET = WEBHOOK_SECRET;
+    // Note: ALLOWED_BOOTSTRAP_LABELS may be undefined, letting the route use the default
 
     // Clear all mocks to prevent test state pollution
     vi.clearAllMocks();
@@ -85,10 +89,16 @@ describe('webhookRoute', () => {
     vi.mocked(handleFix).mockResolvedValue(undefined);
     vi.mocked(handleQuery).mockResolvedValue(undefined);
 
+    mockGraph = {
+      getState: vi.fn(),
+      invoke: vi.fn(),
+      run: vi.fn().mockResolvedValue(undefined),
+    };
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     await fastify.register(webhookRoute, {
       db,
-      graph: { getState: vi.fn(), invoke: vi.fn() } as any,
+      graph: mockGraph as any,
       octokit: { rest: { issues: { createComment: vi.fn() } } } as any,
       owner: 'owner',
       repo: 'repo',
@@ -101,6 +111,11 @@ describe('webhookRoute', () => {
       delete process.env.WEBHOOK_SECRET;
     } else {
       process.env.WEBHOOK_SECRET = previousWebhookSecret;
+    }
+    if (previousAllowedBootstrapLabels === undefined) {
+      delete process.env['ALLOWED_BOOTSTRAP_LABELS'];
+    } else {
+      process.env['ALLOWED_BOOTSTRAP_LABELS'] = previousAllowedBootstrapLabels;
     }
   });
 
@@ -1130,6 +1145,204 @@ describe('webhookRoute', () => {
       expect(response.statusCode).toBe(202);
       const responseBody = JSON.parse(response.payload);
       expect(responseBody.skipped).toBe(true);
+    });
+  });
+
+  describe('Phase 4: Label whitelist externalization via ALLOWED_BOOTSTRAP_LABELS env var', () => {
+    it('accepts type: chore label as part of default whitelist', async () => {
+      // This test verifies that 'type: chore' is now included in the default
+      // ALLOWED_BOOTSTRAP_LABELS='component,bug,type: chore'
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'type: chore' }],
+        },
+        label: { name: 'type: chore' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-phase4-chore-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      // Should trigger bootstrap (graph.run will be called)
+      expect(response.statusCode).toBe(202);
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-99', {});
+    });
+
+    it('normalizes mixed case labels (Type: Chore)', async () => {
+      // GitHub returns labels exactly as they appear in UI
+      // Test that mixed case 'Type: Chore' is normalized to 'type: chore' and matches
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 100,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'Type: Chore' }],
+        },
+        label: { name: 'Type: Chore' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-phase4-case-normalize-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      // Should trigger bootstrap after normalization
+      expect(response.statusCode).toBe(202);
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-100', {});
+    });
+
+    it('rejects unlisted labels (documentation)', async () => {
+      // Verify that labels not in default or env var are rejected
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 101,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'documentation' }],
+        },
+        label: { name: 'documentation' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-phase4-rejected-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      // Should skip (not bootstrap)
+      expect(response.statusCode).toBe(202);
+      const responseBody = JSON.parse(response.payload);
+      expect(responseBody.skipped).toBe(true);
+      expect(mockGraph.run).not.toHaveBeenCalled();
+    });
+
+    it('respects custom ALLOWED_BOOTSTRAP_LABELS env var', async () => {
+      // This test verifies that when ALLOWED_BOOTSTRAP_LABELS is set to a
+      // custom value, only those labels trigger bootstrap
+      const previousValue = process.env['ALLOWED_BOOTSTRAP_LABELS'];
+      process.env['ALLOWED_BOOTSTRAP_LABELS'] = 'custom,labels';
+
+      // Recreate fastify and register route with new env var value
+      const fastifyCustom = Fastify();
+
+      const dbCustom = new Database(':memory:');
+      dbCustom.exec(`
+        CREATE TABLE IF NOT EXISTS deliveries (
+          delivery_id   TEXT    PRIMARY KEY,
+          processed_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+        );
+        CREATE TABLE IF NOT EXISTS webhook_sync (
+          key    TEXT PRIMARY KEY,
+          value  TEXT NOT NULL
+        );
+      `);
+
+      await fastifyCustom.register(rawBody, {
+        field: 'rawBody',
+        global: true,
+        encoding: false,
+        runFirst: true,
+      });
+
+      const { handleApprove } = await import('../commands/approve');
+      const { handleFix } = await import('../commands/fix');
+      const { handleQuery } = await import('../commands/query');
+      vi.mocked(handleApprove).mockResolvedValue(undefined);
+      vi.mocked(handleFix).mockResolvedValue(undefined);
+      vi.mocked(handleQuery).mockResolvedValue(undefined);
+
+      const mockGraphCustom = {
+        getState: vi.fn(),
+        invoke: vi.fn(),
+        run: vi.fn().mockResolvedValue(undefined),
+      };
+
+      await fastifyCustom.register(webhookRoute, {
+        db: dbCustom,
+        graph: mockGraphCustom as any,
+        octokit: { rest: { issues: { createComment: vi.fn() } } } as any,
+        owner: 'owner',
+        repo: 'repo',
+      });
+
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      // Test that 'custom' label triggers bootstrap
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 102,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'custom' }],
+        },
+        label: { name: 'custom' },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastifyCustom.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-phase4-custom-env-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(mockGraphCustom.run).toHaveBeenCalledWith('issue-102', {});
+
+      await fastifyCustom.close();
+
+      // Restore previous env var value
+      if (previousValue === undefined) {
+        delete process.env['ALLOWED_BOOTSTRAP_LABELS'];
+      } else {
+        process.env['ALLOWED_BOOTSTRAP_LABELS'] = previousValue;
+      }
     });
   });
 

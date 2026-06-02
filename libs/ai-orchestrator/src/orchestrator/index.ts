@@ -39,6 +39,9 @@ export {
   type ApplyCodeBufferFailure,
 } from './git-utils';
 
+// LLM-backed persona nodes
+export { createLLMPersonaNode } from './llm-persona-node';
+
 // Dev boilerplate node
 export {
   createDevBoilerplateNode,

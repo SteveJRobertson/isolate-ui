@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import rawBody from 'fastify-raw-body';
-import { OrchestratorGraph } from '@isolate-ui/ai-orchestrator';
+import {
+  OrchestratorGraph,
+  createLLMPersonaNode,
+} from '@isolate-ui/ai-orchestrator';
 import { validateEnv } from './config/env-validation';
 import { openDb } from './db/schema';
 import { registerHealthRoute } from './routes/health';
@@ -38,6 +41,17 @@ async function start() {
   // Sync the graph's GitHub repo target so the human_review pause comment
   // is posted to the same repo this service is configured to watch.
   graph.setGitHubRepo(env.GITHUB_OWNER, env.GITHUB_REPO);
+
+  // Register all 6 AI personas with the graph
+  // Refinement personas (po, dev, qa): Use registerRefinementNode
+  graph.registerRefinementNode('po', createLLMPersonaNode('po'));
+  graph.registerRefinementNode('dev', createLLMPersonaNode('dev'));
+  graph.registerRefinementNode('qa', createLLMPersonaNode('qa'));
+
+  // Standard personas (architect, a11y, docs): Use registerNode
+  graph.registerNode('architect', createLLMPersonaNode('architect'));
+  graph.registerNode('a11y', createLLMPersonaNode('a11y'));
+  graph.registerNode('docs', createLLMPersonaNode('docs'));
 
   // Register the health check endpoint (no dependencies; stateless)
   await server.register(registerHealthRoute);
