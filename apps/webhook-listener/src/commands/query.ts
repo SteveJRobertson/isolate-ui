@@ -5,14 +5,14 @@ import { CommandContext, postErrorReply } from './context';
  * Returns the message content, or null if no AI message found.
  */
 function extractLatestAIMessage(
-  messages: Array<{ type: string; content: string }> | undefined,
+  messages: Array<{ type?: string; content?: string }> | undefined,
 ): string | null {
   if (!messages || messages.length === 0) {
     return null;
   }
   // Find the last message with type 'ai'
   for (let i = messages.length - 1; i >= 0; i--) {
-    if (messages[i].type === 'ai') {
+    if (messages[i].type === 'ai' && messages[i].content) {
       return messages[i].content;
     }
   }
