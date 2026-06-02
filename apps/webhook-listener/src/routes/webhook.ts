@@ -9,6 +9,24 @@ import { handleFix } from '../commands/fix';
 import { handleQuery } from '../commands/query';
 import { CommandContext, addReactionToComment } from '../commands/context';
 
+/**
+ * Parse ALLOWED_BOOTSTRAP_LABELS environment variable into a normalized Set.
+ * - Split on comma
+ * - Trim whitespace
+ * - Lowercase for case-insensitive matching
+ * - Filter out empty values
+ *
+ * Default: 'component,bug,type: chore'
+ */
+function parseBootstrapLabels(envValue: string): Set<string> {
+  const labels = envValue
+    .split(',')
+    .map((label) => label.trim().toLowerCase())
+    .filter((label) => label.length > 0);
+
+  return new Set(labels);
+}
+
 interface WebhookRouteOptions {
   db: Database.Database;
   graph: OrchestratorGraph;
@@ -66,8 +84,10 @@ export async function webhookRoute(
   // No need to re-validate here; if it were missing/invalid, the app would have exited at startup.
   const secret = process.env['WEBHOOK_SECRET']!;
 
-  // Whitelist of labels that trigger thread bootstrapping
-  const BOOTSTRAP_LABELS = new Set(['component', 'bug']);
+  // Parse ALLOWED_BOOTSTRAP_LABELS from env var (default: 'component,bug,type: chore')
+  const bootstrapLabelsEnv =
+    process.env['ALLOWED_BOOTSTRAP_LABELS'] || 'component,bug,type: chore';
+  const BOOTSTRAP_LABELS = parseBootstrapLabels(bootstrapLabelsEnv);
 
   fastify.post(
     '/api/webhook',
@@ -213,8 +233,8 @@ export async function webhookRoute(
           return reply.status(202).send({ ok: true, skipped: true });
         }
 
-        // Check label whitelist
-        const labelName = payload.label?.name;
+        // Check label whitelist (normalize label to lowercase for matching)
+        const labelName = payload.label?.name?.toLowerCase();
         if (!labelName || !BOOTSTRAP_LABELS.has(labelName)) {
           return reply.status(202).send({ ok: true, skipped: true });
         }

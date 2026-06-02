@@ -105,6 +105,9 @@ const envSchema = z
     ANTHROPIC_API_KEY: z
       .string()
       .min(1, 'ANTHROPIC_API_KEY is required for AI persona initialization'),
+
+    // Label whitelist for thread bootstrapping
+    ALLOWED_BOOTSTRAP_LABELS: z.string().default('component,bug,type: chore'),
   })
   .refine(
     (data) => {
