@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { createLLMPersonaNode } from './llm-persona-node';
-import { AgentState, SerializedMessage } from '../schema/agent-state';
+import type { AgentState, SerializedMessage } from '../schema';
 import { AGENT_PERSONAS } from '../agents/personas';
 import * as clientsModule from '../llm/clients';
 
@@ -82,7 +82,7 @@ describe('createLLMPersonaNode', () => {
       expect(clientsModule.getOpenAIClient).toHaveBeenCalled();
       expect(mockOpenAIClient.invoke).toHaveBeenCalled();
       expect(result.messages).toBeDefined();
-      expect(result.messages?.length).toBe(2); // original + response
+      expect(result.messages?.length).toBe(1); // only the new AI message
     });
 
     it('should invoke correct LLM client based on persona.model (claude-3-5-sonnet)', async () => {
@@ -122,7 +122,7 @@ describe('createLLMPersonaNode', () => {
       expect(clientsModule.getAnthropicClient).toHaveBeenCalled();
       expect(mockAnthropicClient.invoke).toHaveBeenCalled();
       expect(result.messages).toBeDefined();
-      expect(result.messages?.length).toBe(2);
+      expect(result.messages?.length).toBe(1); // only the new AI message
     });
 
     it('should append LLM response as ai message to messages array', async () => {
@@ -161,10 +161,9 @@ describe('createLLMPersonaNode', () => {
 
       // Assert
       expect(result.messages).toBeDefined();
-      expect(result.messages?.length).toBe(2);
-      expect(result.messages?.[0].type).toBe('human');
-      expect(result.messages?.[1].type).toBe('ai');
-      expect(result.messages?.[1].content).toBe(mockLLMResponse);
+      expect(result.messages?.length).toBe(1); // only the appended AI message
+      expect(result.messages?.[0].type).toBe('ai');
+      expect(result.messages?.[0].content).toBe(mockLLMResponse);
     });
 
     it('should include persona system prompt in LLM call', async () => {
@@ -257,6 +256,8 @@ describe('createLLMPersonaNode', () => {
       // Messages should have been converted and passed to LLM as first argument
       expect(Array.isArray(messageArgs)).toBe(true);
       expect(messageArgs.length).toBeGreaterThan(0);
+      // Result should contain only the appended AI message
+      expect(result.messages?.length).toBe(1);
     });
 
     it('should handle unknown message types as human text', async () => {
@@ -299,6 +300,7 @@ describe('createLLMPersonaNode', () => {
       expect(mockOpenAIClient.invoke).toHaveBeenCalled();
       // Should not throw; unknown types should be treated as human
       expect(result.messages).toBeDefined();
+      expect(result.messages?.length).toBe(1); // only new AI message
     });
   });
 
@@ -384,8 +386,9 @@ describe('createLLMPersonaNode', () => {
       // Assert
       // Original array should not be mutated
       expect(originalMessages.length).toBe(1);
-      // Result should have new array with appended message
-      expect(result.messages?.length).toBe(2);
+      // Result should contain only the new AI message (not the full history)
+      expect(result.messages?.length).toBe(1);
+      expect(result.messages?.[0].type).toBe('ai');
     });
   });
 
@@ -532,8 +535,9 @@ describe('createLLMPersonaNode', () => {
 
         // Assert
         expect(result.messages).toBeDefined();
-        expect(result.messages?.[1].type).toBe('ai');
-        expect(result.messages?.[1].content).toBe(mockResponse);
+        expect(result.messages?.length).toBe(1); // only new AI message
+        expect(result.messages?.[0].type).toBe('ai');
+        expect(result.messages?.[0].content).toBe(mockResponse);
       });
     });
   });

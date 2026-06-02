@@ -5,7 +5,7 @@ import {
 } from '@langchain/core/messages';
 import { getOpenAIClient, getAnthropicClient } from '../llm/clients';
 import { AGENT_PERSONAS, PERSONA_IDS } from '../agents/personas';
-import { AgentState, SerializedMessage } from '../schema/agent-state';
+import type { AgentState, SerializedMessage } from '../schema';
 
 /**
  * Node function signature for LangGraph-compatible node implementations.
@@ -78,14 +78,13 @@ export function createLLMPersonaNode(personaId: string): AgentNodeFn {
               .join('')
           : String(response.content);
 
-    // Append the AI's response as a new message
-    const updatedMessages: SerializedMessage[] = [
-      ...state.messages,
-      {
-        type: 'ai',
-        content: responseContent,
-      },
-    ];
+    // Create only the NEW message to be appended.
+    // The graph's messages reducer will handle merging: state.messages + updates.messages
+    // Returning the full history here would cause duplication.
+    const newMessage: SerializedMessage = {
+      type: 'ai',
+      content: responseContent,
+    };
 
     // Calculate the next recipient in the persona sequence
     const currentIndex = PERSONA_IDS.indexOf(personaId.toLowerCase() as any);
@@ -93,9 +92,9 @@ export function createLLMPersonaNode(personaId: string): AgentNodeFn {
     const nextRecipient =
       nextIndex < PERSONA_IDS.length ? PERSONA_IDS[nextIndex] : null;
 
-    // Return the partial state with updated messages and advanced routing
+    // Return the partial state with only the new message and advanced routing
     return {
-      messages: updatedMessages,
+      messages: [newMessage],
       next_recipient: nextRecipient,
     };
   };
