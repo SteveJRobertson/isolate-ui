@@ -36,12 +36,12 @@ describe('LLM clients', () => {
   });
 
   describe('getAnthropicClient()', () => {
-    it('initializes ChatAnthropic with claude-3-5-sonnet-latest', () => {
+    it('initializes ChatAnthropic with claude-3-5-sonnet-20241022', () => {
       getAnthropicClient();
 
       expect(mockChatAnthropic).toHaveBeenCalledOnce();
       const [config] = mockChatAnthropic.mock.calls[0];
-      expect(config.modelName).toBe('claude-3-5-sonnet-latest');
+      expect(config.model).toBe('claude-3-5-sonnet-20241022');
     });
 
     it('passes the ANTHROPIC_API_KEY from env', () => {
@@ -76,7 +76,7 @@ describe('LLM clients', () => {
 
       expect(mockChatOpenAI).toHaveBeenCalledOnce();
       const [config] = mockChatOpenAI.mock.calls[0];
-      expect(config.modelName).toBe('gpt-4o');
+      expect(config.model).toBe('gpt-4o');
     });
 
     it('passes the OPENAI_API_KEY from env', () => {

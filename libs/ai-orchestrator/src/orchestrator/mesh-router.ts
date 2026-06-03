@@ -230,7 +230,7 @@ export function createMeshRouterNode(
  * maxTokens: 64 since only a short JSON object is expected.
  *
  * JSON mode is enabled by passing `modelKwargs: { response_format: { type: 'json_object' } }`.
- * This is the correct API surface for @langchain/openai v0.2.x. The `strict` flag is not required for
+ * This is the correct API surface for @langchain/openai v1.x. The `strict` flag is not required for
  * `json_object` mode (only for `json_schema`).
  *
  * @returns {ChatOpenAI} Configured ChatOpenAI client for mesh routing
@@ -244,7 +244,7 @@ function createDefaultMeshClient(): ChatOpenAI {
     );
   }
   return new ChatOpenAI({
-    modelName: 'gpt-4o-mini',
+    model: 'gpt-4o-mini',
     apiKey: env.OPENAI_API_KEY,
     temperature: 0,
     maxTokens: 64,
