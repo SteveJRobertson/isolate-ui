@@ -913,4 +913,239 @@ describe('createLLMPersonaNode', () => {
       });
     });
   });
+
+  describe('Anthropic prefill guard (issue #138)', () => {
+    it('should append HumanMessage when Anthropic client receives message array ending with AIMessage', async () => {
+      // Arrange
+      // The a11y persona uses Anthropic client
+      const personaId = 'a11y';
+      const mockLLMResponse = 'Accessibility audit complete. No violations.';
+      mockAnthropicClient.invoke.mockResolvedValue({
+        content: mockLLMResponse,
+      });
+
+      // State with message history ending in AIMessage (from mesh router or dev node)
+      const state: AgentState = {
+        messages: [
+          {
+            type: 'human',
+            content: 'Please audit this component for accessibility.',
+          },
+          {
+            type: 'ai',
+            content: 'I will audit the component now.',
+          }, // Ends with AIMessage
+        ],
+        next_recipient: 'qa',
+        code_buffer: 'const Button = () => <button>Click</button>;',
+        a11y_report: '',
+        arch_approval: true,
+        metadata: {},
+        _step_count: 2,
+        rejectionCount: 0,
+        rejectionReason: '',
+        lastApprovedBy: 'dev',
+        signoffs: { po: true, architect: true, dev: true },
+      };
+
+      const nodeFn = createLLMPersonaNode(personaId);
+
+      // Act
+      const result = await nodeFn(state);
+
+      // Assert
+      // The Anthropic client should have been called
+      expect(mockAnthropicClient.invoke).toHaveBeenCalled();
+
+      // Get the messages array that was passed to the Anthropic client
+      const messageArgs = mockAnthropicClient.invoke.mock.calls[0][0];
+      expect(Array.isArray(messageArgs)).toBe(true);
+
+      // The last message in the array should be a HumanMessage (the appended guard message)
+      const lastMessage = messageArgs[messageArgs.length - 1];
+      expect(lastMessage.constructor.name).toBe('HumanMessage');
+      expect(lastMessage.content).toBe(
+        'Please proceed with your task based on the context above.',
+      );
+
+      // Result should contain the AI response message
+      expect(result.messages).toBeDefined();
+      expect(result.messages?.[0].type).toBe('ai');
+      expect(result.messages?.[0].content).toBe(mockLLMResponse);
+    });
+
+    it('should NOT append HumanMessage when OpenAI client receives message array ending with AIMessage', async () => {
+      // Arrange
+      // The po persona uses OpenAI client
+      const personaId = 'po';
+      const mockLLMResponse = 'Design specification is ready.';
+      mockOpenAIClient.invoke.mockResolvedValue({
+        content: mockLLMResponse,
+      });
+
+      // State with message history ending in AIMessage
+      const state: AgentState = {
+        messages: [
+          {
+            type: 'human',
+            content: 'Please design a button component.',
+          },
+          {
+            type: 'ai',
+            content: 'I will create the design specification.',
+          }, // Ends with AIMessage
+        ],
+        next_recipient: 'architect',
+        code_buffer: '',
+        a11y_report: '',
+        arch_approval: false,
+        metadata: {},
+        _step_count: 2,
+        rejectionCount: 0,
+        rejectionReason: '',
+        lastApprovedBy: null,
+        signoffs: {},
+      };
+
+      const nodeFn = createLLMPersonaNode(personaId);
+
+      // Act
+      const result = await nodeFn(state);
+
+      // Assert
+      // The OpenAI client should have been called
+      expect(mockOpenAIClient.invoke).toHaveBeenCalled();
+
+      // Get the messages array that was passed to the OpenAI client
+      const messageArgs = mockOpenAIClient.invoke.mock.calls[0][0];
+      expect(Array.isArray(messageArgs)).toBe(true);
+
+      // For OpenAI, the last message should still be the AIMessage
+      // (no guard message appended, since OpenAI is permissive)
+      const lastMessage = messageArgs[messageArgs.length - 1];
+      expect(lastMessage.constructor.name).toBe('AIMessage');
+
+      // Result should contain the AI response message
+      expect(result.messages).toBeDefined();
+      expect(result.messages?.[0].type).toBe('ai');
+      expect(result.messages?.[0].content).toBe(mockLLMResponse);
+    });
+
+    it('should NOT append HumanMessage when message array already ends with HumanMessage', async () => {
+      // Arrange
+      // The a11y persona uses Anthropic client
+      const personaId = 'a11y';
+      const mockLLMResponse = 'Accessibility audit passed.';
+      mockAnthropicClient.invoke.mockResolvedValue({
+        content: mockLLMResponse,
+      });
+
+      // State with message history already ending in HumanMessage (valid state)
+      const state: AgentState = {
+        messages: [
+          {
+            type: 'human',
+            content: 'Please audit this component for accessibility.',
+          },
+          {
+            type: 'ai',
+            content: 'I will audit the component now.',
+          },
+          {
+            type: 'human',
+            content: 'Please proceed with the audit.',
+          }, // Already ends with HumanMessage
+        ],
+        next_recipient: 'qa',
+        code_buffer: 'const Button = () => <button>Click</button>;',
+        a11y_report: '',
+        arch_approval: true,
+        metadata: {},
+        _step_count: 3,
+        rejectionCount: 0,
+        rejectionReason: '',
+        lastApprovedBy: 'dev',
+        signoffs: { po: true, architect: true, dev: true },
+      };
+
+      const nodeFn = createLLMPersonaNode(personaId);
+
+      // Act
+      const result = await nodeFn(state);
+
+      // Assert
+      // The Anthropic client should have been called
+      expect(mockAnthropicClient.invoke).toHaveBeenCalled();
+
+      // Get the messages array that was passed to the Anthropic client
+      const messageArgs = mockAnthropicClient.invoke.mock.calls[0][0];
+      expect(Array.isArray(messageArgs)).toBe(true);
+
+      // Verify no guard message was appended: SystemMessage + 3 state messages = 4 total
+      expect(messageArgs.length).toBe(4);
+
+      // The last message should be HumanMessage from state (not an appended guard)
+      const lastMessage = messageArgs[messageArgs.length - 1];
+      expect(lastMessage.constructor.name).toBe('HumanMessage');
+      expect(lastMessage.content).toBe('Please proceed with the audit.');
+
+      // Result should contain the AI response message
+      expect(result.messages).toBeDefined();
+      expect(result.messages?.[0].type).toBe('ai');
+      expect(result.messages?.[0].content).toBe(mockLLMResponse);
+    });
+
+    it('should append HumanMessage when Anthropic client receives empty state.messages (only SystemMessage in array)', async () => {
+      // Arrange
+      // Edge case: state.messages is empty, so the LLM message array contains only SystemMessage
+      // Anthropic requires the final message to be from a user, so guard must append
+      const personaId = 'a11y';
+      const mockLLMResponse = 'Accessibility audit result.';
+      mockAnthropicClient.invoke.mockResolvedValue({
+        content: mockLLMResponse,
+      });
+
+      // State with empty message history (first request to a11y node)
+      const state: AgentState = {
+        messages: [], // Empty — only SystemMessage will be in the LLM array
+        next_recipient: 'qa',
+        code_buffer: 'const Button = () => <button>Click</button>;',
+        a11y_report: '',
+        arch_approval: true,
+        metadata: {},
+        _step_count: 1,
+        rejectionCount: 0,
+        rejectionReason: '',
+        lastApprovedBy: null,
+        signoffs: {},
+      };
+
+      const nodeFn = createLLMPersonaNode(personaId);
+
+      // Act
+      const result = await nodeFn(state);
+
+      // Assert
+      expect(mockAnthropicClient.invoke).toHaveBeenCalled();
+
+      // Get the messages array that was passed to the Anthropic client
+      const messageArgs = mockAnthropicClient.invoke.mock.calls[0][0];
+      expect(Array.isArray(messageArgs)).toBe(true);
+
+      // With empty state.messages: SystemMessage + appended HumanMessage = 2 total
+      expect(messageArgs.length).toBe(2);
+
+      // The last message should be the appended HumanMessage
+      const lastMessage = messageArgs[messageArgs.length - 1];
+      expect(lastMessage.constructor.name).toBe('HumanMessage');
+      expect(lastMessage.content).toBe(
+        'Please proceed with your task based on the context above.',
+      );
+
+      // Result should contain the AI response message
+      expect(result.messages).toBeDefined();
+      expect(result.messages?.[0].type).toBe('ai');
+      expect(result.messages?.[0].content).toBe(mockLLMResponse);
+    });
+  });
 });
