@@ -23,7 +23,7 @@ export function getOpenAIClient(): ChatOpenAI {
       );
     }
     openaiClient = new ChatOpenAI({
-      modelName: 'gpt-4o',
+      model: 'gpt-4o',
       apiKey: env.OPENAI_API_KEY,
       temperature: 0.7,
       maxTokens: 4096,
@@ -46,11 +46,11 @@ export function getAnthropicClient(): ChatAnthropic {
       );
     }
     anthropicClient = new ChatAnthropic({
-      modelName: 'claude-3-5-sonnet-latest',
+      model: 'claude-3-5-sonnet-20241022',
       apiKey: env.ANTHROPIC_API_KEY,
       temperature: 0.7,
       maxTokens: 4096,
-    } as any);
+    });
   }
   return anthropicClient;
 }
