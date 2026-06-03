@@ -125,6 +125,54 @@ describe('createLLMPersonaNode', () => {
       expect(result.messages?.length).toBe(1); // only the new AI message
     });
 
+    it('should route claude-sonnet-4-5 model to Anthropic client (regression)', async () => {
+      // Regression test: ensure ANTHROPIC_MODELS routing handles 4-5 correctly.
+      // When a persona is configured with claude-sonnet-4-5, it must route to
+      // getAnthropicClient() (not throw an error).
+
+      // Arrange
+      const mockLLMResponse = 'Accessibility audit response.';
+      mockAnthropicClient.invoke.mockResolvedValue({
+        content: mockLLMResponse,
+      });
+
+      // Temporarily patch the a11y persona to use claude-sonnet-4-5
+      const originalA11yModel = AGENT_PERSONAS.a11y.model;
+      (AGENT_PERSONAS.a11y as any).model = 'claude-sonnet-4-5';
+
+      const state: AgentState = {
+        messages: [
+          {
+            type: 'human',
+            content: 'Audit component.',
+          },
+        ],
+        next_recipient: 'qa',
+        code_buffer: 'const Component = () => <div>test</div>;',
+        a11y_report: '',
+        arch_approval: false,
+        metadata: {},
+        _step_count: 1,
+        rejectionCount: 0,
+        rejectionReason: '',
+        lastApprovedBy: null,
+        signoffs: {},
+      };
+
+      const nodeFn = createLLMPersonaNode('a11y');
+
+      // Act
+      const result = await nodeFn(state);
+
+      // Assert
+      expect(clientsModule.getAnthropicClient).toHaveBeenCalled();
+      expect(mockAnthropicClient.invoke).toHaveBeenCalled();
+      expect(result.messages).toBeDefined();
+
+      // Cleanup
+      (AGENT_PERSONAS.a11y as any).model = originalA11yModel;
+    });
+
     it('should append LLM response as ai message to messages array', async () => {
       // Arrange
       const personaId = 'po';
