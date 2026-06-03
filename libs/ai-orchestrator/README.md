@@ -254,7 +254,7 @@ If validation fails, the orchestrator throws a hard error during initialization.
 - `better-sqlite3` - Persistent state storage
 - `@langchain/langgraph` - Multi-agent orchestration graph
 - `@langchain/openai` - GPT-4o integration
-- `@langchain/anthropic` - Claude 3.5 Sonnet integration
+- `@langchain/anthropic` - Claude 4.6 integration
 - `@octokit/rest` - GitHub API client for posting refinement loop comments
 
 ## Testing

@@ -19,9 +19,9 @@ export interface AgentPersona {
   systemPrompt: string;
 
   /**
-   * LLM model to use: 'gpt-4o' | 'claude-3-5-sonnet'
+   * LLM model to use: 'gpt-4o' | 'claude-sonnet-4-6' | 'claude-sonnet-4-5'
    */
-  model: 'gpt-4o' | 'claude-3-5-sonnet';
+  model: 'gpt-4o' | 'claude-sonnet-4-6' | 'claude-sonnet-4-5';
 
   /**
    * Input fields this agent reads from AgentState.
@@ -162,7 +162,7 @@ Constraints:
 - Output accessibility audit report with specific remediation steps
 
 Be strict about accessibility - do not approve violations.`,
-    model: 'claude-3-5-sonnet',
+    model: 'claude-sonnet-4-6',
     inputFields: ['messages', 'code_buffer', 'a11y_report'],
     outputFields: ['messages', 'a11y_report', 'metadata'],
   },

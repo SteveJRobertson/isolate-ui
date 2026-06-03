@@ -8,6 +8,14 @@ import { AGENT_PERSONAS, PERSONA_IDS } from '../agents/personas';
 import type { AgentState, SerializedMessage } from '../schema';
 
 /**
+ * Supported Anthropic models for routing.
+ * These models are routed to getAnthropicClient().
+ * Currently only claude-sonnet-4-6 is instantiated; support for claude-sonnet-4-5
+ * will be added when the client factory is updated to accept a model parameter.
+ */
+const ANTHROPIC_MODELS = ['claude-sonnet-4-6', 'claude-sonnet-4-5'] as const;
+
+/**
  * Node function signature for LangGraph-compatible node implementations.
  * Takes current state, performs async work, returns partial state updates.
  */
@@ -38,7 +46,9 @@ export function createLLMPersonaNode(personaId: string): AgentNodeFn {
     const client =
       persona.model === 'gpt-4o'
         ? getOpenAIClient()
-        : persona.model === 'claude-3-5-sonnet'
+        : ANTHROPIC_MODELS.includes(
+              persona.model as (typeof ANTHROPIC_MODELS)[number],
+            )
           ? getAnthropicClient()
           : (() => {
               throw new Error(

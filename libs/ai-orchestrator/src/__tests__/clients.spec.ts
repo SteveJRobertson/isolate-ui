@@ -36,12 +36,12 @@ describe('LLM clients', () => {
   });
 
   describe('getAnthropicClient()', () => {
-    it('initializes ChatAnthropic with claude-3-5-sonnet-20241022', () => {
+    it('initializes ChatAnthropic with claude-sonnet-4-6', () => {
       getAnthropicClient();
 
       expect(mockChatAnthropic).toHaveBeenCalledOnce();
       const [config] = mockChatAnthropic.mock.calls[0];
-      expect(config.model).toBe('claude-3-5-sonnet-20241022');
+      expect(config.model).toBe('claude-sonnet-4-6');
     });
 
     it('passes the ANTHROPIC_API_KEY from env', () => {
