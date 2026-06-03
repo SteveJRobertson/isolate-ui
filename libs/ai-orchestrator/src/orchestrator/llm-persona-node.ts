@@ -43,12 +43,13 @@ export function createLLMPersonaNode(personaId: string): AgentNodeFn {
   // Return the node function
   return async (state: AgentState): Promise<Partial<AgentState>> => {
     // Select the appropriate LLM client based on persona model
+    const isAnthropicModel = ANTHROPIC_MODELS.includes(
+      persona.model as (typeof ANTHROPIC_MODELS)[number],
+    );
     const client =
       persona.model === 'gpt-4o'
         ? getOpenAIClient()
-        : ANTHROPIC_MODELS.includes(
-              persona.model as (typeof ANTHROPIC_MODELS)[number],
-            )
+        : isAnthropicModel
           ? getAnthropicClient()
           : (() => {
               throw new Error(
@@ -74,6 +75,21 @@ export function createLLMPersonaNode(personaId: string): AgentNodeFn {
         }
       }),
     ];
+
+    // PREFILL GUARD: Anthropic API requires the final message to be from a user.
+    // If the message array ends with an AIMessage (e.g., from mesh router or prior node),
+    // append a generic HumanMessage to satisfy Anthropic's constraint.
+    // This is Anthropic-specific; OpenAI and other providers are permissive.
+    if (isAnthropicModel && messages.length > 0) {
+      const lastMessage = messages[messages.length - 1];
+      if (lastMessage instanceof AIMessage) {
+        messages.push(
+          new HumanMessage(
+            'Please proceed with your task based on the context above.',
+          ),
+        );
+      }
+    }
 
     // Invoke the LLM with the full message history (including system prompt)
     const response = await client.invoke(messages as any);
