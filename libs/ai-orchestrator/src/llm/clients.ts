@@ -33,7 +33,7 @@ export function getOpenAIClient(): ChatOpenAI {
 }
 
 /**
- * Get or initialize the Anthropic client (Claude 3.5 Sonnet).
+ * Get or initialize the Anthropic client (Claude 4.6).
  * Used by A11y specialist persona.
  * Requires ANTHROPIC_API_KEY to be set.
  */
@@ -46,7 +46,7 @@ export function getAnthropicClient(): ChatAnthropic {
       );
     }
     anthropicClient = new ChatAnthropic({
-      model: 'claude-3-5-sonnet-20241022',
+      model: 'claude-sonnet-4-6',
       apiKey: env.ANTHROPIC_API_KEY,
       temperature: 0.7,
       maxTokens: 4096,

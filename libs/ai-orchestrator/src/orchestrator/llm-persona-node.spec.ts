@@ -85,7 +85,7 @@ describe('createLLMPersonaNode', () => {
       expect(result.messages?.length).toBe(1); // only the new AI message
     });
 
-    it('should invoke correct LLM client based on persona.model (claude-3-5-sonnet)', async () => {
+    it('should invoke correct LLM client based on persona.model (claude-sonnet-4-6)', async () => {
       // Arrange
       const personaId = 'a11y';
       const mockLLMResponse =

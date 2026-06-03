@@ -24,7 +24,9 @@ describe('Agent Personas', () => {
       expect(persona.title).toBeTruthy();
       expect(persona.description).toBeTruthy();
       expect(persona.systemPrompt.length).toBeGreaterThan(50);
-      expect(['gpt-4o', 'claude-3-5-sonnet']).toContain(persona.model);
+      expect(['gpt-4o', 'claude-sonnet-4-6', 'claude-sonnet-4-5']).toContain(
+        persona.model,
+      );
       expect(persona.inputFields.length).toBeGreaterThan(0);
       expect(persona.outputFields.length).toBeGreaterThan(0);
     });
@@ -36,7 +38,7 @@ describe('Agent Personas', () => {
 
     const a11y = getPersona('a11y');
     expect(a11y?.name).toBe('@isolate-a11y');
-    expect(a11y?.model).toBe('claude-3-5-sonnet');
+    expect(a11y?.model).toBe('claude-sonnet-4-6');
   });
 
   it('getPersona returns undefined for unknown IDs', () => {

@@ -38,7 +38,8 @@ export function createLLMPersonaNode(personaId: string): AgentNodeFn {
     const client =
       persona.model === 'gpt-4o'
         ? getOpenAIClient()
-        : persona.model === 'claude-3-5-sonnet'
+        : persona.model === 'claude-sonnet-4-6' ||
+            persona.model === 'claude-sonnet-4-5'
           ? getAnthropicClient()
           : (() => {
               throw new Error(
