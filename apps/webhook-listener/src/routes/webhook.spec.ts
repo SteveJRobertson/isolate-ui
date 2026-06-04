@@ -1146,6 +1146,66 @@ describe('webhookRoute', () => {
       const responseBody = JSON.parse(response.payload);
       expect(responseBody.skipped).toBe(true);
     });
+
+    it('labeled event on paused checkpoint: clears pause state and invokes po', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      // Mock a checkpoint with pause_context set and next_recipient null (paused state)
+      const pausedCheckpoint = {
+        messages: [],
+        next_recipient: null,
+        pause_context: 'refinement_limit',
+        rejectionCount: 5,
+        rejectionReason: 'max rejections reached',
+        signoffs: { po: true, architect: false },
+        mesh_origin: 'po',
+        mesh_loop_count: 0,
+      };
+
+      // Mock graph.getState to return the paused checkpoint
+      mockGraph.getState.mockResolvedValue(pausedCheckpoint);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'component' }],
+        },
+        label: { name: 'component' },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-labeled-paused-checkpoint-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(202);
+
+      // Verify graph.getState was called to check checkpoint
+      expect(mockGraph.getState).toHaveBeenCalledWith('issue-99');
+
+      // Verify graph.invoke was called with resume payload (not graph.run)
+      expect(mockGraph.invoke).toHaveBeenCalledWith('issue-99', {
+        next_recipient: 'po',
+        pause_context: null,
+        rejectionCount: 0,
+        signoffs: {},
+      });
+
+      // Verify graph.run was NOT called
+      expect(mockGraph.run).not.toHaveBeenCalled();
+    });
   });
 
   describe('Phase 4: Label whitelist externalization via ALLOWED_BOOTSTRAP_LABELS env var', () => {

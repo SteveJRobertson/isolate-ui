@@ -246,10 +246,30 @@ export async function webhookRoute(
           return reply.status(403).send({ error: 'Unauthorized' });
         }
 
-        // Bootstrap the thread by calling graph.run()
+        // Bootstrap the thread
         const threadId = `issue-${issueNumber}`;
         try {
-          await graph.run(threadId, {});
+          // Check if there's an existing checkpoint in a paused state
+          const checkpoint = await graph.getState(threadId);
+
+          if (checkpoint?.pause_context) {
+            // Thread is paused — resume it (mirrors /approve logic)
+            const resumeTarget =
+              checkpoint.pause_context === 'mesh_stalemate' &&
+              checkpoint.mesh_origin
+                ? checkpoint.mesh_origin
+                : 'po';
+
+            await graph.invoke(threadId, {
+              next_recipient: resumeTarget,
+              pause_context: null,
+              rejectionCount: 0,
+              signoffs: {},
+            });
+          } else {
+            // Thread doesn't exist or is running — bootstrap fresh
+            await graph.run(threadId, {});
+          }
 
           // Post comment to acknowledge
           await octokit.rest.issues.createComment({
