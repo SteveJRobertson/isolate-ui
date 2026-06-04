@@ -246,10 +246,18 @@ export async function webhookRoute(
           return reply.status(403).send({ error: 'Unauthorized' });
         }
 
-        // Bootstrap the thread by calling graph.run()
+        // Bootstrap the thread — always force a restart of the sequence
         const threadId = `issue-${issueNumber}`;
         try {
-          await graph.run(threadId, {});
+          // Always reset to po with cleared pause/rejection state, whether thread
+          // is paused, finished, or doesn't exist yet. This ensures labeling always
+          // restarts the analysis loop from the beginning.
+          await graph.run(threadId, {
+            next_recipient: 'po',
+            pause_context: null,
+            rejectionCount: 0,
+            signoffs: {},
+          });
 
           // Post comment to acknowledge
           await octokit.rest.issues.createComment({
