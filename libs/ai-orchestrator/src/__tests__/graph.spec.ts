@@ -324,6 +324,61 @@ describe('OrchestratorGraph', () => {
     expect(result.finalState.code_buffer).toBe(originalBuffer);
   });
 
+  it('START routes through mesh_router before dispatching to persona on run', async () => {
+    // Issue #140: START used to bypass mesh_router entirely, routing directly to
+    // next_recipient via routeByRecipient. This test verifies the new topology:
+    //   START → mesh_router → routeByRecipient → persona
+    // If mesh_router runs FIRST, it can reclassify 'qa' → 'po' before qa executes.
+    // With the OLD topology qa runs first (visited), then mesh_router redirects to po.
+    // Note: run() is used because run() rebuilds the graph per call, picking up
+    // the configured mesh client; invoke() uses a pre-compiled graph.
+    const graph = new OrchestratorGraph(tempDbPath(), AGENTS_MD_PATH);
+    graphs.push(graph);
+
+    graph.configureMesh({
+      maxMeshLoops: 5,
+      llmClient: new FakeListChatModel({
+        responses: [
+          '{"target": "po"}', // mesh_router at START: reclassify qa → po
+          '{"target": null}', // after po runs: no further jump
+          '{"target": null}',
+        ],
+      }),
+    });
+
+    const visited: string[] = [];
+
+    graph.registerNode('qa', (state: AgentState) => {
+      visited.push('qa');
+      return {
+        next_recipient: null,
+        messages: [...state.messages, { type: 'ai', content: 'QA: done' }],
+      };
+    });
+
+    graph.registerNode('po', (state: AgentState) => {
+      visited.push('po');
+      return {
+        next_recipient: null,
+        messages: [...state.messages, { type: 'ai', content: 'PO: done' }],
+      };
+    });
+
+    // Simulate /query: run with next_recipient: 'qa' and a query message.
+    // Mesh router should reclassify to 'po' BEFORE 'qa' executes.
+    // Note: run() is used here (vs invoke()) because run() rebuilds the graph
+    // per call, ensuring configureMesh()'s llmClient is picked up correctly.
+    await graph.run('query-route-test', {
+      next_recipient: 'qa',
+      messages: [{ type: 'human', content: '@isolate- which design token?' }],
+    });
+
+    // NEW topology: mesh_router runs first → reclassifies qa → po
+    // → only 'po' is visited; 'qa' is never reached
+    expect(visited).toContain('po');
+    expect(visited).not.toContain('qa');
+  });
+
   it('routes to human_review when mesh_loop_count exceeds maxMeshLoops', async () => {
     const graph = new OrchestratorGraph(tempDbPath(), AGENTS_MD_PATH);
     graphs.push(graph);

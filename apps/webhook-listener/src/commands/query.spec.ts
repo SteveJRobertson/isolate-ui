@@ -104,9 +104,10 @@ describe('handleQuery', () => {
     );
   });
 
-  it('does NOT clear pause_context when issued while paused', async () => {
-    // Simulate a thread paused at refinement_limit
-    // handleQuery relies on graph.invoke() to preserve pause_context from checkpoint
+  it('always passes pause_context: null to clear stalemate and allow re-routing', async () => {
+    // Issue #140: /query must clear pause_context so the graph can re-route via
+    // mesh_router rather than hitting the __pause__ node immediately.
+    // Applies to both mesh_stalemate and refinement_limit — user expects a response.
     graph.getState.mockReturnValue({
       next_recipient: null,
       pause_context: 'refinement_limit',
@@ -114,25 +115,22 @@ describe('handleQuery', () => {
 
     await handleQuery(ctx, 'question');
 
-    // Verify that graph.invoke was called (NOT that pause_context is explicitly passed)
-    // The graph's invokeWithGraph() will preserve pause_context from checkpoint
     expect(graph.invoke).toHaveBeenCalled();
     const invokeCall = graph.invoke.mock.calls[0];
     const invokePayload = invokeCall[1];
 
-    // Verify that pause_context is NOT explicitly cleared (not set to null in the call)
-    // If handleQuery passed pause_context: null, it would break /approve and /fix guards
-    expect(invokePayload.pause_context).not.toBe(null);
-    // Should be undefined here (relying on checkpoint preservation)
-    expect(invokePayload.pause_context).toBeUndefined();
+    // /query must explicitly pass pause_context: null so the graph can process
+    // the question without routing to __pause__ node first.
+    expect(invokePayload.pause_context).toBe(null);
   });
 
-  it('preserves pause_context for approve/fix resumption guards', async () => {
-    // When a thread is paused with mesh_stalemate, pause_context must remain
-    // non-null so that /approve and /fix can guard against invalid state transitions.
-    // /query should NOT explicitly clear pause_context in its invoke call.
+  it('clears mesh_stalemate pause by passing pause_context: null on /query', async () => {
+    // Issue #140: when the thread is stuck in mesh_stalemate, /query must clear
+    // pause_context so the graph routes through mesh_router instead of __pause__.
+    // The topology change (START → mesh_router) ensures mesh_router reclassifies
+    // the question to the right persona before any agent logic executes.
     graph.getState.mockReturnValue({
-      next_recipient: null,
+      next_recipient: 'dev',
       pause_context: 'mesh_stalemate',
       mesh_origin: 'dev',
     });
@@ -142,15 +140,11 @@ describe('handleQuery', () => {
     const invokeCall = graph.invoke.mock.calls[0];
     const invokePayload = invokeCall[1];
 
-    // Critical: pause_context must NOT be explicitly set to null by /query
-    // /query should pass the delta message and next_recipient, letting the graph
-    // preserve pause_context from checkpoint. This ensures /approve and /fix
-    // can still check pause_context and detect the paused state.
-    expect(invokePayload.pause_context).not.toBe(null);
-    expect(invokePayload.pause_context).toBeUndefined();
+    // pause_context must be explicitly null so the graph doesn't route to __pause__
+    expect(invokePayload.pause_context).toBe(null);
 
-    // Verify next_recipient fallback logic still works
-    expect(invokePayload.next_recipient).toBe('po');
+    // next_recipient is preserved from checkpoint (not reset to 'po')
+    expect(invokePayload.next_recipient).toBe('dev');
   });
 
   describe('Phase 5: Extract & Post AI Response', () => {

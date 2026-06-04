@@ -77,15 +77,22 @@ export async function handleQuery(
     : 'po';
 
   try {
-    // The '@isolate- ' prefix triggers the mesh router heuristic gate.
-    // The LLM classifier determines the target persona from the question content.
-    // Explicitly set next_recipient so the graph re-enters at a real persona
-    // rather than routing immediately to __end__ when the thread is paused.
-    // Do NOT clear pause_context here: /approve and /fix guard on it being
-    // non-null to detect an active human-review pause. Clearing it would make
-    // those commands fail even though the thread is still effectively paused.
+    // The '@isolate- ' prefix triggers the mesh router heuristic gate to ensure
+    // the LLM classifier is consulted (vs being skipped for routine work outputs).
+    // However, the current mesh router classifier only returns a non-null target
+    // for queries explicitly directed at specific personas (e.g. '@isolate-po').
+    // For generic queries like '@isolate- which design token?', the classifier
+    // returns {target: null}, and routing defaults to next_recipient (usually 'po').
+    // Future improvement: update mesh_router's MESH_SYSTEM_PROMPT to classify
+    // generic queries to the most appropriate persona (e.g. 'po' for token questions).
+    //
+    // Issue #140: set pause_context: null to clear mesh_stalemate (and any other
+    // pause) so the graph routes through mesh_router instead of __pause__ node.
+    // With the new START → mesh_router topology, mesh_router always runs first,
+    // so every /query reaches mesh_router before any persona executes.
     await graph.invoke(threadId, {
       next_recipient: nextRecipient as any,
+      pause_context: null,
       messages: [{ type: 'human', content: `@isolate- ${trimmed}` }],
     });
 
