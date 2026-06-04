@@ -47,7 +47,7 @@ export interface MeshQueryResult {
 
 // ── LLM prompt ────────────────────────────────────────────────────────────────
 
-const MESH_SYSTEM_PROMPT = `You are a routing classifier for an AI multi-agent orchestration system.
+export const MESH_SYSTEM_PROMPT = `You are a routing classifier for an AI multi-agent orchestration system.
 
 Analyze the provided message and determine the best-fit specialist persona for any query, or identify non-query work outputs.
 

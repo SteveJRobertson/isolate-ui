@@ -6,6 +6,7 @@ import {
   createMeshRouterNode,
   DEFAULT_MESH_CONFIG,
   _test_createDefaultMeshClient,
+  MESH_SYSTEM_PROMPT,
   type MeshRouterConfig,
 } from '../orchestrator/mesh-router';
 import { createDefaultAgentState } from '../schema';
@@ -399,5 +400,21 @@ describe('_test_createDefaultMeshClient', () => {
   it('throws if OPENAI_API_KEY is not set', () => {
     delete process.env['OPENAI_API_KEY'];
     expect(() => _test_createDefaultMeshClient()).toThrow(/OPENAI_API_KEY/);
+  });
+});
+
+describe('MESH_SYSTEM_PROMPT', () => {
+  it('includes all six persona domain descriptions', () => {
+    const personas = ['po', 'architect', 'dev', 'a11y', 'qa', 'docs'];
+
+    personas.forEach((persona) => {
+      expect(MESH_SYSTEM_PROMPT).toContain(persona);
+    });
+  });
+
+  it('contains required routing instruction keywords', () => {
+    expect(MESH_SYSTEM_PROMPT).toContain('@isolate-');
+    expect(MESH_SYSTEM_PROMPT).toContain('best-fit');
+    expect(MESH_SYSTEM_PROMPT).toContain('JSON');
   });
 });
