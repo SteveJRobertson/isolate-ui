@@ -324,12 +324,14 @@ describe('OrchestratorGraph', () => {
     expect(result.finalState.code_buffer).toBe(originalBuffer);
   });
 
-  it('START routes through mesh_router before dispatching to persona on invoke', async () => {
+  it('START routes through mesh_router before dispatching to persona on run', async () => {
     // Issue #140: START used to bypass mesh_router entirely, routing directly to
     // next_recipient via routeByRecipient. This test verifies the new topology:
     //   START → mesh_router → routeByRecipient → persona
     // If mesh_router runs FIRST, it can reclassify 'qa' → 'po' before qa executes.
     // With the OLD topology qa runs first (visited), then mesh_router redirects to po.
+    // Note: run() is used because run() rebuilds the graph per call, picking up
+    // the configured mesh client; invoke() uses a pre-compiled graph.
     const graph = new OrchestratorGraph(tempDbPath(), AGENTS_MD_PATH);
     graphs.push(graph);
 
