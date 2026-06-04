@@ -246,30 +246,18 @@ export async function webhookRoute(
           return reply.status(403).send({ error: 'Unauthorized' });
         }
 
-        // Bootstrap the thread
+        // Bootstrap the thread — always force a restart of the sequence
         const threadId = `issue-${issueNumber}`;
         try {
-          // Check if there's an existing checkpoint in a paused state
-          const checkpoint = await graph.getState(threadId);
-
-          if (checkpoint?.pause_context) {
-            // Thread is paused — resume it (mirrors /approve logic)
-            const resumeTarget =
-              checkpoint.pause_context === 'mesh_stalemate' &&
-              checkpoint.mesh_origin
-                ? checkpoint.mesh_origin
-                : 'po';
-
-            await graph.invoke(threadId, {
-              next_recipient: resumeTarget,
-              pause_context: null,
-              rejectionCount: 0,
-              signoffs: {},
-            });
-          } else {
-            // Thread doesn't exist or is running — bootstrap fresh
-            await graph.run(threadId, {});
-          }
+          // Always reset to po with cleared pause/rejection state, whether thread
+          // is paused, finished, or doesn't exist yet. This ensures labeling always
+          // restarts the analysis loop from the beginning.
+          await graph.run(threadId, {
+            next_recipient: 'po',
+            pause_context: null,
+            rejectionCount: 0,
+            signoffs: {},
+          });
 
           // Post comment to acknowledge
           await octokit.rest.issues.createComment({

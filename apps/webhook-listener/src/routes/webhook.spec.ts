@@ -1104,7 +1104,12 @@ describe('webhookRoute', () => {
       });
 
       expect(response.statusCode).toBe(202);
-      expect(mockRun).toHaveBeenCalledWith('issue-99', {});
+      expect(mockRun).toHaveBeenCalledWith('issue-99', {
+        next_recipient: 'po',
+        pause_context: null,
+        rejectionCount: 0,
+        signoffs: {},
+      });
       expect(mockCreateComment).toHaveBeenCalledWith({
         owner: 'owner',
         repo: 'repo',
@@ -1147,7 +1152,7 @@ describe('webhookRoute', () => {
       expect(responseBody.skipped).toBe(true);
     });
 
-    it('labeled event on paused checkpoint: clears pause state and invokes po', async () => {
+    it('labeled event on paused checkpoint: resets and invokes po', async () => {
       const { verifyHmac } = await import('../security/hmac');
       vi.mocked(verifyHmac).mockReturnValue(true);
 
@@ -1192,19 +1197,74 @@ describe('webhookRoute', () => {
 
       expect(response.statusCode).toBe(202);
 
-      // Verify graph.getState was called to check checkpoint
-      expect(mockGraph.getState).toHaveBeenCalledWith('issue-99');
-
-      // Verify graph.invoke was called with resume payload (not graph.run)
-      expect(mockGraph.invoke).toHaveBeenCalledWith('issue-99', {
+      // Verify graph.run was called to restart the sequence with reset state
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-99', {
         next_recipient: 'po',
         pause_context: null,
         rejectionCount: 0,
         signoffs: {},
       });
+    });
 
-      // Verify graph.run was NOT called
-      expect(mockGraph.run).not.toHaveBeenCalled();
+    it('labeled event on finished checkpoint: resets and invokes po', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      // Mock a checkpoint that is finished (next_recipient and pause_context both null)
+      const finishedCheckpoint = {
+        messages: [],
+        next_recipient: null,
+        pause_context: null,
+        rejectionCount: 0,
+        rejectionReason: '',
+        signoffs: {
+          po: true,
+          architect: true,
+          dev: true,
+          a11y: true,
+          qa: true,
+          docs: true,
+        },
+        mesh_origin: null,
+        mesh_loop_count: 0,
+      };
+
+      // Mock graph.getState to return the finished checkpoint
+      mockGraph.getState.mockResolvedValue(finishedCheckpoint);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 100,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'component' }],
+        },
+        label: { name: 'component' },
+      };
+      const rawBodyBuffer = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-labeled-finished-checkpoint-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBodyBuffer,
+      });
+
+      expect(response.statusCode).toBe(202);
+
+      // Verify graph.run was called to restart the sequence with reset state
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-100', {
+        next_recipient: 'po',
+        pause_context: null,
+        rejectionCount: 0,
+        signoffs: {},
+      });
     });
   });
 
@@ -1241,7 +1301,12 @@ describe('webhookRoute', () => {
 
       // Should trigger bootstrap (graph.run will be called)
       expect(response.statusCode).toBe(202);
-      expect(mockGraph.run).toHaveBeenCalledWith('issue-99', {});
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-99', {
+        next_recipient: 'po',
+        pause_context: null,
+        rejectionCount: 0,
+        signoffs: {},
+      });
     });
 
     it('normalizes mixed case labels (Type: Chore)', async () => {
@@ -1276,7 +1341,12 @@ describe('webhookRoute', () => {
 
       // Should trigger bootstrap after normalization
       expect(response.statusCode).toBe(202);
-      expect(mockGraph.run).toHaveBeenCalledWith('issue-100', {});
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-100', {
+        next_recipient: 'po',
+        pause_context: null,
+        rejectionCount: 0,
+        signoffs: {},
+      });
     });
 
     it('rejects unlisted labels (documentation)', async () => {
@@ -1393,7 +1463,12 @@ describe('webhookRoute', () => {
       });
 
       expect(response.statusCode).toBe(202);
-      expect(mockGraphCustom.run).toHaveBeenCalledWith('issue-102', {});
+      expect(mockGraphCustom.run).toHaveBeenCalledWith('issue-102', {
+        next_recipient: 'po',
+        pause_context: null,
+        rejectionCount: 0,
+        signoffs: {},
+      });
 
       await fastifyCustom.close();
 
