@@ -404,17 +404,24 @@ describe('_test_createDefaultMeshClient', () => {
 });
 
 describe('MESH_SYSTEM_PROMPT', () => {
-  it('includes all six persona domain descriptions', () => {
-    const personas = ['po', 'architect', 'dev', 'a11y', 'qa', 'docs'];
+  it('includes all six persona domain descriptions with proper bullet format', () => {
+    const domainBullets = [
+      '- po:',
+      '- architect:',
+      '- dev:',
+      '- a11y:',
+      '- qa:',
+      '- docs:',
+    ];
 
-    personas.forEach((persona) => {
-      expect(MESH_SYSTEM_PROMPT).toContain(persona);
+    domainBullets.forEach((bullet) => {
+      expect(MESH_SYSTEM_PROMPT).toContain(bullet);
     });
   });
 
   it('contains required routing instruction keywords', () => {
     expect(MESH_SYSTEM_PROMPT).toContain('@isolate-');
-    expect(MESH_SYSTEM_PROMPT).toContain('best-fit');
+    expect(MESH_SYSTEM_PROMPT).toContain('ONLY');
     expect(MESH_SYSTEM_PROMPT).toContain('JSON');
   });
 });
