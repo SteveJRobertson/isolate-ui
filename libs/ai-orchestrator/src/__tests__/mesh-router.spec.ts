@@ -6,6 +6,7 @@ import {
   createMeshRouterNode,
   DEFAULT_MESH_CONFIG,
   _test_createDefaultMeshClient,
+  MESH_SYSTEM_PROMPT,
   type MeshRouterConfig,
 } from '../orchestrator/mesh-router';
 import { createDefaultAgentState } from '../schema';
@@ -117,6 +118,68 @@ describe('analyzeMeshQuery', () => {
       const messages = [makeMessage('Is this correct? @isolate-po')];
       const result = await analyzeMeshQuery(messages, client);
       expect(result).toEqual({ target: null });
+    });
+  });
+
+  describe('generic query inference (without explicit persona tags)', () => {
+    it('infers po for status/requirements queries', async () => {
+      const client = fakeClient('{"target": "po"}');
+      const messages = [
+        makeMessage('@isolate- What is the status of this issue?'),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'po' });
+    });
+
+    it('infers po for design token queries', async () => {
+      const client = fakeClient('{"target": "po"}');
+      const messages = [
+        makeMessage('@isolate- What design tokens are available for colors?'),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'po' });
+    });
+
+    it('infers architect for monorepo structure queries', async () => {
+      const client = fakeClient('{"target": "architect"}');
+      const messages = [
+        makeMessage(
+          '@isolate- How are the presets structured in the monorepo?',
+        ),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'architect' });
+    });
+
+    it('infers architect for dependency queries', async () => {
+      const client = fakeClient('{"target": "architect"}');
+      const messages = [
+        makeMessage('@isolate- What dependencies do we use for testing?'),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'architect' });
+    });
+
+    it('infers a11y for accessibility compliance queries', async () => {
+      const client = fakeClient('{"target": "a11y"}');
+      const messages = [
+        makeMessage(
+          '@isolate- How do we ensure ARIA compliance in components?',
+        ),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'a11y' });
+    });
+
+    it('infers a11y for keyboard navigation queries', async () => {
+      const client = fakeClient('{"target": "a11y"}');
+      const messages = [
+        makeMessage(
+          '@isolate- What keyboard navigation patterns are supported?',
+        ),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'a11y' });
     });
   });
 });
@@ -337,5 +400,28 @@ describe('_test_createDefaultMeshClient', () => {
   it('throws if OPENAI_API_KEY is not set', () => {
     delete process.env['OPENAI_API_KEY'];
     expect(() => _test_createDefaultMeshClient()).toThrow(/OPENAI_API_KEY/);
+  });
+});
+
+describe('MESH_SYSTEM_PROMPT', () => {
+  it('includes all six persona domain descriptions with proper bullet format', () => {
+    const domainBullets = [
+      '- po:',
+      '- architect:',
+      '- dev:',
+      '- a11y:',
+      '- qa:',
+      '- docs:',
+    ];
+
+    domainBullets.forEach((bullet) => {
+      expect(MESH_SYSTEM_PROMPT).toContain(bullet);
+    });
+  });
+
+  it('contains required routing instruction keywords', () => {
+    expect(MESH_SYSTEM_PROMPT).toContain('@isolate-');
+    expect(MESH_SYSTEM_PROMPT).toContain('ONLY');
+    expect(MESH_SYSTEM_PROMPT).toContain('JSON');
   });
 });
