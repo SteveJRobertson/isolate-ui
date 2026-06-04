@@ -1354,6 +1354,51 @@ describe('webhookRoute', () => {
       });
     });
 
+    it('labeled event with null issue body: omits body from context message', async () => {
+      const { verifyHmac } = await import('../security/hmac');
+      vi.mocked(verifyHmac).mockReturnValue(true);
+
+      const payload = {
+        action: 'labeled',
+        issue: {
+          number: 99,
+          title: 'Chore: update dependencies',
+          body: null,
+          user: { login: 'owner-user' },
+          author_association: 'OWNER',
+          labels: [{ name: 'type: chore' }],
+        },
+        label: { name: 'type: chore' },
+      };
+      const rawBody = Buffer.from(JSON.stringify(payload));
+
+      const response = await fastify.inject({
+        method: 'POST',
+        url: '/api/webhook',
+        headers: {
+          'x-github-event': 'issues',
+          'x-github-delivery': 'test-phase4-null-body-1',
+          'x-hub-signature-256': 'sha256=' + 'a'.repeat(64),
+          'content-type': 'application/json',
+        },
+        payload: rawBody,
+      });
+
+      expect(response.statusCode).toBe(202);
+      expect(mockGraph.run).toHaveBeenCalledWith('issue-99', {
+        next_recipient: 'po',
+        pause_context: null,
+        rejectionCount: 0,
+        signoffs: {},
+        messages: [
+          {
+            type: 'human',
+            content: 'Issue #99: Chore: update dependencies',
+          },
+        ],
+      });
+    });
+
     it('normalizes mixed case labels (Type: Chore)', async () => {
       // GitHub returns labels exactly as they appear in UI
       // Test that mixed case 'Type: Chore' is normalized to 'type: chore' and matches

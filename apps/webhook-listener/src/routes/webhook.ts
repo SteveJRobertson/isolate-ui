@@ -264,8 +264,9 @@ export async function webhookRoute(
             messages: [
               {
                 type: 'human',
-                content:
-                  `Issue #${issueNumber}: ${issueTitle}\n\n${issueBody ?? ''}`.trim(),
+                content: issueBody
+                  ? `Issue #${issueNumber}: ${issueTitle}\n\n${issueBody}`
+                  : `Issue #${issueNumber}: ${issueTitle}`,
               },
             ],
           });
