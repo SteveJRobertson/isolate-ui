@@ -209,6 +209,8 @@ export async function webhookRoute(
           action: z.string(),
           issue: z.object({
             number: z.number(),
+            title: z.string(),
+            body: z.string().nullable(),
             author_association: z.string(),
           }),
           label: z.object({ name: z.string() }).optional(),
@@ -241,6 +243,8 @@ export async function webhookRoute(
 
         // Authorization check: issue author must be authorized
         const issueNumber = payload.issue.number;
+        const issueTitle = payload.issue.title;
+        const issueBody = payload.issue.body;
         const authorAssociation = payload.issue.author_association;
         if (!AUTHORIZED_ASSOCIATIONS.has(authorAssociation)) {
           return reply.status(403).send({ error: 'Unauthorized' });
@@ -257,6 +261,13 @@ export async function webhookRoute(
             pause_context: null,
             rejectionCount: 0,
             signoffs: {},
+            messages: [
+              {
+                type: 'human',
+                content:
+                  `Issue #${issueNumber}: ${issueTitle}\n\n${issueBody ?? ''}`.trim(),
+              },
+            ],
           });
 
           // Post comment to acknowledge

@@ -915,6 +915,7 @@ describe('webhookRoute', () => {
         issue: {
           number: 99,
           title: 'New feature request',
+          body: 'New feature for the component library.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'component' }],
@@ -946,6 +947,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 99,
+          title: 'Some issue',
+          body: null,
           user: { login: 'unauthorized-user' },
           author_association: 'NONE',
           labels: [{ name: 'component' }],
@@ -977,6 +980,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 99,
+          title: 'Documentation request',
+          body: null,
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'documentation' }],
@@ -1012,6 +1017,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 99,
+          title: 'Add button component',
+          body: 'A new button component is needed.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'component' }],
@@ -1083,6 +1090,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 99,
+          title: 'Add button component',
+          body: 'A new button component is needed.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'component' }],
@@ -1109,6 +1118,13 @@ describe('webhookRoute', () => {
         pause_context: null,
         rejectionCount: 0,
         signoffs: {},
+        messages: [
+          {
+            type: 'human',
+            content:
+              'Issue #99: Add button component\n\nA new button component is needed.',
+          },
+        ],
       });
       expect(mockCreateComment).toHaveBeenCalledWith({
         owner: 'owner',
@@ -1128,6 +1144,8 @@ describe('webhookRoute', () => {
         action: 'opened', // Not 'labeled'
         issue: {
           number: 99,
+          title: 'Some issue',
+          body: null,
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'component' }],
@@ -1175,6 +1193,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 99,
+          title: 'Add button component',
+          body: 'A new button component is needed.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'component' }],
@@ -1203,6 +1223,13 @@ describe('webhookRoute', () => {
         pause_context: null,
         rejectionCount: 0,
         signoffs: {},
+        messages: [
+          {
+            type: 'human',
+            content:
+              'Issue #99: Add button component\n\nA new button component is needed.',
+          },
+        ],
       });
     });
 
@@ -1236,6 +1263,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 100,
+          title: 'Fix form validation bug',
+          body: 'The login form is not validating correctly.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'component' }],
@@ -1264,6 +1293,13 @@ describe('webhookRoute', () => {
         pause_context: null,
         rejectionCount: 0,
         signoffs: {},
+        messages: [
+          {
+            type: 'human',
+            content:
+              'Issue #100: Fix form validation bug\n\nThe login form is not validating correctly.',
+          },
+        ],
       });
     });
   });
@@ -1279,6 +1315,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 99,
+          title: 'Chore: update dependencies',
+          body: 'Dependencies need updating.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'type: chore' }],
@@ -1306,6 +1344,13 @@ describe('webhookRoute', () => {
         pause_context: null,
         rejectionCount: 0,
         signoffs: {},
+        messages: [
+          {
+            type: 'human',
+            content:
+              'Issue #99: Chore: update dependencies\n\nDependencies need updating.',
+          },
+        ],
       });
     });
 
@@ -1319,6 +1364,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 100,
+          title: 'Fix form validation bug',
+          body: 'The login form is not validating correctly.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'Type: Chore' }],
@@ -1346,6 +1393,13 @@ describe('webhookRoute', () => {
         pause_context: null,
         rejectionCount: 0,
         signoffs: {},
+        messages: [
+          {
+            type: 'human',
+            content:
+              'Issue #100: Fix form validation bug\n\nThe login form is not validating correctly.',
+          },
+        ],
       });
     });
 
@@ -1358,6 +1412,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 101,
+          title: 'Update documentation',
+          body: null,
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'documentation' }],
@@ -1442,6 +1498,8 @@ describe('webhookRoute', () => {
         action: 'labeled',
         issue: {
           number: 102,
+          title: 'Custom feature request',
+          body: 'A custom feature is required.',
           user: { login: 'owner-user' },
           author_association: 'OWNER',
           labels: [{ name: 'custom' }],
@@ -1468,6 +1526,13 @@ describe('webhookRoute', () => {
         pause_context: null,
         rejectionCount: 0,
         signoffs: {},
+        messages: [
+          {
+            type: 'human',
+            content:
+              'Issue #102: Custom feature request\n\nA custom feature is required.',
+          },
+        ],
       });
 
       await fastifyCustom.close();
