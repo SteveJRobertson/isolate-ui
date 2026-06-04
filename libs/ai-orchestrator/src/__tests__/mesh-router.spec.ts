@@ -119,6 +119,68 @@ describe('analyzeMeshQuery', () => {
       expect(result).toEqual({ target: null });
     });
   });
+
+  describe('generic query inference (without explicit persona tags)', () => {
+    it('infers po for status/requirements queries', async () => {
+      const client = fakeClient('{"target": "po"}');
+      const messages = [
+        makeMessage('@isolate- What is the status of this issue?'),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'po' });
+    });
+
+    it('infers po for design token queries', async () => {
+      const client = fakeClient('{"target": "po"}');
+      const messages = [
+        makeMessage('@isolate- What design tokens are available for colors?'),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'po' });
+    });
+
+    it('infers architect for monorepo structure queries', async () => {
+      const client = fakeClient('{"target": "architect"}');
+      const messages = [
+        makeMessage(
+          '@isolate- How are the presets structured in the monorepo?',
+        ),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'architect' });
+    });
+
+    it('infers architect for dependency queries', async () => {
+      const client = fakeClient('{"target": "architect"}');
+      const messages = [
+        makeMessage('@isolate- What dependencies do we use for testing?'),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'architect' });
+    });
+
+    it('infers a11y for accessibility compliance queries', async () => {
+      const client = fakeClient('{"target": "a11y"}');
+      const messages = [
+        makeMessage(
+          '@isolate- How do we ensure ARIA compliance in components?',
+        ),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'a11y' });
+    });
+
+    it('infers a11y for keyboard navigation queries', async () => {
+      const client = fakeClient('{"target": "a11y"}');
+      const messages = [
+        makeMessage(
+          '@isolate- What keyboard navigation patterns are supported?',
+        ),
+      ];
+      const result = await analyzeMeshQuery(messages, client);
+      expect(result).toEqual({ target: 'a11y' });
+    });
+  });
 });
 
 // ── createMeshRouterNode ──────────────────────────────────────────────────────
