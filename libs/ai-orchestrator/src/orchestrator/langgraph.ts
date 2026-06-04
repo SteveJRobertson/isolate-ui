@@ -283,8 +283,13 @@ export class OrchestratorGraph {
       [END]: END,
     } satisfies Record<string, GraphNodeName | typeof END>;
 
-    // START → persona nodes | __pause__ | END (direct dispatch — bypasses mesh_router on initial entry)
-    stateGraph.addConditionalEdges(START, routeByRecipient, routeMap);
+    // START → mesh_router (deterministic) — every graph entry is classified first.
+    // Issue #140: the previous conditional edge (START → routeByRecipient) caused
+    // /query commands to bypass the mesh router entirely, answering via whichever
+    // persona happened to be active rather than the most-qualified one.
+    // The mesh router's heuristic gate (skips LLM when no '?' or '@isolate-') keeps
+    // the performance cost negligible for routine linear workflows.
+    stateGraph.addEdge(START, 'mesh_router');
 
     // Persona nodes → mesh_router (deterministic)
     // Every persona output is inspected by the mesh router before the next

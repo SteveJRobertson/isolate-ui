@@ -81,11 +81,13 @@ export async function handleQuery(
     // The LLM classifier determines the target persona from the question content.
     // Explicitly set next_recipient so the graph re-enters at a real persona
     // rather than routing immediately to __end__ when the thread is paused.
-    // Do NOT clear pause_context here: /approve and /fix guard on it being
-    // non-null to detect an active human-review pause. Clearing it would make
-    // those commands fail even though the thread is still effectively paused.
+    // Issue #140: set pause_context: null to clear mesh_stalemate (and any other
+    // pause) so the graph routes through mesh_router instead of __pause__ node.
+    // With the new START → mesh_router topology, mesh_router always runs first,
+    // so every /query is classified before any persona executes.
     await graph.invoke(threadId, {
       next_recipient: nextRecipient as any,
+      pause_context: null,
       messages: [{ type: 'human', content: `@isolate- ${trimmed}` }],
     });
 
