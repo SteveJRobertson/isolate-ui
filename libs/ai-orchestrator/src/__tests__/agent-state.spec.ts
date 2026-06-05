@@ -39,4 +39,35 @@ describe('AgentState Schema', () => {
     });
     expect(result.success).toBe(false);
   });
+
+  // ── shared_decisions: Goal-Driven Orchestration shared memory ─────────────
+
+  it('shared_decisions defaults to empty array', () => {
+    const state = AgentStateSchema.parse({});
+    expect(state.shared_decisions).toEqual([]);
+  });
+
+  it('shared_decisions accepts an array of strings', () => {
+    const state = AgentStateSchema.parse({
+      shared_decisions: [
+        'Use Button primitive',
+        'Apply color.primary.700 for contrast',
+      ],
+    });
+    expect(state.shared_decisions).toEqual([
+      'Use Button primitive',
+      'Apply color.primary.700 for contrast',
+    ]);
+  });
+
+  it('DEFAULT_AGENT_STATE includes shared_decisions as empty array', () => {
+    expect(DEFAULT_AGENT_STATE.shared_decisions).toEqual([]);
+  });
+
+  it('rejects shared_decisions with non-string items', () => {
+    const result = AgentStateSchema.safeParse({
+      shared_decisions: [42, true],
+    });
+    expect(result.success).toBe(false);
+  });
 });

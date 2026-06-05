@@ -38,10 +38,13 @@ export type RefinementDecision = 'APPROVED' | 'REJECTED' | 'PENDING';
  * inner node function set directly.
  *
  * Matching rules:
- * - Only the final non-empty line of the message content is examined,
- *   trimmed of leading/trailing whitespace before matching.
- * - REJECTED is tested before APPROVED.
- * - Both tokens must appear at the START of the last line (^TOKEN\b) so that
+ * - All non-empty lines of the message content are scanned, not just the last.
+ *   This tolerates agents that add polite closing text after their decision token.
+ * - Leading markdown emphasis markers (**, *, __, _) are stripped from each line
+ *   before matching so that **APPROVED** and *REJECTED: reason* are recognised.
+ * - REJECTED is checked before APPROVED across all lines; if any line contains
+ *   REJECTED the function returns 'REJECTED' regardless of other lines.
+ * - Both tokens must appear at the START of the (stripped) line (^TOKEN\b) so that
  *   a phrase like "this is not approved" is never misclassified. Reason text
  *   or punctuation may follow (e.g. "APPROVED ✓" or "REJECTED: missing token"
  *   both match; "not approved" does not).
@@ -51,15 +54,22 @@ export function parseDecision(state: Partial<AgentState>): RefinementDecision {
   const lastMessage = messages[messages.length - 1];
   if (!lastMessage?.content) return 'PENDING';
 
-  const lastLine = (
-    lastMessage.content
-      .split('\n')
-      .filter((l) => l.trim())
-      .slice(-1)[0] ?? ''
-  ).trim();
+  const nonEmptyLines = lastMessage.content
+    .split('\n')
+    .map((l) => l.trim())
+    .filter(Boolean)
+    // Strip leading markdown emphasis markers (**, *, __, _) so that
+    // **APPROVED** and *REJECTED: reason* are matched correctly.
+    .map((l) =>
+      l.replace(/^(\*\*|__|[*_])+/, '').replace(/(\*\*|__|[*_])+$/, ''),
+    );
 
-  if (/^REJECTED\b/i.test(lastLine)) return 'REJECTED';
-  if (/^APPROVED\b/i.test(lastLine)) return 'APPROVED';
+  let foundApproved = false;
+  for (const line of nonEmptyLines) {
+    if (/^REJECTED\b/i.test(line)) return 'REJECTED';
+    if (/^APPROVED\b/i.test(line)) foundApproved = true;
+  }
+  if (foundApproved) return 'APPROVED';
   return 'PENDING';
 }
 

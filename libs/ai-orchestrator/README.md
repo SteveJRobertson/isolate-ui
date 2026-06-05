@@ -6,7 +6,7 @@ Multi-agent orchestrator for the Isolate UI development lifecycle. Coordinates 6
 
 The AI Orchestrator acts as the "Brain" of Isolate UI development, managing a stateful workflow that routes requests through specialized agents:
 
-- **@isolate-po** - Product Owner (design tokens, Ark UI primitives)
+- **@isolate-po** - Triage Lead (classifies tasks; specs components, fast-approves chores/bugs)
 - **@isolate-architect** - Architect (Nx boundaries, monorepo governance)
 - **@isolate-dev** - Developer (TypeScript/Panda CSS implementation)
 - **@isolate-a11y** - A11y Specialist (WAI-ARIA, keyboard navigation)
@@ -43,6 +43,9 @@ The AI Orchestrator acts as the "Brain" of Isolate UI development, managing a st
   rejectionReason: string; // Last rejection message content
   lastApprovedBy: string | null; // Persona ID of last approver
   signoffs: Record<string, boolean>; // Per-persona approval booleans
+
+  // Goal-Driven Orchestration: shared memory
+  shared_decisions: string[]; // High-level decisions appended by po/architect
 }
 ```
 
@@ -98,11 +101,12 @@ pnpm nx lint ai-orchestrator
 
 The orchestrator uses in-code persona definitions and validates them against the persona markers in `AGENTS.md` at the project root:
 
-### 1. Product Owner (@isolate-po)
+### 1. Triage Lead (@isolate-po)
 
-- Selects Ark UI primitives
-- Maps design tokens (Panda CSS)
-- Ensures design consistency
+- Classifies incoming task (component vs chore/bug/refactor)
+- For components: selects Ark UI primitives, maps design tokens (Panda CSS)
+- For non-component tasks: fast-approves and provides handover context
+- Appends key decisions to `shared_decisions`
 
 ### 2. Architect (@isolate-architect)
 
@@ -136,17 +140,25 @@ The orchestrator uses in-code persona definitions and validates them against the
 
 ## Refinement Loop
 
-The orchestrator implements a **Definition of Ready** refinement loop that routes a component
-request through a 3-agent (PO → Dev → QA) consensus sequence before implementation begins.
+The orchestrator implements a **Goal-Driven Orchestration** model. The `@isolate-po` persona
+acts as **Triage Lead**, routing component requests through a 3-agent (PO → Dev → QA)
+consensus sequence, and fast-approving technical chores/bugs with handover context.
 
 ### How It Works
 
-1. Each persona ends its LLM response with `APPROVED` or `REJECTED: <reason>`.
-2. On **APPROVED** the loop advances to the next persona and records the signoff.
-3. On **REJECTED** the loop resets to the first persona (`po`), increments `rejectionCount`,
+1. `@isolate-po` classifies the task. Component tasks proceed through the full refinement
+   sequence; non-component tasks (chores, bugs, refactors) are approved with context.
+2. Each persona ends its LLM response with `APPROVED` or `REJECTED: <reason>`.
+   - The decision token is detected **anywhere in the message** (not only the last line).
+   - Markdown bold/italic wrappers are stripped before matching (`**APPROVED**` works).
+   - `REJECTED` takes precedence over `APPROVED` if both appear.
+3. On **APPROVED** the loop advances to the next persona and records the signoff.
+4. On **REJECTED** the loop resets to the first persona (`po`), increments `rejectionCount`,
    clears all signoffs, and stores the rejection reason.
-4. At **iteration 5** the loop throws `RefinementIterationLimitError` and pauses for human
+5. At **iteration 5** the loop throws `RefinementIterationLimitError` and pauses for human
    review.
+6. Agents append concise decision strings to the **`shared_decisions`** state field,
+   providing downstream personas with shared context without re-reading message history.
 
 ### Key API
 
