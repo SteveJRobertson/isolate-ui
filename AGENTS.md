@@ -712,11 +712,16 @@ _Last updated: May 5, 2026_
 The following personas are managed by `@isolate-ui/ai-orchestrator` via LangGraph.js.
 Each persona is a specialized agent in the Isolate UI development lifecycle.
 
-### @isolate-po (Product Owner)
+### @isolate-po (Triage Lead)
 
-Responsible for selecting Ark UI primitives and mapping design tokens from the Panda CSS
-design system. Reviews component requests and produces a design specification before
-handing off to the architect.
+First agent to process any incoming GitHub issue. Classifies the task type and takes the
+appropriate action:
+
+- **Component request** — selects Ark UI primitives, maps design tokens from the Panda CSS
+  design system, and produces a design specification before handing off to the architect.
+- **Technical chore, bug fix, or non-UI task** — approves the task immediately and provides
+  concise handover context (affected Nx project, task type, recommended starting persona)
+  without requiring UI primitives or token mappings.
 
 ### @isolate-architect (Architect)
 
@@ -747,17 +752,23 @@ all error paths are tested, and component behaviour is verified under edge cases
 Generates Storybook Component Story Format (CSF) stories and README artifacts. Documents
 all prop interfaces, variants, and accessibility features for developer consumption.
 
-### Refinement Loop
+### Refinement Loop — Goal-Driven Orchestration
 
-The PO, Dev, and QA personas participate in a **Definition of Ready** consensus loop
-before component implementation begins.
+The orchestrator uses a **Goal-Driven Orchestration** model. The PO, Dev, and QA personas
+participate in a **Definition of Ready** consensus loop.
 
-- Each persona ends its response with `APPROVED` or `REJECTED: <reason>`.
+- `@isolate-po` acts as **Triage Lead**: routes component tasks through the full spec loop
+  and fast-approves technical chores/bugs with handover context.
+- Each persona ends its response with `APPROVED` or `REJECTED: <reason>`. Decision tokens
+  are detected anywhere in the message (not just the last line) and markdown bold/italic
+  wrappers (`**APPROVED**`) are recognised.
 - A rejection resets the loop to `@isolate-po` and increments the rejection counter.
 - After **5 consecutive rejections** the loop throws `RefinementIterationLimitError` and
   pauses for human review.
 - On success (or interruption) the orchestrator posts a structured GitHub comment to the
   triggering issue, containing a Technical Spec Table, Edge Case List, and Persona Sign-offs.
+- Agents append high-level decisions to the **`shared_decisions`** field in `AgentState`,
+  giving downstream agents a concise shared memory without re-reading full message history.
 
 See [libs/ai-orchestrator/README.md](libs/ai-orchestrator/README.md) for the full API reference.
 

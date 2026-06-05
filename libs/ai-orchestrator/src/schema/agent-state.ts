@@ -138,6 +138,19 @@ export const AgentStateSchema = z.object({
    * falls back to ['root', 'label']. Used to drive recipe and boilerplate generation.
    */
   parts: z.array(z.string()).default(() => []),
+
+  /**
+   * Shared memory for high-level technical decisions made by agents during a workflow.
+   * The PO and Architect personas append concise decision strings here so that
+   * downstream agents have a shared context without re-reading the full message history.
+   *
+   * Examples:
+   * - "Use Button primitive from @ark-ui/react"
+   * - "Scope changes to libs/ai-orchestrator only — no webhook-listener changes needed"
+   *
+   * Channel reducer: appended to (not replaced) on each agent update.
+   */
+  shared_decisions: z.array(z.string()).default(() => []),
 });
 
 export type AgentState = z.infer<typeof AgentStateSchema>;
@@ -175,6 +188,7 @@ export const DEFAULT_AGENT_STATE: AgentState = {
   mesh_origin: null,
   pause_context: null,
   parts: [],
+  shared_decisions: [],
 };
 
 /**
@@ -199,5 +213,6 @@ export function createDefaultAgentState(): AgentState {
     mesh_origin: null,
     pause_context: null,
     parts: [],
+    shared_decisions: [],
   };
 }

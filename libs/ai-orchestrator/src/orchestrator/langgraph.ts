@@ -208,6 +208,10 @@ export class OrchestratorGraph {
         reducer: (x, y) => (y !== undefined ? y : x),
         default: () => [],
       }),
+      shared_decisions: Annotation<AgentState['shared_decisions']>({
+        reducer: (x, y) => [...(x ?? []), ...(y ?? [])],
+        default: () => [],
+      }),
     });
 
     const rawGraph = new StateGraph(GraphAnnotation);

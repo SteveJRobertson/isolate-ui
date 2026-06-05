@@ -110,13 +110,50 @@ describe('parseDecision', () => {
     expect(parseDecision(state)).toBe('REJECTED');
   });
 
-  it('returns PENDING when APPROVED appears only on an earlier line', () => {
+  it('returns APPROVED when APPROVED appears on an earlier line followed by conversational closing text', () => {
+    // Agents often add polite closings after their decision token; the decision
+    // should still be detected even if APPROVED is not the last non-empty line.
     const state = makeState({
       messages: [
-        makeMessage('APPROVED\n\nActually, on reflection I need more info.'),
+        makeMessage('APPROVED\n\nLet me know if you need anything else.'),
       ],
     });
-    expect(parseDecision(state)).toBe('PENDING');
+    expect(parseDecision(state)).toBe('APPROVED');
+  });
+
+  // ── Markdown formatting ────────────────────────────────────────────────────
+
+  it('returns APPROVED for **APPROVED** (markdown bold)', () => {
+    const state = makeState({ messages: [makeMessage('**APPROVED**')] });
+    expect(parseDecision(state)).toBe('APPROVED');
+  });
+
+  it('returns APPROVED for *APPROVED* (markdown italic)', () => {
+    const state = makeState({ messages: [makeMessage('*APPROVED*')] });
+    expect(parseDecision(state)).toBe('APPROVED');
+  });
+
+  it('returns REJECTED for **REJECTED: missing token** (markdown bold)', () => {
+    const state = makeState({
+      messages: [makeMessage('**REJECTED: missing token color.danger.500**')],
+    });
+    expect(parseDecision(state)).toBe('REJECTED');
+  });
+
+  it('returns REJECTED when REJECTED is on an earlier line followed by explanation', () => {
+    const state = makeState({
+      messages: [
+        makeMessage('REJECTED: missing token\n\nPlease add the token first.'),
+      ],
+    });
+    expect(parseDecision(state)).toBe('REJECTED');
+  });
+
+  it('REJECTED takes precedence over APPROVED when both appear across lines', () => {
+    const state = makeState({
+      messages: [makeMessage('APPROVED\n\nREJECTED: token is wrong')],
+    });
+    expect(parseDecision(state)).toBe('REJECTED');
   });
 });
 

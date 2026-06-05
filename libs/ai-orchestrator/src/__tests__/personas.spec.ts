@@ -57,9 +57,52 @@ describe('Agent Personas', () => {
   });
 
   it('each persona system prompt mentions its core responsibility', () => {
-    expect(AGENT_PERSONAS['po'].systemPrompt).toContain('Product Owner');
+    expect(AGENT_PERSONAS['po'].systemPrompt).toContain('Triage Lead');
     expect(AGENT_PERSONAS['architect'].systemPrompt).toContain('Architect');
     expect(AGENT_PERSONAS['a11y'].systemPrompt).toContain('WCAG');
     expect(AGENT_PERSONAS['qa'].systemPrompt).toContain('QA Engineer');
+  });
+
+  // ── Goal-Driven Orchestration: PO as Triage Lead ──────────────────────────
+
+  describe('po persona — Goal-Driven Triage Lead', () => {
+    it('has title Triage Lead', () => {
+      expect(AGENT_PERSONAS['po'].title).toBe('Triage Lead');
+    });
+
+    it('system prompt mentions triage lead role', () => {
+      expect(AGENT_PERSONAS['po'].systemPrompt).toContain('Triage Lead');
+    });
+
+    it('system prompt handles non-component tasks (chores/bugs)', () => {
+      const prompt = AGENT_PERSONAS['po'].systemPrompt.toLowerCase();
+      expect(
+        prompt.includes('chore') ||
+          prompt.includes('bug') ||
+          prompt.includes('technical task'),
+      ).toBe(true);
+    });
+
+    it('system prompt instructs APPROVE for non-component tasks', () => {
+      const prompt = AGENT_PERSONAS['po'].systemPrompt;
+      // Should instruct to APPROVE (not reject) for non-component tasks
+      expect(prompt).toContain('APPROVED');
+      // Should NOT reject non-component tasks for missing primitives
+      const lowerPrompt = prompt.toLowerCase();
+      expect(
+        lowerPrompt.includes('chore') ||
+          lowerPrompt.includes('bug') ||
+          lowerPrompt.includes('non-component'),
+      ).toBe(true);
+    });
+
+    it('system prompt still references design tokens for component tasks', () => {
+      expect(AGENT_PERSONAS['po'].systemPrompt).toContain('@isolate-ui/tokens');
+    });
+
+    it('system prompt still references Ark UI for component tasks', () => {
+      const prompt = AGENT_PERSONAS['po'].systemPrompt.toLowerCase();
+      expect(prompt.includes('ark ui') || prompt.includes('ark-ui')).toBe(true);
+    });
   });
 });
