@@ -70,7 +70,7 @@
     "nx": "22.5.4",
     "prettier": "~3.6.2",
     "storybook": "^8.6.18",
-    "style-dictionary": "^4.4.0",
+    "style-dictionary": "^5.4.4",
     "tslib": "^2.3.0",
     "typescript": "~5.9.2",
     "typescript-eslint": "^8.40.0",
