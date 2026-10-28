@@ -57,3 +57,7 @@ vitest.config.*.timestamp*
 
 # Panda CSS generated files
 styled-system/
+
+# Claude Code local runtime state (not project config — keep .claude/skills/ tracked)
+.claude/scheduled_tasks.lock
+.claude/settings.local.json
