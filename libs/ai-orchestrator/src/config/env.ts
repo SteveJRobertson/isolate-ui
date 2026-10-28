@@ -31,7 +31,7 @@ export function validateOrchestratorEnv(): OrchestratorEnv {
     return OrchestratorEnvSchema.parse(process.env);
   } catch (error) {
     if (error instanceof z.ZodError) {
-      const errorDetails = error.errors
+      const errorDetails = error.issues
         .map((e) => {
           const field = e.path.join('.');
           const message = e.message || e.code;
