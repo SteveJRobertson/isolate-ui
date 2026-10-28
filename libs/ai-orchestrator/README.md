@@ -276,7 +276,6 @@ Tests verify:
 - [x] Multi-node orchestration workflow execution
 - [x] All 6 personas detected correctly in AGENTS.md
 - [x] State persists to SQLite and resumes via thread_id
-- [x] GitHub Copilot can summarize persona constraints
 - [x] `parseDecision` extracts APPROVED / REJECTED / PENDING from LLM responses
 - [x] `createRefinementNode` advances, backtracks, and enforces the iteration limit
 - [x] `RefinementIterationLimitError` carries `rejectionCount` and `threadId`

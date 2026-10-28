@@ -23,6 +23,7 @@ async function getConfig(): Promise<UserConfig> {
           ...(await getProjects(ctx)),
           'release', // Allow release commits (e.g. chore(release): ...)
           'deps', // Allow dependency update commits (e.g. chore(deps): ...)
+          'deps-dev', // Allow Dependabot devDependency bump commits (e.g. chore(deps-dev): ...)
           'commitlint', // Allow commits scoped to commitlint configuration changes
         ],
       ],

@@ -49,6 +49,10 @@ jobs:
   check-pr-template:
     name: Check PR Template
     runs-on: ubuntu-latest
+    # Dependabot PRs are machine-generated and can never fill in the human
+    # PR template's sections (Summary/Changes/Copilot Review Triage/Deferred
+    # follow-ups) — exempt them rather than hard-failing every dependency bump.
+    if: github.actor != 'dependabot[bot]'
     steps:
       - name: Setup Node.js
         uses: actions/setup-node@v4

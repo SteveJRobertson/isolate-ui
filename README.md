@@ -230,7 +230,7 @@ This creates a YAML file in `.nx/version-plans/`. Commit it with your PR. When m
 
 ### Prerequisites
 
-- Node.js 21.7.3 or compatible
+- Node.js 20.x or 22.x (22.x preferred)
 - pnpm 10.30.3+
 
 ### Setup

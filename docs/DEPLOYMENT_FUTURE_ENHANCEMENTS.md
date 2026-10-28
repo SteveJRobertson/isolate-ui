@@ -29,57 +29,16 @@ This document tracks optional improvements identified during Mac Mini deployment
 
 ---
 
-## Priority: HIGH ⚠️
-
 ### Health Check Endpoint (`/health`)
 
-**Status:** Not yet implemented  
-**Location:** `apps/webhook-listener/src/routes/`  
-**Scope:** Add a simple HTTP health probe endpoint
+**Status:** ✅ **IMPLEMENTED** (#107)  
+**Location:** [`apps/webhook-listener/src/routes/health.ts`](../apps/webhook-listener/src/routes/health.ts)  
+**Enabled in:** `ecosystem.config.js` via the PM2 `http_proxy` liveness probe.
 
-**Why:** Critical for remote (Mac Mini) deployments with PM2 clustering. Enables:
+**What's included:**
 
-- Automatic detection of zombie processes (listening but unresponsive)
-- PM2 HTTP liveness probes every 30 seconds
-- Automatic restart without manual SSH intervention
-- Observability of instance health in PM2 monitoring
-
-**Urgency:** Implement **before full production use**, but can test initial workflow without it.
-
-**Implementation:**
-
-Create `apps/webhook-listener/src/routes/health.ts`:
-
-```typescript
-import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
-
-export async function registerHealthRoute(fastify: FastifyInstance) {
-  fastify.get('/health', async (request: FastifyRequest, reply: FastifyReply) => {
-    return reply.code(200).send({ status: 'ok', timestamp: new Date().toISOString() });
-  });
-}
-```
-
-Register in `apps/webhook-listener/src/main.ts`:
-
-```typescript
-import { registerHealthRoute } from './routes/health';
-
-// ... after fastify setup ...
-await registerHealthRoute(fastify);
-```
-
-Enable in `ecosystem.config.js`:
-
-```javascript
-{
-  http_proxy: 'http://localhost:8080/health',  // PM2 checks every 30s
-}
-```
-
-**Effort:** ~15 minutes  
-**Testing:** `curl http://localhost:8080/health` should return `{"status":"ok","timestamp":"..."}`  
-**Blocked By:** Nothing — can be implemented anytime
+- `GET /health` returns `{ status: 'ok', timestamp: '...' }`
+- PM2 HTTP liveness probe every 30 seconds, enabling automatic restart of zombie (listening-but-unresponsive) instances without manual SSH intervention
 
 ---
 
