@@ -69,7 +69,7 @@
     "jsonc-eslint-parser": "^2.1.0",
     "nx": "22.7.10",
     "prettier": "~3.6.2",
-    "storybook": "^8.6.18",
+    "storybook": "^8.6.19",
     "style-dictionary": "^5.4.4",
     "tslib": "^2.3.0",
     "typescript": "~5.9.2",
