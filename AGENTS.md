@@ -37,7 +37,7 @@ pnpm nx <command>
 
 ### Configuration
 
-The project uses **Vitest v3.2.4** (downgraded from v4 for Nx compatibility) with a workspace pattern:
+The project uses **Vitest v3.2.7** (downgraded from v4 for Nx compatibility) with a workspace pattern:
 
 **Key Files:**
 
@@ -695,7 +695,7 @@ pnpm nx affected -t lint test typecheck --base=origin/main
 
 - **Nx**: 22.5.4
 - **pnpm**: 10.30.3
-- **Vitest**: 3.2.4
+- **Vitest**: 3.2.7
 - **Playwright**: 1.58.2
 - **@axe-core/playwright**: 4.11.1
 - **@octokit/rest**: 22.0.1

@@ -158,7 +158,7 @@ libs/
 | **UI Framework**        | React 19                                                                              |
 | **Language**            | TypeScript 5.9                                                                        |
 | **Build Tool**          | [Vite](https://vitejs.dev) 7.x                                                        |
-| **Testing**             | [Vitest](https://vitest.dev) 3.2.4                                                    |
+| **Testing**             | [Vitest](https://vitest.dev) 3.2.7                                                    |
 | **Browser Testing**     | [Playwright](https://playwright.dev) 1.58.2                                           |
 | **Accessibility**       | [@axe-core/playwright](https://github.com/dequelabs/axe-core-npm) 4.11.1              |
 | **Documentation**       | [Storybook](https://storybook.js.org) 8.6.18                                          |
